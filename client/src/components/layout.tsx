@@ -1,0 +1,93 @@
+import { Link, useLocation } from "wouter";
+import { ShoppingBag, Home, Pizza, Menu as MenuIcon } from "lucide-react";
+import { useCart } from "@/lib/cart";
+import { cn } from "@/lib/utils";
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  const [location] = useLocation();
+  const { count } = useCart();
+
+  const navItems = [
+    { href: "/", icon: Home, label: "Accueil" },
+    { href: "/menu", icon: Pizza, label: "Menu" },
+    { href: "/cart", icon: ShoppingBag, label: "Panier", badge: count },
+  ];
+
+  return (
+    <div className="min-h-screen bg-background pb-20 md:pb-0 font-sans text-foreground selection:bg-primary selection:text-primary-foreground">
+      {/* Desktop/Tablet Header */}
+      <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-16 items-center justify-between px-4 md:px-8">
+          <Link href="/">
+            <a className="flex items-center gap-2 group">
+              <div className="bg-primary text-primary-foreground p-1 rounded-md group-hover:rotate-12 transition-transform">
+                <Pizza className="h-6 w-6" />
+              </div>
+              <span className="font-serif text-xl font-bold tracking-tight">
+                Tataouine<span className="text-primary">Pizza</span>
+              </span>
+            </a>
+          </Link>
+
+          <nav className="hidden md:flex items-center gap-6">
+            {navItems.map((item) => (
+              <Link key={item.href} href={item.href}>
+                <a
+                  className={cn(
+                    "text-sm font-medium transition-colors hover:text-primary flex items-center gap-2",
+                    location === item.href
+                      ? "text-primary"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  {item.label}
+                  {item.badge ? (
+                    <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center">
+                      {item.badge}
+                    </span>
+                  ) : null}
+                </a>
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="container px-4 py-6 md:px-8 md:py-10 max-w-5xl mx-auto">
+        {children}
+      </main>
+
+      {/* Mobile Bottom Nav */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur px-6 py-3 md:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <nav className="flex justify-around items-center">
+          {navItems.map((item) => {
+            const isActive = location === item.href;
+            return (
+              <Link key={item.href} href={item.href}>
+                <a
+                  className={cn(
+                    "flex flex-col items-center gap-1 transition-all duration-300",
+                    isActive ? "text-primary scale-110" : "text-muted-foreground"
+                  )}
+                >
+                  <div className="relative">
+                    <item.icon
+                      className={cn("h-6 w-6", isActive && "fill-current/20")}
+                    />
+                    {item.badge && item.badge > 0 ? (
+                      <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[10px] font-bold h-4 w-4 flex items-center justify-center rounded-full animate-in zoom-in">
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </div>
+                  <span className="text-[10px] font-medium">{item.label}</span>
+                </a>
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+    </div>
+  );
+}

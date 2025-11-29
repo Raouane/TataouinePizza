@@ -1,0 +1,50 @@
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pizza, useCart } from "@/lib/cart";
+import { cn } from "@/lib/utils";
+
+interface PizzaCardProps {
+  pizza: Pizza;
+}
+
+export function PizzaCard({ pizza }: PizzaCardProps) {
+  const { addItem } = useCart();
+
+  return (
+    <Card className="overflow-hidden group border-none shadow-sm hover:shadow-md transition-all duration-300 bg-card/50">
+      <div className="aspect-square overflow-hidden relative">
+        <img
+          src={pizza.image}
+          alt={pizza.name}
+          className="object-cover w-full h-full transform group-hover:scale-105 transition-transform duration-500"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
+        <div className="absolute bottom-3 right-3">
+          <span className="bg-white/90 backdrop-blur text-foreground font-bold px-3 py-1 rounded-full text-sm shadow-sm">
+            {pizza.price.toFixed(2)} TND
+          </span>
+        </div>
+      </div>
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="font-serif text-lg text-foreground group-hover:text-primary transition-colors">
+          {pizza.name}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 pt-0">
+        <CardDescription className="text-muted-foreground text-sm line-clamp-2 min-h-[2.5rem]">
+          {pizza.description}
+        </CardDescription>
+      </CardContent>
+      <CardFooter className="p-4 pt-0">
+        <Button 
+          onClick={() => addItem(pizza)}
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm group-active:scale-95 transition-all"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Ajouter
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
