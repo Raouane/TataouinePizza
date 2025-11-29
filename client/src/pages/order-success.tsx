@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useLanguage } from "@/lib/i18n";
+import { OrderTracker } from "@/components/order-tracker";
 
 export default function OrderSuccess() {
   const { t } = useLanguage();
@@ -31,7 +32,7 @@ export default function OrderSuccess() {
   }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4 animate-in zoom-in duration-500">
+    <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4 animate-in zoom-in duration-500 pb-12">
       <div className="h-24 w-24 bg-green-500 rounded-full flex items-center justify-center text-white mb-8 shadow-xl shadow-green-500/30">
         <Check className="h-12 w-12" strokeWidth={3} />
       </div>
@@ -42,7 +43,11 @@ export default function OrderSuccess() {
         {t('success.contact')}
       </p>
 
-      <div className="bg-card border p-6 rounded-2xl w-full max-w-sm mb-8 shadow-sm text-left">
+      <div className="w-full max-w-md mb-8">
+        <OrderTracker />
+      </div>
+
+      <div className="bg-card border p-6 rounded-2xl w-full max-w-sm mb-8 shadow-sm text-left hidden">
         <div className="flex justify-between mb-2">
           <span className="text-muted-foreground">{t('success.time')}</span>
           <span className="font-bold">35-45 min</span>
