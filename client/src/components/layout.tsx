@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { GlobalTrackerWidget } from "@/components/global-tracker";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -82,6 +83,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <main className="container px-4 py-6 md:px-8 md:py-10 max-w-5xl mx-auto">
         {children}
       </main>
+
+      {/* Global Order Tracker Widget */}
+      <GlobalTrackerWidget />
 
       {/* Mobile Bottom Nav */}
       <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur px-6 py-3 md:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">

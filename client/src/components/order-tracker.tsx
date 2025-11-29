@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Check, ChefHat, Flame, Package, Bike, MapPin } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
+import { useOrder } from '@/lib/order-context';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 
@@ -17,51 +18,15 @@ const steps: { id: OrderStatus; icon: any; labelKey: string }[] = [
 
 export function OrderTracker() {
   const { t, language } = useLanguage();
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [eta, setEta] = useState(45);
+  const { stepIndex, eta } = useOrder();
   const isRtl = language === 'ar';
 
-  useEffect(() => {
-    // Simulate progress
-    const intervals = [
-      2000, // received -> prep
-      5000, // prep -> bake
-      8000, // bake -> ready
-      5000, // ready -> delivery
-      10000 // delivery -> delivered
-    ];
-
-    let step = 0;
-    
-    const advanceStep = () => {
-      if (step < steps.length - 1) {
-        step++;
-        setCurrentStepIndex(step);
-        
-        // Update ETA based on step
-        if (step === 1) setEta(40);
-        if (step === 2) setEta(30);
-        if (step === 3) setEta(15);
-        if (step === 4) setEta(10);
-        if (step === 5) setEta(0);
-
-        if (step < intervals.length) {
-          setTimeout(advanceStep, intervals[step]);
-        }
-      }
-    };
-
-    setTimeout(advanceStep, intervals[0]);
-
-    return () => {};
-  }, []);
-
   return (
-    <div className="w-full max-w-md mx-auto bg-card border rounded-2xl p-6 shadow-sm">
+    <div className="w-full">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="font-serif font-bold text-lg">{t('tracker.title')}</h3>
+        <h3 className="font-serif font-bold text-lg hidden md:block">{t('tracker.title')}</h3>
         {eta > 0 && (
-            <span className="text-sm font-medium text-primary bg-primary/10 px-3 py-1 rounded-full animate-pulse">
+            <span className="text-sm font-medium text-primary bg-primary/10 px-3 py-1 rounded-full animate-pulse ml-auto">
                 {t('tracker.eta')} {eta} {t('tracker.min')}
             </span>
         )}
@@ -75,7 +40,7 @@ export function OrderTracker() {
         <motion.div 
           className={`absolute top-6 h-1 bg-primary rounded-full z-0`}
           initial={{ width: '0%' }}
-          animate={{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }}
+          animate={{ width: `${(stepIndex / (steps.length - 1)) * 100}%` }}
           transition={{ duration: 0.5 }}
           style={{ 
             left: isRtl ? 'auto' : '1rem', 
@@ -85,15 +50,9 @@ export function OrderTracker() {
         />
 
         <div className="relative z-10 flex flex-col gap-6">
-             {/* Using a vertical layout for better mobile readability, 
-                 but keeping the visual progress bar concept for visual flair if wanted.
-                 Actually, let's switch to a vertical timeline for better mobile UX as requested.
-             */}
-             
              {steps.map((step, index) => {
-               const isActive = index === currentStepIndex;
-               const isCompleted = index < currentStepIndex;
-               const isPending = index > currentStepIndex;
+               const isActive = index === stepIndex;
+               const isCompleted = index < stepIndex;
 
                return (
                  <div key={step.id} className="flex items-center gap-4 relative">

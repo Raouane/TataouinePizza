@@ -43,19 +43,11 @@ export default function OrderSuccess() {
         {t('success.contact')}
       </p>
 
+      {/* The Global Order Tracker is now visible on all pages, 
+          but we can keep a larger inline version here or just rely on the global one.
+          Let's keep the inline one here as a focus point, it uses the same context. */}
       <div className="w-full max-w-md mb-8">
         <OrderTracker />
-      </div>
-
-      <div className="bg-card border p-6 rounded-2xl w-full max-w-sm mb-8 shadow-sm text-left hidden">
-        <div className="flex justify-between mb-2">
-          <span className="text-muted-foreground">{t('success.time')}</span>
-          <span className="font-bold">35-45 min</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">{t('success.orderNum')}</span>
-          <span className="font-mono font-bold">#TA-8823</span>
-        </div>
       </div>
 
       <Link href="/">

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useCart } from "@/lib/cart";
+import { useOrder } from "@/lib/order-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +15,7 @@ type Step = "cart" | "phone" | "verify" | "address";
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, total, clearCart } = useCart();
+  const { startOrder } = useOrder();
   const [step, setStep] = useState<Step>("cart");
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
@@ -50,6 +52,7 @@ export default function CartPage() {
              return;
         }
         clearCart();
+        startOrder();
         setLocation("/success");
     }
   };
@@ -100,7 +103,7 @@ export default function CartPage() {
         </div>
       </div>
 
-      <div className="bg-card border rounded-2xl shadow-sm overflow-hidden relative min-h-[400px]">
+      <div className="bg-card border rounded-2xl shadow-sm overflow-hidden relative min-h-[400px] mb-32">
         <AnimatePresence mode="wait">
             
             {/* STEP 1: CART ITEMS */}
