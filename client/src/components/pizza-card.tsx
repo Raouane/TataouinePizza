@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Pizza, useCart } from "@/lib/cart";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/lib/i18n";
 
 interface PizzaCardProps {
   pizza: Pizza;
@@ -10,6 +11,8 @@ interface PizzaCardProps {
 
 export function PizzaCard({ pizza }: PizzaCardProps) {
   const { addItem } = useCart();
+  const { t, language } = useLanguage();
+  const isRtl = language === 'ar';
 
   return (
     <Card className="overflow-hidden group border-none shadow-sm hover:shadow-md transition-all duration-300 bg-card/50">
@@ -20,7 +23,7 @@ export function PizzaCard({ pizza }: PizzaCardProps) {
           className="object-cover w-full h-full transform group-hover:scale-105 transition-transform duration-500"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
-        <div className="absolute bottom-3 right-3">
+        <div className={`absolute bottom-3 ${isRtl ? 'left-3' : 'right-3'}`}>
           <span className="bg-white/90 backdrop-blur text-foreground font-bold px-3 py-1 rounded-full text-sm shadow-sm">
             {pizza.price.toFixed(2)} TND
           </span>
@@ -41,8 +44,8 @@ export function PizzaCard({ pizza }: PizzaCardProps) {
           onClick={() => addItem(pizza)}
           className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm group-active:scale-95 transition-all"
         >
-          <Plus className="w-4 h-4 mr-2" />
-          Ajouter
+          <Plus className={`w-4 h-4 ${isRtl ? 'ml-2' : 'mr-2'}`} />
+          {t('card.add')}
         </Button>
       </CardFooter>
     </Card>

@@ -3,8 +3,11 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import confetti from "canvas-confetti";
+import { useLanguage } from "@/lib/i18n";
 
 export default function OrderSuccess() {
+  const { t } = useLanguage();
+
   useEffect(() => {
     const duration = 3 * 1000;
     const animationEnd = Date.now() + duration;
@@ -33,26 +36,26 @@ export default function OrderSuccess() {
         <Check className="h-12 w-12" strokeWidth={3} />
       </div>
       
-      <h1 className="text-4xl font-serif font-bold mb-4 text-foreground">Commande Reçue !</h1>
+      <h1 className="text-4xl font-serif font-bold mb-4 text-foreground">{t('success.title')}</h1>
       <p className="text-lg text-muted-foreground max-w-md mb-8">
-        Merci ! Nos chefs préparent déjà votre pizza. <br />
-        Un livreur vous contactera bientôt au numéro indiqué.
+        {t('success.desc')} <br />
+        {t('success.contact')}
       </p>
 
       <div className="bg-card border p-6 rounded-2xl w-full max-w-sm mb-8 shadow-sm text-left">
         <div className="flex justify-between mb-2">
-          <span className="text-muted-foreground">Temps estimé</span>
+          <span className="text-muted-foreground">{t('success.time')}</span>
           <span className="font-bold">35-45 min</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Numéro de commande</span>
+          <span className="text-muted-foreground">{t('success.orderNum')}</span>
           <span className="font-mono font-bold">#TA-8823</span>
         </div>
       </div>
 
       <Link href="/">
         <Button size="lg" variant="outline" className="rounded-full px-8">
-          Retour à l'accueil
+          {t('success.back')}
         </Button>
       </Link>
     </div>

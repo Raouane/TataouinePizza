@@ -1,20 +1,24 @@
 import { Link, useLocation } from "wouter";
-import { ShoppingBag, Home, Pizza, Menu as MenuIcon } from "lucide-react";
+import { ShoppingBag, Home, Pizza, Menu as MenuIcon, Globe } from "lucide-react";
 import { useCart } from "@/lib/cart";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/lib/i18n";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { count } = useCart();
+  const { t, language, setLanguage, dir } = useLanguage();
 
   const navItems = [
-    { href: "/", icon: Home, label: "Accueil" },
-    { href: "/menu", icon: Pizza, label: "Menu" },
-    { href: "/cart", icon: ShoppingBag, label: "Panier", badge: count },
+    { href: "/", icon: Home, label: t('nav.home') },
+    { href: "/menu", icon: Pizza, label: t('nav.menu') },
+    { href: "/cart", icon: ShoppingBag, label: t('nav.cart'), badge: count },
   ];
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-0 font-sans text-foreground selection:bg-primary selection:text-primary-foreground">
+    <div className="min-h-screen bg-background pb-20 md:pb-0 font-sans text-foreground selection:bg-primary selection:text-primary-foreground" dir={dir}>
       {/* Desktop/Tablet Header */}
       <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between px-4 md:px-8">
@@ -29,27 +33,48 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </a>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-6">
-            {navItems.map((item) => (
-              <Link key={item.href} href={item.href}>
-                <a
-                  className={cn(
-                    "text-sm font-medium transition-colors hover:text-primary flex items-center gap-2",
-                    location === item.href
-                      ? "text-primary"
-                      : "text-muted-foreground"
-                  )}
-                >
-                  {item.label}
-                  {item.badge ? (
-                    <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center">
-                      {item.badge}
-                    </span>
-                  ) : null}
-                </a>
-              </Link>
-            ))}
-          </nav>
+          <div className="flex items-center gap-6">
+            <nav className="hidden md:flex items-center gap-6">
+              {navItems.map((item) => (
+                <Link key={item.href} href={item.href}>
+                  <a
+                    className={cn(
+                      "text-sm font-medium transition-colors hover:text-primary flex items-center gap-2",
+                      location === item.href
+                        ? "text-primary"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    {item.label}
+                    {item.badge ? (
+                      <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center">
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </a>
+                </Link>
+              ))}
+            </nav>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <Globe className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setLanguage('fr')}>
+                  Français {language === 'fr' && '✓'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setLanguage('en')}>
+                  English {language === 'en' && '✓'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setLanguage('ar')} className="font-sans">
+                  العربية {language === 'ar' && '✓'}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </header>
 

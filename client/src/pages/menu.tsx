@@ -61,9 +61,13 @@ const pizzas: Pizza[] = [
   }
 ];
 
+import { useLanguage } from "@/lib/i18n";
+
 export default function Menu() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
+  const { t, language } = useLanguage();
+  const isRtl = language === 'ar';
 
   const filteredPizzas = pizzas.filter(pizza => {
     const matchesSearch = pizza.name.toLowerCase().includes(search.toLowerCase()) || 
@@ -76,15 +80,15 @@ export default function Menu() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-serif font-bold text-foreground">Notre Menu</h1>
-          <p className="text-muted-foreground mt-1">Découvrez nos pizzas artisanales.</p>
+          <h1 className="text-3xl font-serif font-bold text-foreground">{t('menu.title')}</h1>
+          <p className="text-muted-foreground mt-1">{t('menu.subtitle')}</p>
         </div>
         
         <div className="relative w-full md:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+          <Search className={`absolute top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4 ${isRtl ? 'right-3' : 'left-3'}`} />
           <Input 
-            placeholder="Rechercher une pizza..." 
-            className="pl-9 bg-white/50 backdrop-blur border-primary/20 focus-visible:ring-primary"
+            placeholder={t('menu.search')}
+            className={`${isRtl ? 'pr-9' : 'pl-9'} bg-white/50 backdrop-blur border-primary/20 focus-visible:ring-primary`}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -97,25 +101,25 @@ export default function Menu() {
             value="all" 
             className="rounded-full border bg-card px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground shadow-sm min-w-[80px]"
           >
-            Tout
+            {t('cat.all')}
           </TabsTrigger>
           <TabsTrigger 
             value="classic" 
             className="rounded-full border bg-card px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground shadow-sm min-w-[80px]"
           >
-            Classiques
+            {t('cat.classic')}
           </TabsTrigger>
           <TabsTrigger 
             value="special" 
             className="rounded-full border bg-card px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground shadow-sm min-w-[80px]"
           >
-            Spéciales
+            {t('cat.special')}
           </TabsTrigger>
           <TabsTrigger 
             value="vegetarian" 
             className="rounded-full border bg-card px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground shadow-sm min-w-[80px]"
           >
-            Végétariennes
+            {t('cat.vegetarian')}
           </TabsTrigger>
         </TabsList>
 
@@ -130,12 +134,12 @@ export default function Menu() {
           
           {filteredPizzas.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
-              <p>Aucune pizza ne correspond à votre recherche.</p>
+              <p>{t('menu.empty')}</p>
               <button 
                 onClick={() => {setSearch(""); setCategory("all")}}
                 className="text-primary hover:underline mt-2 font-medium"
               >
-                Voir tout le menu
+                {t('bestsellers.viewAll')}
               </button>
             </div>
           )}

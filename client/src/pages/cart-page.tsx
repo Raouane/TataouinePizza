@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Trash2, Plus, Minus, ArrowRight, MapPin, Phone, CheckCircle2, ChevronLeft } from "lucide-react";
+import { Trash2, Plus, Minus, ArrowRight, MapPin, Phone, CheckCircle2, ChevronLeft, User } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLanguage } from "@/lib/i18n";
 
 type Step = "cart" | "phone" | "verify" | "address";
 
@@ -15,30 +16,37 @@ export default function CartPage() {
   const { items, removeItem, updateQuantity, total, clearCart } = useCart();
   const [step, setStep] = useState<Step>("cart");
   const [phone, setPhone] = useState("");
+  const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [address, setAddress] = useState("");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { t, language } = useLanguage();
+  const isRtl = language === 'ar';
 
   const handleNext = () => {
     if (step === "cart") setStep("phone");
     else if (step === "phone") {
         if(phone.length < 8) {
-            toast({ title: "Erreur", description: "Numéro invalide", variant: "destructive" });
+            toast({ title: t('cart.error.phone'), variant: "destructive" });
             return;
+        }
+        if(name.length < 2) {
+             toast({ title: t('cart.error.name'), variant: "destructive" });
+             return;
         }
         setStep("verify");
     }
     else if (step === "verify") {
         if(code !== "1234") { // Mock validation
-            toast({ title: "Erreur", description: "Code incorrect (utilisez 1234)", variant: "destructive" });
+            toast({ title: t('cart.error.code'), description: "(1234)", variant: "destructive" });
             return;
         }
         setStep("address");
     }
     else if (step === "address") {
         if(address.length < 5) {
-             toast({ title: "Erreur", description: "Veuillez entrer une adresse valide", variant: "destructive" });
+             toast({ title: t('cart.error.address'), variant: "destructive" });
              return;
         }
         clearCart();
@@ -58,12 +66,12 @@ export default function CartPage() {
         <div className="bg-primary/10 p-6 rounded-full mb-6">
           <div className="text-primary text-6xl">🛒</div>
         </div>
-        <h2 className="text-2xl font-serif font-bold mb-2">Votre panier est vide</h2>
+        <h2 className="text-2xl font-serif font-bold mb-2">{t('cart.empty')}</h2>
         <p className="text-muted-foreground mb-8 max-w-sm">
-          On dirait que vous n'avez pas encore fait votre choix. Nos pizzas vous attendent !
+          {t('cart.empty.desc')}
         </p>
         <Button onClick={() => setLocation("/menu")} size="lg" className="rounded-full">
-          Découvrir le Menu
+          {t('cart.discover')}
         </Button>
       </div>
     );
@@ -74,15 +82,15 @@ export default function CartPage() {
       {/* Progress Header */}
       <div className="flex items-center justify-between mb-8 px-2">
         {step !== "cart" && (
-            <Button variant="ghost" size="icon" onClick={handleBack} className="-ml-2">
-                <ChevronLeft className="h-5 w-5" />
+            <Button variant="ghost" size="icon" onClick={handleBack} className={isRtl ? "-mr-2" : "-ml-2"}>
+                <ChevronLeft className={`h-5 w-5 ${isRtl ? 'rotate-180' : ''}`} />
             </Button>
         )}
-        <h1 className="text-2xl font-serif font-bold flex-1 text-center md:text-left md:pl-4">
-          {step === "cart" && "Mon Panier"}
-          {step === "phone" && "Identification"}
-          {step === "verify" && "Vérification"}
-          {step === "address" && "Livraison"}
+        <h1 className={`text-2xl font-serif font-bold flex-1 text-center md:text-left ${isRtl ? 'md:pr-4' : 'md:pl-4'}`}>
+          {step === "cart" && t('cart.step.1')}
+          {step === "phone" && t('cart.step.2')}
+          {step === "verify" && t('cart.step.3')}
+          {step === "address" && t('cart.step.4')}
         </h1>
         <div className="text-sm font-medium text-muted-foreground">
             {step === "cart" && "1/4"}
@@ -99,9 +107,9 @@ export default function CartPage() {
             {step === "cart" && (
                 <motion.div 
                     key="cart"
-                    initial={{ opacity: 0, x: -20 }}
+                    initial={{ opacity: 0, x: isRtl ? 20 : -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
+                    exit={{ opacity: 0, x: isRtl ? 20 : -20 }}
                     className="flex flex-col h-full"
                 >
                     <div className="p-6 space-y-6">
@@ -155,16 +163,16 @@ export default function CartPage() {
             {step === "phone" && (
                 <motion.div
                     key="phone"
-                    initial={{ opacity: 0, x: 20 }}
+                    initial={{ opacity: 0, x: isRtl ? -20 : 20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
+                    exit={{ opacity: 0, x: isRtl ? 20 : -20 }}
                     className="p-6 md:p-10 flex flex-col items-center justify-center text-center h-full min-h-[300px]"
                 >
                     <div className="bg-primary/10 p-4 rounded-full mb-6 text-primary">
                         <Phone className="h-8 w-8" />
                     </div>
-                    <h3 className="text-xl font-bold mb-2">Quel est votre numéro ?</h3>
-                    <p className="text-muted-foreground mb-6">Nous vous enverrons un code de validation.</p>
+                    <h3 className="text-xl font-bold mb-2">{t('cart.phone.title')}</h3>
+                    <p className="text-muted-foreground mb-6">{t('cart.phone.desc')}</p>
                     
                     <div className="w-full max-w-xs space-y-4">
                         <div className="flex gap-2">
@@ -180,6 +188,16 @@ export default function CartPage() {
                                 autoFocus
                             />
                         </div>
+
+                        <div className="relative">
+                          <User className={`absolute top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4 ${isRtl ? 'right-3' : 'left-3'}`} />
+                          <Input 
+                              placeholder={t('cart.name.placeholder')}
+                              className={isRtl ? 'pr-9' : 'pl-9'}
+                              value={name}
+                              onChange={(e) => setName(e.target.value)}
+                          />
+                        </div>
                     </div>
                 </motion.div>
             )}
@@ -188,16 +206,16 @@ export default function CartPage() {
             {step === "verify" && (
                 <motion.div
                     key="verify"
-                    initial={{ opacity: 0, x: 20 }}
+                    initial={{ opacity: 0, x: isRtl ? -20 : 20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
+                    exit={{ opacity: 0, x: isRtl ? 20 : -20 }}
                     className="p-6 md:p-10 flex flex-col items-center justify-center text-center h-full min-h-[300px]"
                 >
                      <div className="bg-primary/10 p-4 rounded-full mb-6 text-primary">
                         <CheckCircle2 className="h-8 w-8" />
                     </div>
-                    <h3 className="text-xl font-bold mb-2">Code de validation</h3>
-                    <p className="text-muted-foreground mb-6">Envoyé au +216 {phone}. (Code: 1234)</p>
+                    <h3 className="text-xl font-bold mb-2">{t('cart.verify.title')}</h3>
+                    <p className="text-muted-foreground mb-6">{t('cart.verify.desc')} +216 {phone}. (Code: 1234)</p>
                     
                     <Input 
                         type="text" 
@@ -210,7 +228,7 @@ export default function CartPage() {
                     />
                     
                     <button className="mt-6 text-sm text-primary hover:underline">
-                        Renvoyer le code
+                        {t('cart.resend')}
                     </button>
                 </motion.div>
             )}
@@ -219,9 +237,9 @@ export default function CartPage() {
             {step === "address" && (
                 <motion.div
                     key="address"
-                    initial={{ opacity: 0, x: 20 }}
+                    initial={{ opacity: 0, x: isRtl ? -20 : 20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
+                    exit={{ opacity: 0, x: isRtl ? 20 : -20 }}
                     className="p-6 md:p-10 h-full"
                 >
                     <div className="flex items-center gap-3 mb-6">
@@ -229,24 +247,24 @@ export default function CartPage() {
                             <MapPin className="h-6 w-6" />
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold">Où livrer ?</h3>
-                            <p className="text-sm text-muted-foreground">Livraison gratuite à Tataouine</p>
+                            <h3 className="text-lg font-bold">{t('cart.address.title')}</h3>
+                            <p className="text-sm text-muted-foreground">{t('cart.address.subtitle')}</p>
                         </div>
                     </div>
                     
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <Label>Quartier / Rue</Label>
+                            <Label>{t('cart.address.street')}</Label>
                             <Input 
-                                placeholder="Ex: Cité Mahrajene, Rue de la Paix..." 
+                                placeholder={t('cart.address.street.ph')}
                                 value={address}
                                 onChange={(e) => setAddress(e.target.value)}
                                 autoFocus
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Indications supplémentaires (optionnel)</Label>
-                            <Input placeholder="Ex: Maison porte bleue, près de la pharmacie..." />
+                            <Label>{t('cart.address.details')}</Label>
+                            <Input placeholder={t('cart.address.details.ph')} />
                         </div>
                     </div>
                 </motion.div>
@@ -257,15 +275,15 @@ export default function CartPage() {
         {/* Footer Actions */}
         <div className="bg-muted/30 p-6 border-t mt-auto">
             <div className="flex justify-between items-center mb-4">
-                <span className="text-muted-foreground">Total</span>
+                <span className="text-muted-foreground">{t('cart.total')}</span>
                 <span className="text-2xl font-bold font-serif">{total.toFixed(2)} TND</span>
             </div>
             <Button 
                 className="w-full h-12 text-lg rounded-xl shadow-lg shadow-primary/20" 
                 onClick={handleNext}
             >
-                {step === "address" ? "Confirmer la commande" : "Continuer"}
-                <ArrowRight className="ml-2 h-5 w-5" />
+                {step === "address" ? t('cart.confirm') : t('cart.continue')}
+                <ArrowRight className={`w-5 h-5 ${isRtl ? 'mr-2 rotate-180' : 'ml-2'}`} />
             </Button>
         </div>
       </div>
