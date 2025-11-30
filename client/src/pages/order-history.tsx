@@ -3,25 +3,67 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useLanguage } from "@/lib/i18n";
-import { getOrdersByPhone } from "@/lib/api";
+import { getOrdersByPhone, sendOtp, verifyOtp } from "@/lib/api";
 import type { Order } from "@/lib/api";
-import { Clock, MapPin, Phone, RefreshCw } from "lucide-react";
+import { Clock, MapPin, Phone, RefreshCw, Lock } from "lucide-react";
 
 export default function OrderHistory() {
   const [phone, setPhone] = useState("");
+  const [otpCode, setOtpCode] = useState("");
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [verified, setVerified] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
   const { t, language } = useLanguage();
   const isRtl = language === "ar";
 
-  const handleSearch = async () => {
+  const handleSendOtp = async () => {
     if (phone.length < 8) {
       alert(t("cart.error.phone"));
       return;
     }
     
+    setOtpLoading(true);
+    try {
+      await sendOtp(phone);
+      setOtpSent(true);
+      alert("Code OTP envoyé par SMS");
+    } catch (error) {
+      alert("Erreur lors de l'envoi du code OTP");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpCode.length !== 4) {
+      alert("Veuillez entrer un code de 4 chiffres");
+      return;
+    }
+    
+    setVerifyLoading(true);
+    try {
+      const result = await verifyOtp(phone, otpCode);
+      if (result.verified) {
+        setVerified(true);
+        setOtpSent(false);
+        setOtpCode("");
+        alert("Téléphone vérifié avec succès !");
+      } else {
+        alert("Code OTP invalide");
+      }
+    } catch (error) {
+      alert("Erreur lors de la vérification du code");
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  const handleSearch = async () => {
     setLoading(true);
     try {
       const result = await getOrdersByPhone(phone);
@@ -93,26 +135,102 @@ export default function OrderHistory() {
         )}
       </div>
 
-      <Card className="p-6 space-y-4">
-        <label className="block text-sm font-medium">Numéro de téléphone</label>
-        <div className="flex gap-2">
-          <Input
-            type="tel"
-            placeholder="Ex: 21123456789"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="flex-1"
-            data-testid="input-phone-history"
-          />
+      {!verified ? (
+        <Card className="p-6 space-y-4 border-blue-200 bg-blue-50">
+          <div className="flex items-center gap-2 mb-4">
+            <Lock className="w-5 h-5 text-blue-600" />
+            <h2 className="font-semibold text-blue-900">Vérification de sécurité requise</h2>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-2">Numéro de téléphone</label>
+            <div className="flex gap-2">
+              <Input
+                type="tel"
+                placeholder="Ex: 21123456789"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                disabled={otpSent}
+                className="flex-1"
+                data-testid="input-phone-verify"
+              />
+              <Button
+                onClick={handleSendOtp}
+                disabled={otpLoading || otpSent}
+                variant={otpSent ? "outline" : "default"}
+                data-testid="button-send-otp"
+              >
+                {otpLoading ? "Envoi..." : otpSent ? "Code envoyé ✓" : "Envoyer OTP"}
+              </Button>
+            </div>
+          </div>
+
+          {otpSent && (
+            <div>
+              <label className="block text-sm font-medium mb-2">Code OTP (4 chiffres)</label>
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  placeholder="Ex: 1234"
+                  maxLength={4}
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  className="flex-1"
+                  data-testid="input-otp-verify"
+                />
+                <Button
+                  onClick={handleVerifyOtp}
+                  disabled={verifyLoading}
+                  data-testid="button-verify-otp"
+                >
+                  {verifyLoading ? "Vérif..." : "Vérifier"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Code démo pour test: 1234
+              </p>
+            </div>
+          )}
+        </Card>
+      ) : (
+        <Card className="p-6 space-y-4 border-green-200 bg-green-50">
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-sm text-green-600">✓ Téléphone vérifié</p>
+              <p className="font-semibold">{phone}</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setVerified(false);
+                setPhone("");
+                setOtpCode("");
+                setOtpSent(false);
+                setSearched(false);
+                setOrders([]);
+              }}
+              data-testid="button-change-phone"
+            >
+              Changer
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {verified && (
+        <Card className="p-6 space-y-4">
+          <label className="block text-sm font-medium">Afficher mes commandes</label>
           <Button
             onClick={handleSearch}
             disabled={loading}
+            className="w-full"
             data-testid="button-search-orders"
           >
-            {loading ? "Recherche..." : "Rechercher"}
+            {loading ? "Recherche..." : "Voir mes commandes"}
           </Button>
-        </div>
-      </Card>
+        </Card>
+      )}
 
       {searched && (
         <>
