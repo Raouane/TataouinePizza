@@ -83,7 +83,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updatePizza(id: string, pizza: any): Promise<Pizza> {
-    const result = await db.update(pizzas).set({ ...pizza, updatedAt: new Date() }).where(eq(pizzas.id, id)).returning();
+    await db.update(pizzas).set({ ...pizza, updatedAt: new Date() }).where(eq(pizzas.id, id));
+    const result = await db.select().from(pizzas).where(eq(pizzas.id, id));
+    if (!result || !result[0]) {
+      throw new Error("Failed to retrieve updated pizza");
+    }
     return result[0];
   }
 
@@ -175,7 +179,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateOrderStatus(id: string, status: string): Promise<Order> {
-    const result = await db.update(orders).set({ status: status as any, updatedAt: new Date() }).where(eq(orders.id, id)).returning();
+    await db.update(orders).set({ status: status as any, updatedAt: new Date() }).where(eq(orders.id, id));
+    const result = await db.select().from(orders).where(eq(orders.id, id));
+    if (!result || !result[0]) {
+      throw new Error("Failed to retrieve updated order");
+    }
     return result[0];
   }
 
