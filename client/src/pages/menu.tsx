@@ -1,80 +1,81 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PizzaCard } from "@/components/pizza-card";
-import { Pizza } from "@/lib/cart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
+import { fetchPizzas } from "@/lib/api";
+import type { Pizza as ApiPizza } from "@/lib/api";
 
 import pizzaMargherita from "@assets/generated_images/pizza_margherita.png";
 import pizzaTunisian from "@assets/generated_images/tunisian_pizza.png";
 import pizzaPepperoni from "@assets/generated_images/pizza_pepperoni.png";
 import pizzaVegetarian from "@assets/generated_images/vegetarian_pizza.png";
-// Reusing images for variety in mockup
-const pizzas: Pizza[] = [
-  {
-    id: 1,
-    name: "Margherita",
-    description: "Sauce tomate, mozzarella di bufala, basilic frais, huile d'olive extra vierge.",
-    price: 12.00,
-    image: pizzaMargherita,
-    category: "classic"
-  },
-  {
-    id: 2,
-    name: "La Tunisienne",
-    description: "Thon, olives noires, œuf, harissa artisanale, fromage, persil.",
-    price: 18.00,
-    image: pizzaTunisian,
-    category: "special"
-  },
-  {
-    id: 3,
-    name: "Pepperoni Lover",
-    description: "Double pepperoni piquant, mozzarella fondante, origan.",
-    price: 16.50,
-    image: pizzaPepperoni,
-    category: "classic"
-  },
-  {
-    id: 4,
-    name: "Végétarienne du Sud",
-    description: "Poivrons, oignons rouges, champignons frais, olives, tomates cerises.",
-    price: 15.00,
-    image: pizzaVegetarian,
-    category: "vegetarian"
-  },
-  {
-    id: 5,
-    name: "Tataouine Spéciale",
-    description: "Merguez, poivrons grillés, œuf, olives, sauce tomate épicée.",
-    price: 19.00,
-    image: pizzaTunisian, // Reusing image
-    category: "special"
-  },
-  {
-    id: 6,
-    name: "4 Fromages",
-    description: "Mozzarella, Gorgonzola, Parmesan, Chèvre, miel (optionnel).",
-    price: 17.50,
-    image: pizzaMargherita, // Reusing image
-    category: "classic"
-  }
-];
 
-import { useLanguage } from "@/lib/i18n";
+// Map pizzas to images for demo (since API doesn't store full URLs)
+const imageMap: { [key: string]: string } = {
+  "Margherita": pizzaMargherita,
+  "La Tunisienne": pizzaTunisian,
+  "Pepperoni": pizzaPepperoni,
+  "Vegetarian": pizzaVegetarian,
+};
+
+interface Pizza {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  image: string;
+  category: string;
+}
 
 export default function Menu() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
+  const [pizzas, setPizzas] = useState<Pizza[]>([]);
+  const [loading, setLoading] = useState(true);
   const { t, language } = useLanguage();
   const isRtl = language === 'ar';
 
+  useEffect(() => {
+    const loadPizzas = async () => {
+      try {
+        const data = await fetchPizzas();
+        const transformed = data.map((p: ApiPizza) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          price: parseFloat(p.prices[0]?.price || "0"),
+          image: imageMap[p.name] || pizzaMargherita,
+          category: p.category,
+        }));
+        setPizzas(transformed);
+      } catch (error) {
+        console.error("Failed to load pizzas:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadPizzas();
+  }, []);
+
   const filteredPizzas = pizzas.filter(pizza => {
     const matchesSearch = pizza.name.toLowerCase().includes(search.toLowerCase()) || 
-                          pizza.description.toLowerCase().includes(search.toLowerCase());
+                          (pizza.description && pizza.description.toLowerCase().includes(search.toLowerCase()));
     const matchesCategory = category === "all" || pizza.category === category;
     return matchesSearch && matchesCategory;
   });
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="text-4xl mb-4">🍕</div>
+          <p className="text-muted-foreground">{t('menu.loading') || 'Chargement...'}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">

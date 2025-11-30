@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useCart } from "@/lib/cart";
 import { useOrder } from "@/lib/order-context";
+import { createOrder, sendOtp, verifyOtp } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,34 +27,57 @@ export default function CartPage() {
   const { t, language } = useLanguage();
   const isRtl = language === 'ar';
 
-  const handleNext = () => {
-    if (step === "cart") setStep("phone");
-    else if (step === "phone") {
-        if(phone.length < 8) {
-            toast({ title: t('cart.error.phone'), variant: "destructive" });
-            return;
-        }
-        if(name.length < 2) {
-             toast({ title: t('cart.error.name'), variant: "destructive" });
-             return;
-        }
+  const handleNext = async () => {
+    if (step === "cart") {
+      setStep("phone");
+    } else if (step === "phone") {
+      if(phone.length < 8) {
+        toast({ title: t('cart.error.phone'), variant: "destructive" });
+        return;
+      }
+      if(name.length < 2) {
+        toast({ title: t('cart.error.name'), variant: "destructive" });
+        return;
+      }
+      try {
+        await sendOtp(phone);
         setStep("verify");
-    }
-    else if (step === "verify") {
-        if(code !== "1234") { // Mock validation
-            toast({ title: t('cart.error.code'), description: "(1234)", variant: "destructive" });
-            return;
-        }
+      } catch (error) {
+        toast({ title: "Erreur", description: "Impossible d'envoyer le code", variant: "destructive" });
+      }
+    } else if (step === "verify") {
+      try {
+        await verifyOtp(phone, code);
         setStep("address");
-    }
-    else if (step === "address") {
-        if(address.length < 5) {
-             toast({ title: t('cart.error.address'), variant: "destructive" });
-             return;
-        }
+      } catch (error) {
+        toast({ title: t('cart.error.code'), variant: "destructive" });
+      }
+    } else if (step === "address") {
+      if(address.length < 5) {
+        toast({ title: t('cart.error.address'), variant: "destructive" });
+        return;
+      }
+      try {
+        const orderItems = items.map(item => ({
+          pizzaId: item.id.toString(),
+          size: "medium" as const,
+          quantity: item.quantity,
+        }));
+        
+        const result = await createOrder({
+          customerName: name,
+          phone,
+          address,
+          addressDetails: "",
+          items: orderItems,
+        });
+        
         clearCart();
         startOrder();
         setLocation("/success");
+      } catch (error: any) {
+        toast({ title: "Erreur", description: error.message || "Erreur création commande", variant: "destructive" });
+      }
     }
   };
 
