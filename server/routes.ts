@@ -216,15 +216,26 @@ export async function registerRoutes(
         customerName: data.customerName,
         phone: data.phone,
         address: data.address,
-        addressDetails: data.addressDetails,
-        totalPrice: totalPrice.toString(),
+        addressDetails: data.addressDetails || "",
+        totalPrice: totalPrice.toFixed(2),
+        paymentMethod: "cash",
         status: "pending",
         estimatedDeliveryTime: 45,
       });
 
+      if (!order || !order.id) {
+        return res.status(500).json({ error: "Failed to save order to database" });
+      }
+
       // Create order items
       for (const item of itemsData) {
-        await storage.getOrderItems(order.id); // Just to ensure table exists
+        await storage.createOrderItem({
+          orderId: order.id,
+          pizzaId: item.pizzaId,
+          size: item.size,
+          quantity: item.quantity,
+          pricePerUnit: item.pricePerUnit,
+        });
       }
 
       res.status(201).json({ success: true, orderId: order.id, totalPrice });

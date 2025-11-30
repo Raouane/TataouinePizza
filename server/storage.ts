@@ -33,6 +33,7 @@ export interface IStorage {
   getOrdersByPhone(phone: string): Promise<Order[]>;
   updateOrderStatus(id: string, status: string): Promise<Order>;
   getOrderItems(orderId: string): Promise<OrderItem[]>;
+  createOrderItem(item: any): Promise<OrderItem>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -130,6 +131,11 @@ export class DatabaseStorage implements IStorage {
 
   async getOrderItems(orderId: string): Promise<OrderItem[]> {
     return await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+  }
+
+  async createOrderItem(item: any): Promise<any> {
+    const result = await db.insert(orderItems).values(item).returning();
+    return result[0];
   }
 }
 
