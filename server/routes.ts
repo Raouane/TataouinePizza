@@ -212,18 +212,25 @@ export async function registerRoutes(
       }
 
       // Create order
-      const order = await storage.createOrder({
-        customerName: data.customerName,
-        phone: data.phone,
-        address: data.address,
-        addressDetails: data.addressDetails || "",
-        totalPrice: totalPrice.toFixed(2),
-        paymentMethod: "cash",
-        status: "pending",
-        estimatedDeliveryTime: 45,
-      });
+      let order;
+      try {
+        order = await storage.createOrder({
+          customerName: data.customerName,
+          phone: data.phone,
+          address: data.address,
+          addressDetails: data.addressDetails || "",
+          totalPrice: totalPrice.toFixed(2),
+          paymentMethod: "cash",
+          status: "pending",
+          estimatedDeliveryTime: 45,
+        });
+      } catch (dbError: any) {
+        console.error("[DB ERROR] Failed to create order:", dbError.message || dbError);
+        return res.status(500).json({ error: "Database error: " + (dbError.message || "Unknown error") });
+      }
 
       if (!order || !order.id) {
+        console.error("[ERROR] Order created but missing ID:", order);
         return res.status(500).json({ error: "Failed to save order to database" });
       }
 
