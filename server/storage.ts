@@ -3,7 +3,7 @@ import {
   adminUsers, pizzas, pizzaPrices, otpCodes, orders, orderItems,
   type Pizza, type InsertAdminUser, type AdminUser, type Order, type OrderItem, type OtpCode
 } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Admin Users
@@ -108,6 +108,9 @@ export class DatabaseStorage implements IStorage {
 
   async createOrder(order: any): Promise<Order> {
     const result = await db.insert(orders).values(order).returning();
+    if (!result || !result[0]) {
+      throw new Error("Failed to insert order - no result returned");
+    }
     return result[0];
   }
 
