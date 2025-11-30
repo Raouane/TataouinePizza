@@ -44,7 +44,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAdminUser(user: InsertAdminUser): Promise<AdminUser> {
-    const result = await db.insert(adminUsers).values(user).returning();
+    // Generate UUID client-side since .returning() doesn't work reliably with Neon HTTP
+    const adminId = randomUUID();
+    const adminWithId = { ...user, id: adminId };
+    
+    await db.insert(adminUsers).values(adminWithId);
+    
+    // Fetch the created admin to return it
+    const result = await db.select().from(adminUsers).where(eq(adminUsers.id, adminId));
+    if (!result || !result[0]) {
+      throw new Error("Failed to retrieve created admin user");
+    }
     return result[0];
   }
 
@@ -58,7 +68,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createPizza(pizza: any): Promise<Pizza> {
-    const result = await db.insert(pizzas).values(pizza).returning();
+    // Generate UUID client-side since .returning() doesn't work reliably with Neon HTTP
+    const pizzaId = randomUUID();
+    const pizzaWithId = { ...pizza, id: pizzaId };
+    
+    await db.insert(pizzas).values(pizzaWithId);
+    
+    // Fetch the created pizza to return it
+    const result = await db.select().from(pizzas).where(eq(pizzas.id, pizzaId));
+    if (!result || !result[0]) {
+      throw new Error("Failed to retrieve created pizza");
+    }
     return result[0];
   }
 
@@ -76,12 +96,31 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createPizzaPrice(price: any): Promise<any> {
-    const result = await db.insert(pizzaPrices).values(price).returning();
+    // Generate UUID client-side since .returning() doesn't work reliably with Neon HTTP
+    const priceId = randomUUID();
+    const priceWithId = { ...price, id: priceId };
+    
+    await db.insert(pizzaPrices).values(priceWithId);
+    
+    // Fetch the created price to return it
+    const result = await db.select().from(pizzaPrices).where(eq(pizzaPrices.id, priceId));
+    if (!result || !result[0]) {
+      throw new Error("Failed to retrieve created pizza price");
+    }
     return result[0];
   }
 
   async createOtpCode(phone: string, code: string, expiresAt: Date): Promise<OtpCode> {
-    const result = await db.insert(otpCodes).values({ phone, code, expiresAt }).returning();
+    // Generate UUID client-side since .returning() doesn't work reliably with Neon HTTP
+    const otpId = randomUUID();
+    
+    await db.insert(otpCodes).values({ id: otpId, phone, code, expiresAt });
+    
+    // Fetch the created OTP code to return it
+    const result = await db.select().from(otpCodes).where(eq(otpCodes.id, otpId));
+    if (!result || !result[0]) {
+      throw new Error("Failed to retrieve created OTP code");
+    }
     return result[0];
   }
 
@@ -145,7 +184,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createOrderItem(item: any): Promise<any> {
-    const result = await db.insert(orderItems).values(item).returning();
+    // Generate UUID client-side since .returning() doesn't work reliably with Neon HTTP
+    const itemId = randomUUID();
+    const itemWithId = { ...item, id: itemId };
+    
+    await db.insert(orderItems).values(itemWithId);
+    
+    // Fetch the created order item to return it
+    const result = await db.select().from(orderItems).where(eq(orderItems.id, itemId));
+    if (!result || !result[0]) {
+      throw new Error("Failed to retrieve created order item");
+    }
     return result[0];
   }
 }
