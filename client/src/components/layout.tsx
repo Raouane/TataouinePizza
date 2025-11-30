@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { ShoppingBag, Home, Pizza, Menu as MenuIcon, Globe } from "lucide-react";
+import { ShoppingBag, Home, Pizza, Menu as MenuIcon, Globe, History } from "lucide-react";
 import { useCart } from "@/lib/cart";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
@@ -15,6 +15,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { href: "/", icon: Home, label: t('nav.home') },
     { href: "/menu", icon: Pizza, label: t('nav.menu') },
+    { href: "/history", icon: History, label: "Historique" },
     { href: "/cart", icon: ShoppingBag, label: t('nav.cart'), badge: count },
   ];
 

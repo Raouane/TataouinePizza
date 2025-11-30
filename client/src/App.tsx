@@ -12,6 +12,7 @@ import Home from "@/pages/home";
 import Menu from "@/pages/menu";
 import CartPage from "@/pages/cart-page";
 import OrderSuccess from "@/pages/order-success";
+import OrderHistory from "@/pages/order-history";
 
 function Router() {
   return (
@@ -21,6 +22,7 @@ function Router() {
         <Route path="/menu" component={Menu} />
         <Route path="/cart" component={CartPage} />
         <Route path="/success" component={OrderSuccess} />
+        <Route path="/history" component={OrderHistory} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
