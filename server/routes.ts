@@ -289,9 +289,11 @@ export async function registerRoutes(
       const admin = await storage.createAdminUser({ email: data.email, password: hashed });
       const token = generateToken(admin.id, admin.email);
 
+      console.log("[ADMIN] Registration successful for", data.email);
       res.status(201).json({ token, admin: { id: admin.id, email: admin.email } });
-    } catch (error) {
-      res.status(500).json({ error: "Registration failed" });
+    } catch (error: any) {
+      console.error("[ADMIN] Registration error:", error.message || error);
+      res.status(500).json({ error: "Registration failed: " + (error.message || "Unknown error") });
     }
   });
 
