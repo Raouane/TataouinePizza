@@ -47,7 +47,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllPizzas(): Promise<Pizza[]> {
-    return await db.select().from(pizzas).orderBy(pizzas.createdAt);
+    return await db.select().from(pizzas);
   }
 
   async getPizzaById(id: string): Promise<Pizza | undefined> {
@@ -116,11 +116,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllOrders(): Promise<Order[]> {
-    return await db.select().from(orders).orderBy(desc(orders.createdAt));
+    return await db.select().from(orders);
   }
 
   async getOrdersByPhone(phone: string): Promise<Order[]> {
-    return await db.select().from(orders).where(eq(orders.phone, phone)).orderBy(desc(orders.createdAt));
+    return await db.select().from(orders).where(eq(orders.phone, phone));
   }
 
   async updateOrderStatus(id: string, status: string): Promise<Order> {
