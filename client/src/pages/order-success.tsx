@@ -1,13 +1,16 @@
 import { useEffect } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Check } from "lucide-react";
+import { Check, Phone } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useLanguage } from "@/lib/i18n";
 import { OrderTracker } from "@/components/order-tracker";
+import { useOrder } from "@/lib/order-context";
 
 export default function OrderSuccess() {
   const { t } = useLanguage();
+  const { status } = useOrder();
+  const isDelivering = status === 'delivery';
 
   useEffect(() => {
     const duration = 3 * 1000;
@@ -50,11 +53,21 @@ export default function OrderSuccess() {
         <OrderTracker />
       </div>
 
-      <Link href="/">
-        <Button size="lg" variant="outline" className="rounded-full px-8">
-          {t('success.back')}
-        </Button>
-      </Link>
+      <div className="flex flex-col gap-3 mb-4">
+        {isDelivering && (
+          <a href="tel:+21698765432">
+            <Button size="lg" className="w-full rounded-full bg-green-600 hover:bg-green-700">
+              <Phone className="h-5 w-5 mr-2" />
+              {t('success.call_driver')}
+            </Button>
+          </a>
+        )}
+        <Link href="/">
+          <Button size="lg" variant="outline" className="rounded-full px-8 w-full">
+            {t('success.back')}
+          </Button>
+        </Link>
+      </div>
     </div>
   );
 }

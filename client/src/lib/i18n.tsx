@@ -88,6 +88,7 @@ const translations: Translations = {
   'success.time': { fr: "Temps estimé", en: "Estimated time", ar: "الوقت المقدر" },
   'success.orderNum': { fr: "Numéro de commande", en: "Order number", ar: "رقم الطلب" },
   'success.back': { fr: "Retour à l'accueil", en: "Back to home", ar: "العودة للرئيسية" },
+  'success.call_driver': { fr: "Appeler le livreur", en: "Call driver", ar: "اتصل بالسائق" },
 
   // Tracker
   'tracker.title': { fr: "Suivi de commande", en: "Order Tracking", ar: "تتبع الطلب" },

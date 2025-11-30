@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useOrder } from "@/lib/order-context";
 import { useLanguage } from "@/lib/i18n";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronUp, ChevronDown, Bike, Clock } from "lucide-react";
+import { ChevronUp, ChevronDown, Bike, Clock, Phone } from "lucide-react";
 import { OrderTracker } from "@/components/order-tracker";
 import { Button } from "@/components/ui/button";
 
@@ -10,6 +10,7 @@ export function GlobalTrackerWidget() {
   const { activeOrder, status, eta } = useOrder();
   const { t } = useLanguage();
   const [expanded, setExpanded] = useState(false);
+  const isDelivering = status === 'delivery';
 
   if (!activeOrder) return null;
 
@@ -30,6 +31,14 @@ export function GlobalTrackerWidget() {
               </Button>
             </div>
             <OrderTracker />
+            {isDelivering && (
+              <a href="tel:+21698765432" className="block mt-4">
+                <Button size="sm" className="w-full bg-green-600 hover:bg-green-700 rounded-lg">
+                  <Phone className="h-4 w-4 mr-2" />
+                  {t('success.call_driver')}
+                </Button>
+              </a>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
