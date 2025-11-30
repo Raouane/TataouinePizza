@@ -433,8 +433,11 @@ export async function registerRoutes(
 
   // ============ DRIVER AUTH ============
 
-  const DEMO_DRIVER_PHONE = "21612345678";
-  const DEMO_DRIVER_PASSWORD = "driver123";
+  const DEMO_DRIVERS: Record<string, string> = {
+    "21612345678": "driver123", // Mohamed
+    "21698765432": "driver123", // Ahmed
+    "21625874123": "driver123", // Fatima
+  };
 
   // Driver: Login
   app.post("/api/driver/login", async (req: Request, res: Response) => {
@@ -442,10 +445,17 @@ export async function registerRoutes(
       const data = validate(driverLoginSchema, req.body);
       if (!data) return res.status(400).json({ error: "Invalid phone or password" });
 
-      // Demo driver login
-      if (data.phone === DEMO_DRIVER_PHONE && data.password === DEMO_DRIVER_PASSWORD) {
-        const token = generateToken("demo-driver-id", data.phone);
-        res.json({ token, driver: { id: "demo-driver-id", name: "Mohamed", phone: data.phone } });
+      // Check if demo credentials match
+      if (DEMO_DRIVERS[data.phone] === data.password) {
+        // Find the driver in the database
+        const driver = await storage.getDriverByPhone(data.phone);
+        if (!driver) {
+          return res.status(401).json({ error: "Driver not found" });
+        }
+
+        // Generate token with actual driver ID from database
+        const token = generateToken(driver.id, data.phone);
+        res.json({ token, driver: { id: driver.id, name: driver.name, phone: driver.phone } });
         return;
       }
 
