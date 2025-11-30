@@ -25,6 +25,17 @@ export const adminUsers = pgTable("admin_users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Delivery Drivers
+export const drivers = pgTable("drivers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  phone: text("phone").notNull().unique(),
+  password: text("password").notNull(),
+  status: text("status").default("available"), // "available", "on_delivery", "offline"
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Pizzas Menu
 export const pizzas = pgTable("pizzas", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -68,6 +79,7 @@ export const orders = pgTable("orders", {
   paymentMethod: text("payment_method").default("cash"),
   notes: text("notes"),
   estimatedDeliveryTime: integer("estimated_delivery_time"), // in minutes
+  driverId: varchar("driver_id").references(() => drivers.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -129,9 +141,23 @@ export const updateOrderStatusSchema = z.object({
   status: z.enum(["pending", "accepted", "preparing", "baking", "ready", "delivery", "delivered", "rejected"]),
 });
 
+// Driver Schemas
+export const insertDriverSchema = z.object({
+  name: z.string().min(2, "Nom min 2 caractères"),
+  phone: z.string().min(8, "Téléphone invalide"),
+  password: z.string().min(6, "Mot de passe min 6 caractères"),
+});
+
+export const driverLoginSchema = z.object({
+  phone: z.string().min(8, "Téléphone invalide"),
+  password: z.string().min(6, "Mot de passe min 6 caractères"),
+});
+
 // Types
 export type InsertAdminUser = z.infer<typeof insertAdminUserSchema>;
 export type AdminUser = typeof adminUsers.$inferSelect;
+export type Driver = typeof drivers.$inferSelect;
+export type InsertDriver = z.infer<typeof insertDriverSchema>;
 export type Pizza = typeof pizzas.$inferSelect;
 export type PizzaPrice = typeof pizzaPrices.$inferSelect;
 export type OtpCode = typeof otpCodes.$inferSelect;
