@@ -140,3 +140,31 @@ export async function updateOrderStatus(id: string, status: string, token: strin
   if (!res.ok) throw new Error("Failed to update order");
   return res.json();
 }
+
+export interface Driver {
+  id: string;
+  name: string;
+  phone: string;
+  status: string;
+}
+
+export async function getAdminDrivers(token: string): Promise<Driver[]> {
+  const res = await fetch(`${API_BASE}/admin/drivers`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Failed to fetch drivers");
+  return res.json();
+}
+
+export async function assignOrderToDriver(orderId: string, driverId: string, token: string): Promise<Order> {
+  const res = await fetch(`${API_BASE}/admin/assign-order/${orderId}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ driverId }),
+  });
+  if (!res.ok) throw new Error("Failed to assign order");
+  return res.json();
+}

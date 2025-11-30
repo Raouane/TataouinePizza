@@ -9,15 +9,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getAdminOrders, updateOrderStatus } from "@/lib/api";
-import type { Order } from "@/lib/api";
+import { getAdminOrders, updateOrderStatus, getAdminDrivers, assignOrderToDriver } from "@/lib/api";
+import type { Order, Driver } from "@/lib/api";
 import { LogOut, RefreshCw, AlertCircle } from "lucide-react";
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [assigning, setAssigning] = useState<string | null>(null);
   const [error, setError] = useState("");
   const token = localStorage.getItem("adminToken");
 
@@ -27,9 +29,21 @@ export default function AdminDashboard() {
       return;
     }
     fetchOrders();
+    fetchDrivers();
     const interval = setInterval(fetchOrders, 5000);
     return () => clearInterval(interval);
   }, [token]);
+
+  const fetchDrivers = async () => {
+    try {
+      const token = localStorage.getItem("adminToken");
+      if (!token) return;
+      const data = await getAdminDrivers(token);
+      setDrivers(data);
+    } catch (err) {
+      console.error("Failed to fetch drivers:", err);
+    }
+  };
 
   const fetchOrders = async () => {
     try {
@@ -57,6 +71,22 @@ export default function AdminDashboard() {
       setError(err.message || "Erreur lors de la mise à jour");
     } finally {
       setUpdating(null);
+    }
+  };
+
+  const handleAssignDriver = async (orderId: string, driverId: string) => {
+    setAssigning(orderId);
+    try {
+      const token = localStorage.getItem("adminToken");
+      if (!token) throw new Error("Not authenticated");
+      
+      await assignOrderToDriver(orderId, driverId, token);
+      await fetchOrders();
+      setError("");
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de l'assignation");
+    } finally {
+      setAssigning(null);
     }
   };
 
@@ -145,6 +175,7 @@ export default function AdminDashboard() {
                   <th className="px-4 py-3 text-left text-sm font-semibold">Téléphone</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold">Adresse</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold">Total</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">Livreur</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold">Statut</th>
                 </tr>
               </thead>
@@ -174,6 +205,29 @@ export default function AdminDashboard() {
                       </td>
                       <td className="px-4 py-3 text-sm font-semibold">
                         {Number(order.totalPrice).toFixed(2)} TND
+                      </td>
+                      <td className="px-4 py-3">
+                        <Select
+                          disabled={assigning === order.id}
+                          onValueChange={(value) => handleAssignDriver(order.id, value)}
+                        >
+                          <SelectTrigger className="w-40" data-testid={`select-driver-${order.id}`}>
+                            <SelectValue placeholder="Assigner..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {drivers.length === 0 ? (
+                              <div className="px-2 py-2 text-sm text-muted-foreground">
+                                Aucun livreur
+                              </div>
+                            ) : (
+                              drivers.map((driver) => (
+                                <SelectItem key={driver.id} value={driver.id}>
+                                  {driver.name} ({driver.status})
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
                       </td>
                       <td className="px-4 py-3">
                         <Select
