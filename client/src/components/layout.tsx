@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { ShoppingBag, Home, Pizza, Menu as MenuIcon, Globe, History, Shield } from "lucide-react";
+import { ShoppingBag, Home, Pizza, Menu as MenuIcon, Globe, History } from "lucide-react";
 import { useCart } from "@/lib/cart";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
@@ -58,12 +58,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               ))}
             </nav>
 
-            <a href="/admin/login" className="hidden md:block">
-              <Button variant="outline" size="sm" className="gap-2">
-                <Shield className="w-4 h-4" />
-                Admin
-              </Button>
-            </a>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -123,12 +117,30 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
-          <a href="/admin/login" className="flex flex-col items-center gap-1 transition-all duration-300 p-1 text-muted-foreground hover:text-primary">
-            <Shield className="h-5 w-5" />
-            <span className="text-[9px] font-medium">Admin</span>
-          </a>
         </nav>
       </div>
+
+      {/* Footer */}
+      <footer className="border-t bg-muted/50 py-6 md:py-8 mt-10">
+        <div className="container max-w-5xl mx-auto px-4 md:px-8">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="text-center md:text-left">
+              <h3 className="font-serif font-bold text-lg">TataoninePizza</h3>
+              <p className="text-sm text-muted-foreground">L'authentique goût du désert</p>
+            </div>
+            
+            <div className="text-center text-xs text-muted-foreground">
+              <p>© 2025 Tataouine Pizza. Tous droits réservés.</p>
+            </div>
+
+            <div className="text-center md:text-right text-xs">
+              <a href="/admin/login" className="text-muted-foreground hover:text-primary transition-colors underline">
+                Espace Partenaire
+              </a>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
