@@ -55,12 +55,14 @@ export default function OrderSuccess() {
 
       <div className="flex flex-col gap-3 mb-4">
         {isDelivering && (
-          <a href="tel:+21698765432">
-            <Button size="lg" className="w-full rounded-full bg-green-600 hover:bg-green-700">
-              <Phone className="h-5 w-5 mr-2" />
-              {t('success.call_driver')}
-            </Button>
-          </a>
+          <Button 
+            size="lg" 
+            className="w-full rounded-full bg-green-600 hover:bg-green-700"
+            onClick={() => window.location.href = 'tel:+21698765432'}
+          >
+            <Phone className="h-5 w-5 mr-2" />
+            {t('success.call_driver')}
+          </Button>
         )}
         <Link href="/">
           <Button size="lg" variant="outline" className="rounded-full px-8 w-full">

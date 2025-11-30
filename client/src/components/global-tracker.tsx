@@ -32,12 +32,14 @@ export function GlobalTrackerWidget() {
             </div>
             <OrderTracker />
             {isDelivering && (
-              <a href="tel:+21698765432" className="block mt-4">
-                <Button size="sm" className="w-full bg-green-600 hover:bg-green-700 rounded-lg">
-                  <Phone className="h-4 w-4 mr-2" />
-                  {t('success.call_driver')}
-                </Button>
-              </a>
+              <Button 
+                size="sm" 
+                className="w-full bg-green-600 hover:bg-green-700 rounded-lg mt-4"
+                onClick={() => window.location.href = 'tel:+21698765432'}
+              >
+                <Phone className="h-4 w-4 mr-2" />
+                {t('success.call_driver')}
+              </Button>
             )}
           </motion.div>
         )}
