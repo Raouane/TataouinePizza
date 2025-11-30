@@ -13,19 +13,27 @@ import Menu from "@/pages/menu";
 import CartPage from "@/pages/cart-page";
 import OrderSuccess from "@/pages/order-success";
 import OrderHistory from "@/pages/order-history";
+import AdminLogin from "@/pages/admin-login";
+import AdminDashboard from "@/pages/admin-dashboard";
 
 function Router() {
   return (
-    <Layout>
-      <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/menu" component={Menu} />
-        <Route path="/cart" component={CartPage} />
-        <Route path="/success" component={OrderSuccess} />
-        <Route path="/history" component={OrderHistory} />
-        <Route component={NotFound} />
-      </Switch>
-    </Layout>
+    <Switch>
+      <Route path="/admin/login" component={AdminLogin} />
+      <Route path="/admin/dashboard" component={AdminDashboard} />
+      <Route>
+        <Layout>
+          <Switch>
+            <Route path="/" component={Home} />
+            <Route path="/menu" component={Menu} />
+            <Route path="/cart" component={CartPage} />
+            <Route path="/success" component={OrderSuccess} />
+            <Route path="/history" component={OrderHistory} />
+            <Route component={NotFound} />
+          </Switch>
+        </Layout>
+      </Route>
+    </Switch>
   );
 }
 

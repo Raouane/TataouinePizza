@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { ShoppingBag, Home, Pizza, Menu as MenuIcon, Globe, History } from "lucide-react";
+import { ShoppingBag, Home, Pizza, Menu as MenuIcon, Globe, History, Shield } from "lucide-react";
 import { useCart } from "@/lib/cart";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
@@ -57,6 +57,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </Link>
               ))}
             </nav>
+
+            <Link href="/admin/login">
+              <Button variant="outline" size="sm" className="gap-2 hidden md:flex">
+                <Shield className="w-4 h-4" />
+                Admin
+              </Button>
+            </Link>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
