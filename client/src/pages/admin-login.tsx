@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { adminLogin, adminRegister } from "@/lib/api";
-import { Lock, AlertCircle } from "lucide-react";
+import { Lock, AlertCircle, Shield } from "lucide-react";
 
 export default function AdminLogin() {
   const [, setLocation] = useLocation();
