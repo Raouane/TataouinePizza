@@ -211,7 +211,7 @@ export async function registerRoutes(
         itemsData.push({ ...item, pricePerUnit: priceData.price });
       }
 
-      // Create order
+      // Create order (don't pass status, let DB use default)
       let order;
       try {
         order = await storage.createOrder({
@@ -221,7 +221,6 @@ export async function registerRoutes(
           addressDetails: data.addressDetails || "",
           totalPrice: totalPrice.toFixed(2),
           paymentMethod: "cash",
-          status: "pending",
           estimatedDeliveryTime: 45,
         });
       } catch (dbError: any) {
