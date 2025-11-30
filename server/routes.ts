@@ -1,8 +1,17 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertPizzaSchema, insertOrderSchema, verifyOtpSchema, sendOtpSchema, updateOrderStatusSchema } from "@shared/schema";
+import { insertPizzaSchema, insertOrderSchema, verifyOtpSchema, sendOtpSchema, updateOrderStatusSchema, insertAdminUserSchema } from "@shared/schema";
 import { z } from "zod";
+import { authenticateAdmin, generateToken, hashPassword, comparePassword, type AuthRequest } from "./auth";
+
+declare global {
+  namespace Express {
+    interface Request {
+      admin?: { id: string; email: string };
+    }
+  }
+}
 
 // Helper: Generate random 4-digit OTP
 function generateOtp(): string {
@@ -56,7 +65,7 @@ export async function registerRoutes(
   // ============ OTP & VERIFICATION ============
 
   // Send OTP
-  app.post("/api/otp/send", async (req, res) => {
+  app.post("/api/otp/send", async (req: Request, res: Response) => {
     try {
       const data = validate(sendOtpSchema, req.body);
       if (!data) return res.status(400).json({ error: "Invalid phone number" });
@@ -75,7 +84,7 @@ export async function registerRoutes(
   });
 
   // Verify OTP
-  app.post("/api/otp/verify", async (req, res) => {
+  app.post("/api/otp/verify", async (req: Request, res: Response) => {
     try {
       const data = validate(verifyOtpSchema, req.body);
       if (!data) return res.status(400).json({ error: "Invalid data" });
@@ -92,7 +101,7 @@ export async function registerRoutes(
   // ============ ORDERS ============
 
   // Create order
-  app.post("/api/orders", async (req, res) => {
+  app.post("/api/orders", async (req: Request, res: Response) => {
     try {
       const data = validate(insertOrderSchema, req.body);
       if (!data) return res.status(400).json({ error: "Invalid order data" });
@@ -144,7 +153,7 @@ export async function registerRoutes(
   });
 
   // Get order by ID
-  app.get("/api/orders/:id", async (req, res) => {
+  app.get("/api/orders/:id", async (req: Request, res: Response) => {
     try {
       const order = await storage.getOrderById(req.params.id);
       if (!order) return res.status(404).json({ error: "Order not found" });
@@ -157,7 +166,7 @@ export async function registerRoutes(
   });
 
   // Get orders by phone
-  app.get("/api/orders/customer/:phone", async (req, res) => {
+  app.get("/api/orders/customer/:phone", async (req: Request, res: Response) => {
     try {
       const orders = await storage.getOrdersByPhone(req.params.phone);
       res.json(orders);
@@ -166,12 +175,51 @@ export async function registerRoutes(
     }
   });
 
-  // ============ ADMIN ROUTES ============
+  // ============ ADMIN AUTH ============
+
+  // Admin: Register (create first admin only in dev)
+  app.post("/api/admin/register", async (req: Request, res: Response) => {
+    try {
+      const data = validate(insertAdminUserSchema, req.body);
+      if (!data) return res.status(400).json({ error: "Invalid email or password" });
+
+      const existing = await storage.getAdminByEmail(data.email);
+      if (existing) return res.status(400).json({ error: "Admin already exists" });
+
+      const hashed = await hashPassword(data.password);
+      const admin = await storage.createAdminUser({ email: data.email, password: hashed });
+      const token = generateToken(admin.id, admin.email);
+
+      res.status(201).json({ token, admin: { id: admin.id, email: admin.email } });
+    } catch (error) {
+      res.status(500).json({ error: "Registration failed" });
+    }
+  });
+
+  // Admin: Login
+  app.post("/api/admin/login", async (req: Request, res: Response) => {
+    try {
+      const { email, password } = req.body as { email?: string; password?: string };
+      if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+
+      const admin = await storage.getAdminByEmail(email);
+      if (!admin) return res.status(401).json({ error: "Invalid credentials" });
+
+      const valid = await comparePassword(password, admin.password);
+      if (!valid) return res.status(401).json({ error: "Invalid credentials" });
+
+      const token = generateToken(admin.id, admin.email);
+      res.json({ token, admin: { id: admin.id, email: admin.email } });
+    } catch (error) {
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // ============ ADMIN ROUTES (Protected) ============
 
   // Admin: Get all orders
-  app.get("/api/admin/orders", async (req, res) => {
+  app.get("/api/admin/orders", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
-      // TODO: Check admin auth
       const allOrders = await storage.getAllOrders();
       res.json(allOrders);
     } catch (error) {
@@ -180,9 +228,8 @@ export async function registerRoutes(
   });
 
   // Admin: Update order status
-  app.patch("/api/admin/orders/:id/status", async (req, res) => {
+  app.patch("/api/admin/orders/:id/status", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
-      // TODO: Check admin auth
       const data = validate(updateOrderStatusSchema, req.body);
       if (!data) return res.status(400).json({ error: "Invalid status" });
 
@@ -194,9 +241,8 @@ export async function registerRoutes(
   });
 
   // Admin: Create pizza
-  app.post("/api/admin/pizzas", async (req, res) => {
+  app.post("/api/admin/pizzas", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
-      // TODO: Check admin auth
       const data = validate(insertPizzaSchema, req.body);
       if (!data) return res.status(400).json({ error: "Invalid pizza data" });
 
@@ -208,9 +254,8 @@ export async function registerRoutes(
   });
 
   // Admin: Update pizza
-  app.patch("/api/admin/pizzas/:id", async (req, res) => {
+  app.patch("/api/admin/pizzas/:id", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
-      // TODO: Check admin auth
       const pizza = await storage.updatePizza(req.params.id, req.body);
       res.json(pizza);
     } catch (error) {
@@ -219,9 +264,8 @@ export async function registerRoutes(
   });
 
   // Admin: Delete pizza
-  app.delete("/api/admin/pizzas/:id", async (req, res) => {
+  app.delete("/api/admin/pizzas/:id", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
-      // TODO: Check admin auth
       await storage.deletePizza(req.params.id);
       res.json({ success: true });
     } catch (error) {

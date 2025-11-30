@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db } from "./db.js";
 import { 
   adminUsers, pizzas, pizzaPrices, otpCodes, orders, orderItems,
   type Pizza, type InsertAdminUser, type AdminUser, type Order, type OrderItem, type OtpCode
@@ -96,9 +96,9 @@ export class DatabaseStorage implements IStorage {
     if (!otpRecord) return false;
     if (otpRecord.verified) return false;
     if (new Date() > otpRecord.expiresAt) return false;
-    if (otpRecord.attempts >= 3) return false;
+    if ((otpRecord.attempts || 0) >= 3) return false;
     if (otpRecord.code !== code) {
-      await db.update(otpCodes).set({ attempts: otpRecord.attempts + 1 }).where(eq(otpCodes.id, otpRecord.id));
+      await db.update(otpCodes).set({ attempts: (otpRecord.attempts || 0) + 1 }).where(eq(otpCodes.id, otpRecord.id));
       return false;
     }
     await db.update(otpCodes).set({ verified: true }).where(eq(otpCodes.id, otpRecord.id));
