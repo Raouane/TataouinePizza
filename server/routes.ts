@@ -156,8 +156,16 @@ export async function registerRoutes(
       const data = validate(verifyOtpSchema, req.body);
       if (!data) return res.status(400).json({ error: "Invalid data" });
 
-      // Demo code for testing
+      // Demo code for testing - mark as verified in DB
       if (data.code === "1234") {
+        const otpRecord = await storage.getLatestOtpCode(data.phone);
+        if (otpRecord) {
+          // Mark OTP as verified by calling verifyOtpCode (it checks for 1234 match won't work, so just mark directly)
+          // Actually, let's create a new OTP with verified status for demo
+          await storage.createOtpCode(data.phone, "1234", new Date(Date.now() + 10 * 60 * 1000));
+          // Now verify it
+          await storage.verifyOtpCode(data.phone, "1234");
+        }
         res.json({ success: true, verified: true });
         return;
       }
@@ -179,9 +187,10 @@ export async function registerRoutes(
       const data = validate(insertOrderSchema, req.body);
       if (!data) return res.status(400).json({ error: "Invalid order data" });
 
-      // Verify OTP first
+      // Verify OTP first (allow demo code 1234 or verified OTP)
       const otpRecord = await storage.getLatestOtpCode(data.phone);
-      if (!otpRecord?.verified) {
+      const isDemoCode = otpRecord?.code === "1234" || otpRecord?.verified;
+      if (!isDemoCode && !otpRecord?.verified) {
         return res.status(403).json({ error: "Phone not verified. Please verify OTP first." });
       }
 
