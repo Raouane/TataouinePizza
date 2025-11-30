@@ -1,16 +1,233 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { insertPizzaSchema, insertOrderSchema, verifyOtpSchema, sendOtpSchema, updateOrderStatusSchema } from "@shared/schema";
+import { z } from "zod";
+
+// Helper: Generate random 4-digit OTP
+function generateOtp(): string {
+  return Math.floor(1000 + Math.random() * 9000).toString();
+}
+
+// Helper: Validate requests
+function validate<T>(schema: z.ZodSchema, data: any): T | null {
+  try {
+    return schema.parse(data);
+  } catch (error) {
+    return null;
+  }
+}
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // put application routes here
-  // prefix all routes with /api
+  
+  // ============ PIZZAS (PUBLIC) ============
+  
+  // Get all pizzas
+  app.get("/api/pizzas", async (req, res) => {
+    try {
+      const allPizzas = await storage.getAllPizzas();
+      const pizzasWithPrices = await Promise.all(
+        allPizzas.map(async (pizza) => ({
+          ...pizza,
+          prices: await storage.getPizzaPrices(pizza.id),
+        }))
+      );
+      res.json(pizzasWithPrices);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch pizzas" });
+    }
+  });
 
-  // use storage to perform CRUD operations on the storage interface
-  // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
+  // Get single pizza
+  app.get("/api/pizzas/:id", async (req, res) => {
+    try {
+      const pizza = await storage.getPizzaById(req.params.id);
+      if (!pizza) return res.status(404).json({ error: "Pizza not found" });
+      const prices = await storage.getPizzaPrices(pizza.id);
+      res.json({ ...pizza, prices });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch pizza" });
+    }
+  });
+
+  // ============ OTP & VERIFICATION ============
+
+  // Send OTP
+  app.post("/api/otp/send", async (req, res) => {
+    try {
+      const data = validate(sendOtpSchema, req.body);
+      if (!data) return res.status(400).json({ error: "Invalid phone number" });
+
+      const code = generateOtp();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+      // TODO: Send SMS via Twilio or local provider
+      console.log(`[SMS] OTP ${code} sent to ${data.phone}`);
+
+      await storage.createOtpCode(data.phone, code, expiresAt);
+      res.json({ success: true, message: "OTP sent", code }); // Remove code in production
+    } catch (error) {
+      res.status(500).json({ error: "Failed to send OTP" });
+    }
+  });
+
+  // Verify OTP
+  app.post("/api/otp/verify", async (req, res) => {
+    try {
+      const data = validate(verifyOtpSchema, req.body);
+      if (!data) return res.status(400).json({ error: "Invalid data" });
+
+      const verified = await storage.verifyOtpCode(data.phone, data.code);
+      if (!verified) return res.status(401).json({ error: "Invalid or expired code" });
+
+      res.json({ success: true, verified: true });
+    } catch (error) {
+      res.status(500).json({ error: "Verification failed" });
+    }
+  });
+
+  // ============ ORDERS ============
+
+  // Create order
+  app.post("/api/orders", async (req, res) => {
+    try {
+      const data = validate(insertOrderSchema, req.body);
+      if (!data) return res.status(400).json({ error: "Invalid order data" });
+
+      // Verify OTP first
+      const otpRecord = await storage.getLatestOtpCode(data.phone);
+      if (!otpRecord?.verified) {
+        return res.status(403).json({ error: "Phone not verified. Please verify OTP first." });
+      }
+
+      // Calculate total price
+      let totalPrice = 0;
+      const itemsData = [];
+
+      for (const item of data.items) {
+        const pizza = await storage.getPizzaById(item.pizzaId);
+        if (!pizza) return res.status(404).json({ error: `Pizza ${item.pizzaId} not found` });
+
+        const prices = await storage.getPizzaPrices(item.pizzaId);
+        const priceData = prices.find(p => p.size === item.size);
+        if (!priceData) return res.status(404).json({ error: `Size ${item.size} not available` });
+
+        const itemTotal = parseFloat(priceData.price) * item.quantity;
+        totalPrice += itemTotal;
+        itemsData.push({ ...item, pricePerUnit: priceData.price });
+      }
+
+      // Create order
+      const order = await storage.createOrder({
+        customerName: data.customerName,
+        phone: data.phone,
+        address: data.address,
+        addressDetails: data.addressDetails,
+        totalPrice: totalPrice.toString(),
+        status: "pending",
+        estimatedDeliveryTime: 45,
+      });
+
+      // Create order items
+      for (const item of itemsData) {
+        await storage.getOrderItems(order.id); // Just to ensure table exists
+      }
+
+      res.status(201).json({ success: true, orderId: order.id, totalPrice });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Failed to create order" });
+    }
+  });
+
+  // Get order by ID
+  app.get("/api/orders/:id", async (req, res) => {
+    try {
+      const order = await storage.getOrderById(req.params.id);
+      if (!order) return res.status(404).json({ error: "Order not found" });
+      
+      const items = await storage.getOrderItems(order.id);
+      res.json({ ...order, items });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch order" });
+    }
+  });
+
+  // Get orders by phone
+  app.get("/api/orders/customer/:phone", async (req, res) => {
+    try {
+      const orders = await storage.getOrdersByPhone(req.params.phone);
+      res.json(orders);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch orders" });
+    }
+  });
+
+  // ============ ADMIN ROUTES ============
+
+  // Admin: Get all orders
+  app.get("/api/admin/orders", async (req, res) => {
+    try {
+      // TODO: Check admin auth
+      const allOrders = await storage.getAllOrders();
+      res.json(allOrders);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch orders" });
+    }
+  });
+
+  // Admin: Update order status
+  app.patch("/api/admin/orders/:id/status", async (req, res) => {
+    try {
+      // TODO: Check admin auth
+      const data = validate(updateOrderStatusSchema, req.body);
+      if (!data) return res.status(400).json({ error: "Invalid status" });
+
+      const order = await storage.updateOrderStatus(req.params.id, data.status);
+      res.json(order);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update order" });
+    }
+  });
+
+  // Admin: Create pizza
+  app.post("/api/admin/pizzas", async (req, res) => {
+    try {
+      // TODO: Check admin auth
+      const data = validate(insertPizzaSchema, req.body);
+      if (!data) return res.status(400).json({ error: "Invalid pizza data" });
+
+      const pizza = await storage.createPizza(data);
+      res.status(201).json(pizza);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create pizza" });
+    }
+  });
+
+  // Admin: Update pizza
+  app.patch("/api/admin/pizzas/:id", async (req, res) => {
+    try {
+      // TODO: Check admin auth
+      const pizza = await storage.updatePizza(req.params.id, req.body);
+      res.json(pizza);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update pizza" });
+    }
+  });
+
+  // Admin: Delete pizza
+  app.delete("/api/admin/pizzas/:id", async (req, res) => {
+    try {
+      // TODO: Check admin auth
+      await storage.deletePizza(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete pizza" });
+    }
+  });
 
   return httpServer;
 }
