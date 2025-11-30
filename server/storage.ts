@@ -99,7 +99,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllDrivers(): Promise<Driver[]> {
-    return await db.select().from(drivers);
+    const result = await db.select().from(drivers);
+    return Array.isArray(result) ? result : [];
   }
 
   async getOrdersByDriver(driverId: string): Promise<Order[]> {

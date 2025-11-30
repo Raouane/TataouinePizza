@@ -74,11 +74,33 @@ const DEMO_PIZZAS = [
 ];
 
 let seeded = false;
+let driverSeeded = false;
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  
+  // Seed demo drivers on startup
+  if (!driverSeeded) {
+    try {
+      const existingDrivers = await storage.getAllDrivers();
+      if (existingDrivers.length === 0) {
+        console.log("[DB] Seeding database with demo drivers...");
+        const demoDrivers = [
+          { name: "Mohamed", phone: "21612345678", password: await hashPassword("driver123") },
+          { name: "Ahmed", phone: "21698765432", password: await hashPassword("driver123") },
+          { name: "Fatima", phone: "21625874123", password: await hashPassword("driver123") },
+        ];
+        for (const driver of demoDrivers) {
+          await storage.createDriver(driver);
+        }
+      }
+      driverSeeded = true;
+    } catch (e) {
+      console.error("[DB] Error seeding drivers:", e);
+    }
+  }
   
   // ============ PIZZAS (PUBLIC) ============
   
