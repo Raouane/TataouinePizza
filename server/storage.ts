@@ -48,14 +48,24 @@ export class DatabaseStorage implements IStorage {
     const adminId = randomUUID();
     const adminWithId = { ...user, id: adminId };
     
-    await db.insert(adminUsers).values(adminWithId);
+    try {
+      await db.insert(adminUsers).values(adminWithId);
+    } catch (e) {
+      console.error("[DB] Insert failed:", e);
+      throw e;
+    }
     
     // Fetch the created admin to return it
-    const result = await db.select().from(adminUsers).where(eq(adminUsers.id, adminId));
-    if (!result || !result[0]) {
-      throw new Error("Failed to retrieve created admin user");
+    try {
+      const result = await db.select().from(adminUsers).where(eq(adminUsers.id, adminId));
+      if (!Array.isArray(result) || result.length === 0) {
+        throw new Error("Select returned empty result");
+      }
+      return result[0];
+    } catch (e) {
+      console.error("[DB] Select failed:", e);
+      throw e;
     }
-    return result[0];
   }
 
   async getAllPizzas(): Promise<Pizza[]> {
