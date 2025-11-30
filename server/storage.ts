@@ -15,6 +15,7 @@ export interface IStorage {
   getDriverByPhone(phone: string): Promise<Driver | undefined>;
   createDriver(driver: InsertDriver): Promise<Driver>;
   getDriverById(id: string): Promise<Driver | undefined>;
+  getAllDrivers(): Promise<Driver[]>;
   getOrdersByDriver(driverId: string): Promise<Order[]>;
   updateDriverStatus(id: string, status: string): Promise<Driver>;
   assignOrderToDriver(orderId: string, driverId: string): Promise<Order>;
@@ -95,6 +96,10 @@ export class DatabaseStorage implements IStorage {
   async getDriverById(id: string): Promise<Driver | undefined> {
     const result = await db.select().from(drivers).where(eq(drivers.id, id));
     return result[0];
+  }
+
+  async getAllDrivers(): Promise<Driver[]> {
+    return await db.select().from(drivers);
   }
 
   async getOrdersByDriver(driverId: string): Promise<Order[]> {

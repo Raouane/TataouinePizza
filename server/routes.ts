@@ -386,6 +386,29 @@ export async function registerRoutes(
     }
   });
 
+  // Admin: Get all drivers
+  app.get("/api/admin/drivers", authenticateAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const drivers = await storage.getAllDrivers();
+      res.json(drivers);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch drivers" });
+    }
+  });
+
+  // Admin: Assign order to driver
+  app.post("/api/admin/assign-order/:id", authenticateAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const { driverId } = req.body as { driverId?: string };
+      if (!driverId) return res.status(400).json({ error: "Driver ID required" });
+
+      const order = await storage.assignOrderToDriver(req.params.id, driverId);
+      res.json(order);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to assign order" });
+    }
+  });
+
   // ============ DRIVER AUTH ============
 
   const DEMO_DRIVER_PHONE = "21612345678";
