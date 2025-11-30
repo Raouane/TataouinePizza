@@ -111,14 +111,14 @@ export default function OrderHistory() {
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      pending: "En attente",
-      accepted: "Acceptée",
-      preparing: "Préparation",
-      baking: "Cuisson",
-      ready: "Prête",
-      delivery: "En livraison",
-      delivered: "Livrée",
-      rejected: "Rejetée",
+      pending: t('history.statusPending'),
+      accepted: t('history.statusAccepted'),
+      preparing: t('history.statusPreparing'),
+      baking: t('history.statusBaking'),
+      ready: t('history.statusReady'),
+      delivery: t('history.statusDelivery'),
+      delivered: t('history.statusDelivered'),
+      rejected: t('history.statusRejected'),
     };
     return labels[status] || status;
   };
@@ -127,8 +127,8 @@ export default function OrderHistory() {
     <div className="max-w-2xl mx-auto space-y-6 pb-20">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-serif font-bold mb-2">Mes Commandes</h1>
-          <p className="text-muted-foreground">Consultez l'historique de vos commandes (mise à jour auto)</p>
+          <h1 className="text-3xl font-serif font-bold mb-2">{t('history.title')}</h1>
+          <p className="text-muted-foreground">{t('history.subtitle')}</p>
         </div>
         {refreshing && (
           <RefreshCw className="w-5 h-5 animate-spin text-primary" />
@@ -139,15 +139,15 @@ export default function OrderHistory() {
         <Card className="p-6 space-y-4 border-blue-200 bg-blue-50">
           <div className="flex items-center gap-2 mb-4">
             <Lock className="w-5 h-5 text-blue-600" />
-            <h2 className="font-semibold text-blue-900">Vérification de sécurité requise</h2>
+            <h2 className="font-semibold text-blue-900">{t('history.security')}</h2>
           </div>
           
           <div>
-            <label className="block text-sm font-medium mb-2">Numéro de téléphone</label>
+            <label className="block text-sm font-medium mb-2">{t('history.phone')}</label>
             <div className="flex gap-2">
               <Input
                 type="tel"
-                placeholder="Ex: 21123456789"
+                placeholder={t('history.phone.placeholder')}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 disabled={otpSent}
@@ -160,18 +160,18 @@ export default function OrderHistory() {
                 variant={otpSent ? "outline" : "default"}
                 data-testid="button-send-otp"
               >
-                {otpLoading ? "Envoi..." : otpSent ? "Code envoyé ✓" : "Envoyer OTP"}
+                {otpLoading ? t('history.sending') : otpSent ? t('history.sent') : t('history.sendOtp')}
               </Button>
             </div>
           </div>
 
           {otpSent && (
             <div>
-              <label className="block text-sm font-medium mb-2">Code OTP (4 chiffres)</label>
+              <label className="block text-sm font-medium mb-2">{t('history.code')}</label>
               <div className="flex gap-2">
                 <Input
                   type="text"
-                  placeholder="Ex: 1234"
+                  placeholder={t('history.code.placeholder')}
                   maxLength={4}
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
@@ -183,11 +183,11 @@ export default function OrderHistory() {
                   disabled={verifyLoading}
                   data-testid="button-verify-otp"
                 >
-                  {verifyLoading ? "Vérif..." : "Vérifier"}
+                  {verifyLoading ? t('history.verifying') : t('history.verify')}
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                Code démo pour test: 1234
+                {t('history.demoCode')}
               </p>
             </div>
           )}
@@ -196,7 +196,7 @@ export default function OrderHistory() {
         <Card className="p-6 space-y-4 border-green-200 bg-green-50">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-sm text-green-600">✓ Téléphone vérifié</p>
+              <p className="text-sm text-green-600">✓ {t('history.verified')}</p>
               <p className="font-semibold">{phone}</p>
             </div>
             <Button
@@ -212,7 +212,7 @@ export default function OrderHistory() {
               }}
               data-testid="button-change-phone"
             >
-              Changer
+              {t('history.change')}
             </Button>
           </div>
         </Card>
@@ -220,14 +220,14 @@ export default function OrderHistory() {
 
       {verified && (
         <Card className="p-6 space-y-4">
-          <label className="block text-sm font-medium">Afficher mes commandes</label>
+          <label className="block text-sm font-medium">{t('history.title')}</label>
           <Button
             onClick={handleSearch}
             disabled={loading}
             className="w-full"
             data-testid="button-search-orders"
           >
-            {loading ? "Recherche..." : "Voir mes commandes"}
+            {loading ? t('history.searching') : t('history.view')}
           </Button>
         </Card>
       )}
@@ -236,11 +236,11 @@ export default function OrderHistory() {
         <>
           {orders.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-muted-foreground text-lg">Aucune commande trouvée</p>
+              <p className="text-muted-foreground text-lg">{t('history.noOrders')}</p>
             </div>
           ) : (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">{orders.length} commande(s) trouvée(s)</p>
+              <p className="text-sm text-muted-foreground">{orders.length} {t('history.ordersFound')}</p>
               {orders.map((order) => (
                 <Card key={order.id} className="p-4 space-y-3" data-testid={`order-card-${order.id}`}>
                   <div className="flex justify-between items-start gap-4">
