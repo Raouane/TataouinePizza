@@ -4,6 +4,7 @@ import {
   type Pizza, type InsertAdminUser, type AdminUser, type Order, type OrderItem, type OtpCode
 } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
+import { randomUUID } from "crypto";
 
 export interface IStorage {
   // Admin Users
@@ -107,9 +108,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createOrder(order: any): Promise<Order> {
-    const result = await db.insert(orders).values(order).returning();
+    // Generate UUID client-side since .returning() doesn't work reliably with Neon HTTP
+    const orderId = randomUUID();
+    const orderWithId = { ...order, id: orderId };
+    
+    await db.insert(orders).values(orderWithId);
+    
+    // Fetch the created order to return it
+    const result = await db.select().from(orders).where(eq(orders.id, orderId));
     if (!result || !result[0]) {
-      throw new Error("Failed to insert order - no result returned");
+      throw new Error("Failed to retrieve created order");
     }
     return result[0];
   }
