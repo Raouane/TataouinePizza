@@ -27,6 +27,54 @@ function validate<T>(schema: z.ZodSchema, data: any): T | null {
   }
 }
 
+// Demo pizzas seed data
+const DEMO_PIZZAS = [
+  {
+    name: "Margherita",
+    description: "Sauce tomate, mozzarella di bufala, basilic frais, huile d'olive extra vierge.",
+    category: "classic",
+    imageUrl: null,
+    available: true,
+  },
+  {
+    name: "La Tunisienne",
+    description: "Thon, olives noires, œuf, harissa artisanale, fromage, persil.",
+    category: "special",
+    imageUrl: null,
+    available: true,
+  },
+  {
+    name: "Pepperoni",
+    description: "Double pepperoni piquant, mozzarella fondante, origan.",
+    category: "classic",
+    imageUrl: null,
+    available: true,
+  },
+  {
+    name: "Vegetarian",
+    description: "Poivrons, oignons rouges, champignons frais, olives, tomates cerises.",
+    category: "vegetarian",
+    imageUrl: null,
+    available: true,
+  },
+  {
+    name: "Tataouine Spéciale",
+    description: "Merguez, poivrons grillés, œuf, olives, sauce tomate épicée.",
+    category: "special",
+    imageUrl: null,
+    available: true,
+  },
+  {
+    name: "4 Fromages",
+    description: "Mozzarella, Gorgonzola, Parmesan, Chèvre, miel (optionnel).",
+    category: "classic",
+    imageUrl: null,
+    available: true,
+  },
+];
+
+let seeded = false;
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -37,7 +85,25 @@ export async function registerRoutes(
   // Get all pizzas
   app.get("/api/pizzas", async (req, res) => {
     try {
-      const allPizzas = await storage.getAllPizzas();
+      let allPizzas = await storage.getAllPizzas();
+      
+      // Auto-seed if empty
+      if (allPizzas.length === 0 && !seeded) {
+        console.log("[DB] Seeding database with demo pizzas...");
+        for (const pizza of DEMO_PIZZAS) {
+          const created = await storage.createPizza(pizza);
+          for (const [size, price] of [["small", "10"], ["medium", "15"], ["large", "18"]]) {
+            await storage.createPizzaPrice({
+              pizzaId: created.id,
+              size,
+              price,
+            });
+          }
+        }
+        seeded = true;
+        allPizzas = await storage.getAllPizzas();
+      }
+      
       const pizzasWithPrices = await Promise.all(
         allPizzas.map(async (pizza) => ({
           ...pizza,
@@ -46,6 +112,7 @@ export async function registerRoutes(
       );
       res.json(pizzasWithPrices);
     } catch (error) {
+      console.error("[ERROR] Failed to fetch pizzas:", error);
       res.status(500).json({ error: "Failed to fetch pizzas" });
     }
   });
