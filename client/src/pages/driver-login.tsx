@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { ArrowLeft } from "lucide-react";
 
 export default function DriverLogin() {
   const [, setLocation] = useLocation();
@@ -40,6 +41,17 @@ export default function DriverLogin() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 to-orange-50 px-4">
+      <div className="absolute top-4 left-4">
+        <Button 
+          variant="ghost" 
+          onClick={() => setLocation("/")}
+          className="gap-2"
+          data-testid="button-back-home"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Retour
+        </Button>
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="font-serif text-2xl">Espace Livreur</CardTitle>

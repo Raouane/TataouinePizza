@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Truck, LogOut, Phone, MapPin, Clock } from "lucide-react";
+import { Truck, LogOut, Phone, MapPin, Clock, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 interface Order {
@@ -118,10 +118,16 @@ export default function DriverDashboard() {
               <p className="text-sm text-muted-foreground">Bienvenue, {driverName}</p>
             </div>
           </div>
-          <Button variant="outline" onClick={handleLogout} data-testid="button-driver-logout">
-            <LogOut className="w-4 h-4 mr-2" />
-            Déconnexion
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setLocation("/")} data-testid="button-back-home">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Retour
+            </Button>
+            <Button variant="outline" onClick={handleLogout} data-testid="button-driver-logout">
+              <LogOut className="w-4 h-4 mr-2" />
+              Déconnexion
+            </Button>
+          </div>
         </div>
       </div>
 
