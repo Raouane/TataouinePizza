@@ -1,17 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useLanguage } from "@/lib/i18n";
 import { getOrdersByPhone } from "@/lib/api";
 import type { Order } from "@/lib/api";
-import { Clock, MapPin, Phone } from "lucide-react";
+import { Clock, MapPin, Phone, RefreshCw } from "lucide-react";
 
 export default function OrderHistory() {
   const [phone, setPhone] = useState("");
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const { t, language } = useLanguage();
   const isRtl = language === "ar";
 
@@ -32,6 +33,25 @@ export default function OrderHistory() {
       setLoading(false);
     }
   };
+
+  // Auto-refresh orders every 5 seconds to update statuses
+  useEffect(() => {
+    if (!searched || phone.length < 8) return;
+
+    const interval = setInterval(async () => {
+      try {
+        setRefreshing(true);
+        const result = await getOrdersByPhone(phone);
+        setOrders(result);
+      } catch (error) {
+        console.error("Failed to refresh orders:", error);
+      } finally {
+        setRefreshing(false);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [searched, phone]);
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -63,9 +83,14 @@ export default function OrderHistory() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-20">
-      <div>
-        <h1 className="text-3xl font-serif font-bold mb-2">Mes Commandes</h1>
-        <p className="text-muted-foreground">Consultez l'historique de vos commandes</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-serif font-bold mb-2">Mes Commandes</h1>
+          <p className="text-muted-foreground">Consultez l'historique de vos commandes (mise à jour auto)</p>
+        </div>
+        {refreshing && (
+          <RefreshCw className="w-5 h-5 animate-spin text-primary" />
+        )}
       </div>
 
       <Card className="p-6 space-y-4">
@@ -152,13 +177,13 @@ export default function OrderHistory() {
 
                   <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
                     <Clock className="w-3 h-3" />
-                    {new Date(order.createdAt).toLocaleDateString("fr-FR", {
+                    {order.createdAt ? new Date(order.createdAt).toLocaleDateString("fr-FR", {
                       year: "numeric",
                       month: "long",
                       day: "numeric",
                       hour: "2-digit",
                       minute: "2-digit",
-                    })}
+                    }) : "Date indisponible"}
                   </div>
                 </Card>
               ))}
