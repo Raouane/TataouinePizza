@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertPizzaSchema, insertOrderSchema, verifyOtpSchema, sendOtpSchema, updateOrderStatusSchema, insertAdminUserSchema } from "@shared/schema";
+import { insertPizzaSchema, insertOrderSchema, verifyOtpSchema, sendOtpSchema, updateOrderStatusSchema, insertAdminUserSchema, insertDriverSchema, driverLoginSchema } from "@shared/schema";
 import { z } from "zod";
 import { authenticateAdmin, generateToken, hashPassword, comparePassword, type AuthRequest } from "./auth";
 
@@ -383,6 +383,73 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete pizza" });
+    }
+  });
+
+  // ============ DRIVER AUTH ============
+
+  const DEMO_DRIVER_PHONE = "21612345678";
+  const DEMO_DRIVER_PASSWORD = "driver123";
+
+  // Driver: Login
+  app.post("/api/driver/login", async (req: Request, res: Response) => {
+    try {
+      const data = validate(driverLoginSchema, req.body);
+      if (!data) return res.status(400).json({ error: "Invalid phone or password" });
+
+      // Demo driver login
+      if (data.phone === DEMO_DRIVER_PHONE && data.password === DEMO_DRIVER_PASSWORD) {
+        const token = generateToken("demo-driver-id", data.phone);
+        res.json({ token, driver: { id: "demo-driver-id", name: "Mohamed", phone: data.phone } });
+        return;
+      }
+
+      res.status(401).json({ error: "Invalid credentials" });
+    } catch (error) {
+      console.error("[DRIVER] Login error:", error);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Driver: Get assigned orders
+  app.get("/api/driver/orders", authenticateAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const driverId = req.admin?.id;
+      if (!driverId) return res.status(401).json({ error: "Unauthorized" });
+
+      const orders = await storage.getOrdersByDriver(driverId);
+      res.json(orders);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch orders" });
+    }
+  });
+
+  // Driver: Update status
+  app.patch("/api/driver/status", authenticateAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const { status } = req.body as { status?: string };
+      if (!status) return res.status(400).json({ error: "Status required" });
+
+      const driverId = req.admin?.id;
+      if (!driverId) return res.status(401).json({ error: "Unauthorized" });
+
+      const driver = await storage.updateDriverStatus(driverId, status);
+      res.json(driver);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update status" });
+    }
+  });
+
+  // Driver: Update order status (delivery -> delivered)
+  app.patch("/api/driver/orders/:id/status", authenticateAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const { status } = req.body as { status?: string };
+      if (!status) return res.status(400).json({ error: "Status required" });
+
+      const order = await storage.updateOrderStatus(req.params.id, status);
+      res.json(order);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update order" });
     }
   });
 

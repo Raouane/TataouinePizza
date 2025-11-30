@@ -133,10 +133,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <p>© 2025 Tataouine Pizza. Tous droits réservés.</p>
             </div>
 
-            <div className="text-center md:text-right text-xs">
-              <a href="/admin/login" className="text-muted-foreground hover:text-primary transition-colors underline">
-                Espace Partenaire
-              </a>
+            <div className="text-center md:text-right text-xs space-y-2">
+              <div>
+                <a href="/admin/login" className="text-muted-foreground hover:text-primary transition-colors underline text-xs">
+                  Espace Partenaire
+                </a>
+              </div>
+              <div>
+                <a href="/driver/login" className="text-muted-foreground hover:text-primary transition-colors underline text-xs">
+                  Espace Livreur
+                </a>
+              </div>
             </div>
           </div>
         </div>

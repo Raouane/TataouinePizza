@@ -15,12 +15,16 @@ import OrderSuccess from "@/pages/order-success";
 import OrderHistory from "@/pages/order-history";
 import AdminLogin from "@/pages/admin-login";
 import AdminDashboard from "@/pages/admin-dashboard";
+import DriverLogin from "@/pages/driver-login";
+import DriverDashboard from "@/pages/driver-dashboard";
 
 function Router() {
   return (
     <Switch>
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
+      <Route path="/driver/login" component={DriverLogin} />
+      <Route path="/driver/dashboard" component={DriverDashboard} />
       <Route>
         <Layout>
           <Switch>

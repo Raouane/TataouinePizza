@@ -1,7 +1,7 @@
 import { db } from "./db.js";
 import { 
-  adminUsers, pizzas, pizzaPrices, otpCodes, orders, orderItems,
-  type Pizza, type InsertAdminUser, type AdminUser, type Order, type OrderItem, type OtpCode
+  adminUsers, pizzas, pizzaPrices, otpCodes, orders, orderItems, drivers,
+  type Pizza, type InsertAdminUser, type AdminUser, type Order, type OrderItem, type OtpCode, type Driver, type InsertDriver
 } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -10,6 +10,14 @@ export interface IStorage {
   // Admin Users
   getAdminByEmail(email: string): Promise<AdminUser | undefined>;
   createAdminUser(user: InsertAdminUser): Promise<AdminUser>;
+
+  // Drivers
+  getDriverByPhone(phone: string): Promise<Driver | undefined>;
+  createDriver(driver: InsertDriver): Promise<Driver>;
+  getDriverById(id: string): Promise<Driver | undefined>;
+  getOrdersByDriver(driverId: string): Promise<Order[]>;
+  updateDriverStatus(id: string, status: string): Promise<Driver>;
+  assignOrderToDriver(orderId: string, driverId: string): Promise<Order>;
 
   // Pizzas
   getAllPizzas(): Promise<Pizza[]>;
@@ -66,6 +74,49 @@ export class DatabaseStorage implements IStorage {
       console.error("[DB] Select failed:", e);
       throw e;
     }
+  }
+
+  async getDriverByPhone(phone: string): Promise<Driver | undefined> {
+    const result = await db.select().from(drivers).where(eq(drivers.phone, phone));
+    return result[0];
+  }
+
+  async createDriver(driver: InsertDriver): Promise<Driver> {
+    const driverId = randomUUID();
+    const driverWithId = { ...driver, id: driverId };
+    await db.insert(drivers).values(driverWithId);
+    const result = await db.select().from(drivers).where(eq(drivers.id, driverId));
+    if (!result || !result[0]) {
+      throw new Error("Failed to retrieve created driver");
+    }
+    return result[0];
+  }
+
+  async getDriverById(id: string): Promise<Driver | undefined> {
+    const result = await db.select().from(drivers).where(eq(drivers.id, id));
+    return result[0];
+  }
+
+  async getOrdersByDriver(driverId: string): Promise<Order[]> {
+    return await db.select().from(orders).where(eq(orders.driverId, driverId));
+  }
+
+  async updateDriverStatus(id: string, status: string): Promise<Driver> {
+    await db.update(drivers).set({ status, updatedAt: new Date() }).where(eq(drivers.id, id));
+    const result = await db.select().from(drivers).where(eq(drivers.id, id));
+    if (!result || !result[0]) {
+      throw new Error("Failed to retrieve updated driver");
+    }
+    return result[0];
+  }
+
+  async assignOrderToDriver(orderId: string, driverId: string): Promise<Order> {
+    await db.update(orders).set({ driverId, updatedAt: new Date() }).where(eq(orders.id, orderId));
+    const result = await db.select().from(orders).where(eq(orders.id, orderId));
+    if (!result || !result[0]) {
+      throw new Error("Failed to retrieve updated order");
+    }
+    return result[0];
   }
 
   async getAllPizzas(): Promise<Pizza[]> {
