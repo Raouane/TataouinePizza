@@ -58,12 +58,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               ))}
             </nav>
 
-            <Link href="/admin/login">
-              <Button variant="outline" size="sm" className="gap-2 hidden md:flex">
+            <a href="/admin/login" className="hidden md:block">
+              <Button variant="outline" size="sm" className="gap-2">
                 <Shield className="w-4 h-4" />
                 Admin
               </Button>
-            </Link>
+            </a>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -96,7 +96,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <GlobalTrackerWidget />
 
       {/* Mobile Bottom Nav */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur px-6 py-3 md:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur px-3 py-2 md:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         <nav className="flex justify-around items-center">
           {navItems.map((item) => {
             const isActive = location === item.href;
@@ -104,25 +104,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <Link key={item.href} href={item.href}>
                 <a
                   className={cn(
-                    "flex flex-col items-center gap-1 transition-all duration-300",
+                    "flex flex-col items-center gap-1 transition-all duration-300 p-1",
                     isActive ? "text-primary scale-110" : "text-muted-foreground"
                   )}
                 >
                   <div className="relative">
                     <item.icon
-                      className={cn("h-6 w-6", isActive && "fill-current/20")}
+                      className={cn("h-5 w-5", isActive && "fill-current/20")}
                     />
                     {item.badge && item.badge > 0 ? (
-                      <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[10px] font-bold h-4 w-4 flex items-center justify-center rounded-full animate-in zoom-in">
+                      <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[8px] font-bold h-3 w-3 flex items-center justify-center rounded-full animate-in zoom-in">
                         {item.badge}
                       </span>
                     ) : null}
                   </div>
-                  <span className="text-[10px] font-medium">{item.label}</span>
+                  <span className="text-[9px] font-medium">{item.label}</span>
                 </a>
               </Link>
             );
           })}
+          <a href="/admin/login" className="flex flex-col items-center gap-1 transition-all duration-300 p-1 text-muted-foreground hover:text-primary">
+            <Shield className="h-5 w-5" />
+            <span className="text-[9px] font-medium">Admin</span>
+          </a>
         </nav>
       </div>
     </div>
