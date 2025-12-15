@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertPizzaSchema, insertOrderSchema, verifyOtpSchema, sendOtpSchema, updateOrderStatusSchema, insertAdminUserSchema, insertDriverSchema, driverLoginSchema } from "@shared/schema";
 import { z } from "zod";
 import { authenticateAdmin, generateToken, hashPassword, comparePassword, type AuthRequest } from "./auth";
+import { errorHandler, AppError } from "./errors";
 
 declare global {
   namespace Express {
@@ -134,8 +135,7 @@ export async function registerRoutes(
       );
       res.json(pizzasWithPrices);
     } catch (error) {
-      console.error("[ERROR] Failed to fetch pizzas:", error);
-      res.status(500).json({ error: "Failed to fetch pizzas" });
+      errorHandler.sendError(res, error);
     }
   });
 
@@ -143,11 +143,11 @@ export async function registerRoutes(
   app.get("/api/pizzas/:id", async (req, res) => {
     try {
       const pizza = await storage.getPizzaById(req.params.id);
-      if (!pizza) return res.status(404).json({ error: "Pizza not found" });
+      if (!pizza) throw errorHandler.notFound("Pizza not found");
       const prices = await storage.getPizzaPrices(pizza.id);
       res.json({ ...pizza, prices });
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch pizza" });
+      errorHandler.sendError(res, error);
     }
   });
 
@@ -352,13 +352,31 @@ export async function registerRoutes(
 
   // ============ ADMIN ROUTES (Protected) ============
 
-  // Admin: Get all orders
+  // Admin: Get all orders with optional filters
   app.get("/api/admin/orders", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
-      const allOrders = await storage.getAllOrders();
-      res.json(allOrders);
+      const { status, driverId, limit = "50", offset = "0" } = req.query;
+      let allOrders = await storage.getAllOrders();
+      
+      // Filter by status if provided
+      if (status) {
+        allOrders = allOrders.filter(o => o.status === status);
+      }
+      
+      // Filter by driver if provided
+      if (driverId) {
+        allOrders = allOrders.filter(o => o.driverId === driverId);
+      }
+      
+      // Pagination
+      const off = parseInt(offset as string) || 0;
+      const lim = parseInt(limit as string) || 50;
+      const total = allOrders.length;
+      const paginated = allOrders.slice(off, off + lim);
+      
+      res.json({ orders: paginated, total, offset: off, limit: lim });
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch orders" });
+      errorHandler.sendError(res, error);
     }
   });
 
@@ -422,12 +440,20 @@ export async function registerRoutes(
   app.post("/api/admin/assign-order/:id", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
       const { driverId } = req.body as { driverId?: string };
-      if (!driverId) return res.status(400).json({ error: "Driver ID required" });
+      if (!driverId) throw errorHandler.badRequest("Driver ID required");
 
-      const order = await storage.assignOrderToDriver(req.params.id, driverId);
-      res.json(order);
+      // Verify order exists
+      const order = await storage.getOrderById(req.params.id);
+      if (!order) throw errorHandler.notFound("Order not found");
+      
+      // Verify driver exists
+      const driver = await storage.getDriverById(driverId);
+      if (!driver) throw errorHandler.notFound("Driver not found");
+
+      const updatedOrder = await storage.assignOrderToDriver(req.params.id, driverId);
+      res.json(updatedOrder);
     } catch (error) {
-      res.status(500).json({ error: "Failed to assign order" });
+      errorHandler.sendError(res, error);
     }
   });
 
@@ -466,16 +492,23 @@ export async function registerRoutes(
     }
   });
 
-  // Driver: Get assigned orders
+  // Driver: Get assigned orders with status filter
   app.get("/api/driver/orders", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
       const driverId = req.admin?.id;
-      if (!driverId) return res.status(401).json({ error: "Unauthorized" });
+      if (!driverId) throw errorHandler.unauthorized("Driver not authenticated");
 
-      const orders = await storage.getOrdersByDriver(driverId);
+      const { status } = req.query;
+      let orders = await storage.getOrdersByDriver(driverId);
+      
+      // Filter by status if provided
+      if (status) {
+        orders = orders.filter(o => o.status === status);
+      }
+      
       res.json(orders);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch orders" });
+      errorHandler.sendError(res, error);
     }
   });
 
@@ -499,12 +532,17 @@ export async function registerRoutes(
   app.patch("/api/driver/orders/:id/status", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
       const { status } = req.body as { status?: string };
-      if (!status) return res.status(400).json({ error: "Status required" });
+      if (!status) throw errorHandler.badRequest("Status required");
 
-      const order = await storage.updateOrderStatus(req.params.id, status);
-      res.json(order);
+      // Verify order exists and belongs to driver
+      const order = await storage.getOrderById(req.params.id);
+      if (!order) throw errorHandler.notFound("Order not found");
+      if (order.driverId !== req.admin?.id) throw errorHandler.forbidden("Order not assigned to this driver");
+
+      const updatedOrder = await storage.updateOrderStatus(req.params.id, status);
+      res.json(updatedOrder);
     } catch (error) {
-      res.status(500).json({ error: "Failed to update order" });
+      errorHandler.sendError(res, error);
     }
   });
 
