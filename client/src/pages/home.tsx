@@ -220,14 +220,14 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="flex flex-col gap-6">
             {filteredRestaurants.map((restaurant, index) => (
               <Link key={restaurant.id} href={`/menu/${restaurant.id}`}>
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100"
+                  className="group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100"
                   data-testid={`card-restaurant-${restaurant.id}`}
                 >
                   <div className="flex">
