@@ -467,6 +467,38 @@ export async function registerRoutes(
     }
   });
   
+  // Toggle restaurant open/closed status
+  app.patch("/api/restaurant/toggle-status", authenticateAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const restaurantId = req.admin?.id;
+      if (!restaurantId) throw errorHandler.unauthorized("Not authenticated");
+      
+      const restaurant = await storage.getRestaurantById(restaurantId);
+      if (!restaurant) throw errorHandler.notFound("Restaurant not found");
+      
+      const newStatus = !restaurant.isOpen;
+      const updated = await storage.updateRestaurant(restaurantId, { isOpen: newStatus });
+      res.json({ isOpen: updated.isOpen });
+    } catch (error) {
+      errorHandler.sendError(res, error);
+    }
+  });
+
+  // Get restaurant status
+  app.get("/api/restaurant/status", authenticateAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const restaurantId = req.admin?.id;
+      if (!restaurantId) throw errorHandler.unauthorized("Not authenticated");
+      
+      const restaurant = await storage.getRestaurantById(restaurantId);
+      if (!restaurant) throw errorHandler.notFound("Restaurant not found");
+      
+      res.json({ isOpen: restaurant.isOpen });
+    } catch (error) {
+      errorHandler.sendError(res, error);
+    }
+  });
+
   // ============ DRIVER AUTH (OTP) ============
   
   app.post("/api/driver/login-otp", async (req: Request, res: Response) => {
@@ -591,5 +623,38 @@ export async function registerRoutes(
     }
   });
   
+  // Toggle driver online/offline status
+  app.patch("/api/driver/toggle-status", authenticateAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const driverId = req.admin?.id;
+      if (!driverId) throw errorHandler.unauthorized("Not authenticated");
+      
+      const driver = await storage.getDriverById(driverId);
+      if (!driver) throw errorHandler.notFound("Driver not found");
+      
+      // Toggle between available and offline
+      const newStatus = driver.status === "offline" ? "available" : "offline";
+      const updated = await storage.updateDriverStatus(driverId, newStatus);
+      res.json({ status: updated.status });
+    } catch (error) {
+      errorHandler.sendError(res, error);
+    }
+  });
+
+  // Get driver status
+  app.get("/api/driver/status", authenticateAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const driverId = req.admin?.id;
+      if (!driverId) throw errorHandler.unauthorized("Not authenticated");
+      
+      const driver = await storage.getDriverById(driverId);
+      if (!driver) throw errorHandler.notFound("Driver not found");
+      
+      res.json({ status: driver.status });
+    } catch (error) {
+      errorHandler.sendError(res, error);
+    }
+  });
+
   return httpServer;
 }

@@ -3,7 +3,8 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChefHat, LogOut, Clock, Check, X, RefreshCw, AlertCircle, ArrowLeft, Flame, Package, Banknote, Calendar } from "lucide-react";
+import { ChefHat, LogOut, Clock, Check, X, RefreshCw, AlertCircle, ArrowLeft, Flame, Package, Banknote, Calendar, Power } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 interface Order {
@@ -24,6 +25,7 @@ export default function RestaurantDashboard() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [showWeek, setShowWeek] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
 
   const restaurantName = localStorage.getItem("restaurantName") || "Restaurant";
   const token = localStorage.getItem("restaurantToken");
@@ -34,9 +36,41 @@ export default function RestaurantDashboard() {
       return;
     }
     fetchOrders();
+    fetchStatus();
     const interval = setInterval(fetchOrders, 5000);
     return () => clearInterval(interval);
   }, [token]);
+
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch("/api/restaurant/status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsOpen(data.isOpen);
+      }
+    } catch (err) {
+      console.error("Failed to fetch status:", err);
+    }
+  };
+
+  const toggleStatus = async () => {
+    try {
+      const res = await fetch("/api/restaurant/toggle-status", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsOpen(data.isOpen);
+        toast.success(data.isOpen ? "Restaurant ouvert" : "Restaurant fermé");
+      }
+    } catch (err) {
+      console.error("Failed to toggle status:", err);
+      toast.error("Erreur lors du changement de statut");
+    }
+  };
 
   const fetchOrders = async () => {
     try {
@@ -161,7 +195,17 @@ export default function RestaurantDashboard() {
                 <p className="text-xs md:text-sm text-muted-foreground truncate">{restaurantName}</p>
               </div>
             </div>
-            <div className="flex gap-1 md:gap-2 flex-shrink-0">
+            <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+              <div 
+                className={`flex items-center gap-2 px-2 py-1 rounded-full cursor-pointer transition-colors ${isOpen ? 'bg-green-100' : 'bg-red-100'}`}
+                onClick={toggleStatus}
+              >
+                <div className={`w-2 h-2 rounded-full ${isOpen ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                <span className={`text-xs font-medium ${isOpen ? 'text-green-700' : 'text-red-700'}`}>
+                  {isOpen ? "Ouvert" : "Fermé"}
+                </span>
+                <Switch checked={isOpen} onCheckedChange={toggleStatus} className="scale-75" />
+              </div>
               <Button variant="outline" size="sm" onClick={() => setLocation("/")} data-testid="button-back-home" className="px-2 md:px-3">
                 <ArrowLeft className="w-4 h-4" />
                 <span className="hidden md:inline ml-2">Retour</span>

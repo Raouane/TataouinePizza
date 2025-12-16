@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Truck, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock, Store, Banknote, Navigation } from "lucide-react";
+import { Truck, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock, Store, Banknote, Navigation, Power } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 interface Order {
@@ -31,6 +32,8 @@ export default function DriverDashboard() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [error, setError] = useState("");
 
+  const [isOnline, setIsOnline] = useState(true);
+  
   const driverName = localStorage.getItem("driverName") || "Livreur";
   const token = localStorage.getItem("driverToken");
 
@@ -40,9 +43,41 @@ export default function DriverDashboard() {
       return;
     }
     fetchOrders();
+    fetchStatus();
     const interval = setInterval(fetchOrders, 5000);
     return () => clearInterval(interval);
   }, [token]);
+
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch("/api/driver/status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsOnline(data.status !== "offline");
+      }
+    } catch (err) {
+      console.error("Failed to fetch status:", err);
+    }
+  };
+
+  const toggleStatus = async () => {
+    try {
+      const res = await fetch("/api/driver/toggle-status", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsOnline(data.status !== "offline");
+        toast.success(data.status === "offline" ? "Hors ligne" : "En ligne");
+      }
+    } catch (err) {
+      console.error("Failed to toggle status:", err);
+      toast.error("Erreur lors du changement de statut");
+    }
+  };
 
   const fetchOrders = async () => {
     try {
@@ -196,7 +231,17 @@ export default function DriverDashboard() {
                 <p className="text-xs md:text-sm text-muted-foreground truncate">{driverName}</p>
               </div>
             </div>
-            <div className="flex gap-1 md:gap-2 flex-shrink-0">
+            <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+              <div 
+                className={`flex items-center gap-2 px-2 py-1 rounded-full cursor-pointer transition-colors ${isOnline ? 'bg-green-100' : 'bg-red-100'}`}
+                onClick={toggleStatus}
+              >
+                <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                <span className={`text-xs font-medium ${isOnline ? 'text-green-700' : 'text-red-700'}`}>
+                  {isOnline ? "En ligne" : "Hors ligne"}
+                </span>
+                <Switch checked={isOnline} onCheckedChange={toggleStatus} className="scale-75" />
+              </div>
               <Button variant="outline" size="sm" onClick={() => setLocation("/")} data-testid="button-back-home" className="px-2 md:px-3">
                 <ArrowLeft className="w-4 h-4" />
                 <span className="hidden md:inline ml-2">Retour</span>
