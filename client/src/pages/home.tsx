@@ -220,7 +220,7 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-5">
             {filteredRestaurants.map((restaurant, index) => (
               <Link key={restaurant.id} href={`/menu/${restaurant.id}`}>
                 <motion.div
