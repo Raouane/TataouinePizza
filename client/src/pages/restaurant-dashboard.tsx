@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChefHat, LogOut, Clock, Check, X, RefreshCw, AlertCircle, ArrowLeft, Flame, Package } from "lucide-react";
+import { ChefHat, LogOut, Clock, Check, X, RefreshCw, AlertCircle, ArrowLeft, Flame, Package, Banknote, Calendar } from "lucide-react";
 import { toast } from "sonner";
 
 interface Order {
@@ -23,6 +23,7 @@ export default function RestaurantDashboard() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [showWeek, setShowWeek] = useState(false);
 
   const restaurantName = localStorage.getItem("restaurantName") || "Restaurant";
   const token = localStorage.getItem("restaurantToken");
@@ -118,6 +119,25 @@ export default function RestaurantDashboard() {
   const activeOrders = orders.filter(o => ["accepted", "preparing", "baking"].includes(o.status));
   const readyOrders = orders.filter(o => o.status === "ready");
 
+  // Calculate revenue for today and week
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfWeek = new Date(startOfDay);
+  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+
+  const deliveredOrders = orders.filter(o => o.status === "delivered");
+  
+  const todayRevenue = deliveredOrders
+    .filter(o => o.createdAt && new Date(o.createdAt) >= startOfDay)
+    .reduce((sum, o) => sum + Number(o.totalPrice), 0);
+  
+  const weekRevenue = deliveredOrders
+    .filter(o => o.createdAt && new Date(o.createdAt) >= startOfWeek)
+    .reduce((sum, o) => sum + Number(o.totalPrice), 0);
+
+  const todayOrdersCount = deliveredOrders.filter(o => o.createdAt && new Date(o.createdAt) >= startOfDay).length;
+  const weekOrdersCount = deliveredOrders.filter(o => o.createdAt && new Date(o.createdAt) >= startOfWeek).length;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="border-b bg-white shadow-sm sticky top-0 z-10">
@@ -153,6 +173,37 @@ export default function RestaurantDashboard() {
             <p className="text-red-600 text-sm">{error}</p>
           </div>
         )}
+
+        {/* Revenue Card */}
+        <Card className="p-3 sm:p-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <p className="text-orange-100 text-xs sm:text-sm">
+                  {showWeek ? "Chiffre d'affaires (semaine)" : "Chiffre d'affaires (aujourd'hui)"}
+                </p>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setShowWeek(!showWeek)}
+                  className="h-6 px-2 text-[10px] bg-white/20 hover:bg-white/30 text-white"
+                >
+                  <Calendar className="w-3 h-3 mr-1" />
+                  {showWeek ? "Jour" : "Semaine"}
+                </Button>
+              </div>
+              <p className="text-2xl sm:text-3xl font-bold truncate">
+                {showWeek ? weekRevenue.toFixed(2) : todayRevenue.toFixed(2)} TND
+              </p>
+              <p className="text-orange-100 text-[10px] sm:text-xs mt-1">
+                {showWeek ? weekOrdersCount : todayOrdersCount} commande{(showWeek ? weekOrdersCount : todayOrdersCount) > 1 ? 's' : ''} livrée{(showWeek ? weekOrdersCount : todayOrdersCount) > 1 ? 's' : ''}
+              </p>
+            </div>
+            <div className="bg-white/20 p-2 sm:p-3 rounded-full flex-shrink-0">
+              <Banknote className="w-6 h-6 sm:w-8 sm:h-8" />
+            </div>
+          </div>
+        </Card>
 
         {/* Stats - Grid on mobile */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
