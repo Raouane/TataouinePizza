@@ -210,7 +210,7 @@ export default function DriverDashboard() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {error && (
           <div className="flex gap-2 p-4 bg-red-50 border border-red-200 rounded-lg">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
@@ -219,19 +219,19 @@ export default function DriverDashboard() {
         )}
 
         {/* Earnings Card */}
-        <Card className="p-4 bg-gradient-to-r from-emerald-500 to-green-600 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-emerald-100 text-sm">Total gagné</p>
-              <p className="text-3xl font-bold">
+        <Card className="p-3 sm:p-4 bg-gradient-to-r from-emerald-500 to-green-600 text-white">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-emerald-100 text-xs sm:text-sm">Total gagné</p>
+              <p className="text-2xl sm:text-3xl font-bold truncate">
                 {(deliveredOrders.reduce((sum, o) => sum + Number(o.totalPrice) * DRIVER_COMMISSION_RATE, 0)).toFixed(2)} TND
               </p>
-              <p className="text-emerald-100 text-xs mt-1">
+              <p className="text-emerald-100 text-[10px] sm:text-xs mt-1">
                 {deliveredOrders.length} livraison{deliveredOrders.length > 1 ? 's' : ''} effectuée{deliveredOrders.length > 1 ? 's' : ''}
               </p>
             </div>
-            <div className="bg-white/20 p-3 rounded-full">
-              <Banknote className="w-8 h-8" />
+            <div className="bg-white/20 p-2 sm:p-3 rounded-full flex-shrink-0">
+              <Banknote className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
           </div>
         </Card>
@@ -264,18 +264,26 @@ export default function DriverDashboard() {
         </div>
 
         <Tabs defaultValue="available">
-          <TabsList>
-            <TabsTrigger value="available">
-              Disponibles ({availableOrders.length})
+          <TabsList className="w-full grid grid-cols-4 h-auto">
+            <TabsTrigger value="available" className="text-xs px-1 py-2">
+              <span className="hidden sm:inline">Disponibles</span>
+              <span className="sm:hidden">Dispo</span>
+              <span className="ml-1">({availableOrders.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="waiting">
-              En attente ({waitingOrders.length})
+            <TabsTrigger value="waiting" className="text-xs px-1 py-2">
+              <span className="hidden sm:inline">En attente</span>
+              <span className="sm:hidden">Attente</span>
+              <span className="ml-1">({waitingOrders.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="my">
-              En livraison ({inDeliveryOrders.length})
+            <TabsTrigger value="my" className="text-xs px-1 py-2">
+              <span className="hidden sm:inline">En livraison</span>
+              <span className="sm:hidden">Livr.</span>
+              <span className="ml-1">({inDeliveryOrders.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="completed">
-              Historique ({deliveredOrders.length})
+            <TabsTrigger value="completed" className="text-xs px-1 py-2">
+              <span className="hidden sm:inline">Historique</span>
+              <span className="sm:hidden">Hist.</span>
+              <span className="ml-1">({deliveredOrders.length})</span>
             </TabsTrigger>
           </TabsList>
 
