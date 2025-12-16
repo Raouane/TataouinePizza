@@ -16,7 +16,6 @@ import OrderHistory from "@/pages/order-history";
 import AdminLogin from "@/pages/admin-login";
 import AdminDashboard from "@/pages/admin-dashboard";
 import DriverLogin from "@/pages/driver-login";
-import DriverSelect from "@/pages/driver-select";
 import DriverDashboard from "@/pages/driver-dashboard";
 
 function Router() {
@@ -24,7 +23,6 @@ function Router() {
     <Switch>
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
-      <Route path="/driver/select" component={DriverSelect} />
       <Route path="/driver/login" component={DriverLogin} />
       <Route path="/driver/dashboard" component={DriverDashboard} />
       <Route>

@@ -140,7 +140,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </a>
               </div>
               <div>
-                <a href="/driver/select" className="text-muted-foreground hover:text-primary transition-colors underline text-xs">
+                <a href="/driver/login" className="text-muted-foreground hover:text-primary transition-colors underline text-xs">
                   Espace Livreur
                 </a>
               </div>

@@ -459,33 +459,54 @@ export async function registerRoutes(
 
   // ============ DRIVER AUTH ============
 
-  const DEMO_DRIVERS: Record<string, string> = {
-    "21612345678": "driver123", // Mohamed
-    "21698765432": "driver123", // Ahmed
-    "21625874123": "driver123", // Fatima
-  };
+  // Driver: Login via OTP (after OTP is verified)
+  app.post("/api/driver/login-otp", async (req: Request, res: Response) => {
+    try {
+      const { phone } = req.body as { phone?: string };
+      if (!phone) return res.status(400).json({ error: "Phone required" });
 
-  // Driver: Login
+      // Check if OTP was recently verified for this phone
+      const otpRecord = await storage.getLatestOtpCode(phone);
+      if (!otpRecord || !otpRecord.verified) {
+        return res.status(403).json({ error: "OTP not verified. Please verify first." });
+      }
+
+      // Find the driver in the database
+      const driver = await storage.getDriverByPhone(phone);
+      if (!driver) {
+        return res.status(404).json({ error: "Livreur non trouvé avec ce numéro" });
+      }
+
+      // Generate token with actual driver ID from database
+      const token = generateToken(driver.id, phone);
+      res.json({ token, driver: { id: driver.id, name: driver.name, phone: driver.phone } });
+    } catch (error) {
+      console.error("[DRIVER] Login OTP error:", error);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Driver: Legacy password login (kept for compatibility)
   app.post("/api/driver/login", async (req: Request, res: Response) => {
     try {
       const data = validate(driverLoginSchema, req.body);
       if (!data) return res.status(400).json({ error: "Invalid phone or password" });
 
-      // Check if demo credentials match
-      if (DEMO_DRIVERS[data.phone] === data.password) {
-        // Find the driver in the database
-        const driver = await storage.getDriverByPhone(data.phone);
-        if (!driver) {
-          return res.status(401).json({ error: "Driver not found" });
-        }
-
-        // Generate token with actual driver ID from database
-        const token = generateToken(driver.id, data.phone);
-        res.json({ token, driver: { id: driver.id, name: driver.name, phone: driver.phone } });
-        return;
+      // Find the driver in the database and verify password
+      const driver = await storage.getDriverByPhone(data.phone);
+      if (!driver) {
+        return res.status(401).json({ error: "Driver not found" });
       }
 
-      res.status(401).json({ error: "Invalid credentials" });
+      // Check password (demo: driver123 for all)
+      const isValidPassword = await comparePassword(data.password, driver.password);
+      if (!isValidPassword && data.password !== "driver123") {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      // Generate token with actual driver ID from database
+      const token = generateToken(driver.id, data.phone);
+      res.json({ token, driver: { id: driver.id, name: driver.name, phone: driver.phone } });
     } catch (error) {
       console.error("[DRIVER] Login error:", error);
       res.status(500).json({ error: "Login failed" });
@@ -540,6 +561,45 @@ export async function registerRoutes(
       if (order.driverId !== req.admin?.id) throw errorHandler.forbidden("Order not assigned to this driver");
 
       const updatedOrder = await storage.updateOrderStatus(req.params.id, status);
+      res.json(updatedOrder);
+    } catch (error) {
+      errorHandler.sendError(res, error);
+    }
+  });
+
+  // Driver: Accept order
+  app.post("/api/driver/orders/:id/accept", authenticateAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const driverId = req.admin?.id;
+      if (!driverId) throw errorHandler.unauthorized("Driver not authenticated");
+
+      // Verify order exists and belongs to driver
+      const order = await storage.getOrderById(req.params.id);
+      if (!order) throw errorHandler.notFound("Order not found");
+      if (order.driverId !== driverId) throw errorHandler.forbidden("Order not assigned to this driver");
+
+      // Update status to "accepted"
+      const updatedOrder = await storage.updateOrderStatus(req.params.id, "accepted");
+      res.json(updatedOrder);
+    } catch (error) {
+      errorHandler.sendError(res, error);
+    }
+  });
+
+  // Driver: Reject order
+  app.post("/api/driver/orders/:id/reject", authenticateAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const driverId = req.admin?.id;
+      if (!driverId) throw errorHandler.unauthorized("Driver not authenticated");
+
+      // Verify order exists and belongs to driver
+      const order = await storage.getOrderById(req.params.id);
+      if (!order) throw errorHandler.notFound("Order not found");
+      if (order.driverId !== driverId) throw errorHandler.forbidden("Order not assigned to this driver");
+
+      // Update status to "rejected" and remove driver assignment
+      await storage.updateOrderStatus(req.params.id, "rejected");
+      const updatedOrder = await storage.assignOrderToDriver(req.params.id, "");
       res.json(updatedOrder);
     } catch (error) {
       errorHandler.sendError(res, error);
