@@ -476,7 +476,8 @@ export async function registerRoutes(
       const restaurant = await storage.getRestaurantById(restaurantId);
       if (!restaurant) throw errorHandler.notFound("Restaurant not found");
       
-      const newStatus = !restaurant.isOpen;
+      const currentStatus = restaurant.isOpen;
+      const newStatus = !currentStatus;
       const updated = await storage.updateRestaurant(restaurantId, { isOpen: newStatus });
       res.json({ isOpen: updated.isOpen });
     } catch (error) {

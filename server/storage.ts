@@ -87,11 +87,45 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // Helper to fix boolean parsing (neon-http returns 'false' instead of 'f')
+  private fixRestaurantBooleans(restaurant: Restaurant): Restaurant {
+    return {
+      ...restaurant,
+      isOpen: restaurant.isOpen === true || (restaurant.isOpen as any) === 't' || (restaurant.isOpen as any) === 'true',
+    };
+  }
+
   // ============ RESTAURANTS ============
   async getAllRestaurants(): Promise<Restaurant[]> {
     try {
-      const result = await db.select().from(restaurants);
-      return Array.isArray(result) ? result : [];
+      // Use raw SQL with text cast to bypass Neon HTTP boolean parsing bug
+      const rawResult = await db.execute(sql`
+        SELECT id, name, phone, address, description, image_url, category, 
+               is_open::text as is_open_text, opening_hours, delivery_time, 
+               min_order, rating, created_at, updated_at 
+        FROM restaurants ORDER BY name
+      `);
+      
+      if (!rawResult.rows || rawResult.rows.length === 0) {
+        return [];
+      }
+      
+      return rawResult.rows.map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        phone: row.phone,
+        address: row.address,
+        description: row.description,
+        imageUrl: row.image_url,
+        category: row.category,
+        isOpen: row.is_open_text === 'true',
+        openingHours: row.opening_hours,
+        deliveryTime: row.delivery_time,
+        minOrder: row.min_order,
+        rating: row.rating,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      })) as Restaurant[];
     } catch (e) {
       console.error("[DB] getAllRestaurants error:", e);
       return [];
@@ -99,13 +133,75 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getRestaurantById(id: string): Promise<Restaurant | undefined> {
-    const result = await db.select().from(restaurants).where(eq(restaurants.id, id));
-    return result[0];
+    try {
+      const rawResult = await db.execute(sql`
+        SELECT id, name, phone, address, description, image_url, category, 
+               is_open::text as is_open_text, opening_hours, delivery_time, 
+               min_order, rating, created_at, updated_at 
+        FROM restaurants WHERE id = ${id}
+      `);
+      
+      if (!rawResult.rows || rawResult.rows.length === 0) {
+        return undefined;
+      }
+      
+      const row = rawResult.rows[0] as any;
+      return {
+        id: row.id,
+        name: row.name,
+        phone: row.phone,
+        address: row.address,
+        description: row.description,
+        imageUrl: row.image_url,
+        category: row.category,
+        isOpen: row.is_open_text === 'true',
+        openingHours: row.opening_hours,
+        deliveryTime: row.delivery_time,
+        minOrder: row.min_order,
+        rating: row.rating,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      } as Restaurant;
+    } catch (e) {
+      console.error("[DB] getRestaurantById error:", e);
+      return undefined;
+    }
   }
 
   async getRestaurantByPhone(phone: string): Promise<Restaurant | undefined> {
-    const result = await db.select().from(restaurants).where(eq(restaurants.phone, phone));
-    return result[0];
+    try {
+      const rawResult = await db.execute(sql`
+        SELECT id, name, phone, address, description, image_url, category, 
+               is_open::text as is_open_text, opening_hours, delivery_time, 
+               min_order, rating, created_at, updated_at 
+        FROM restaurants WHERE phone = ${phone}
+      `);
+      
+      if (!rawResult.rows || rawResult.rows.length === 0) {
+        return undefined;
+      }
+      
+      const row = rawResult.rows[0] as any;
+      return {
+        id: row.id,
+        name: row.name,
+        phone: row.phone,
+        address: row.address,
+        description: row.description,
+        imageUrl: row.image_url,
+        category: row.category,
+        isOpen: row.is_open_text === 'true',
+        openingHours: row.opening_hours,
+        deliveryTime: row.delivery_time,
+        minOrder: row.min_order,
+        rating: row.rating,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      } as Restaurant;
+    } catch (e) {
+      console.error("[DB] getRestaurantByPhone error:", e);
+      return undefined;
+    }
   }
 
   async createRestaurant(restaurant: InsertRestaurant): Promise<Restaurant> {
@@ -121,11 +217,12 @@ export class DatabaseStorage implements IStorage {
 
   async updateRestaurant(id: string, data: Partial<Restaurant>): Promise<Restaurant> {
     await db.update(restaurants).set({ ...data, updatedAt: new Date() }).where(eq(restaurants.id, id));
-    const result = await db.select().from(restaurants).where(eq(restaurants.id, id));
-    if (!result || !result[0]) {
+    // Use getRestaurantById which has proper boolean parsing
+    const result = await this.getRestaurantById(id);
+    if (!result) {
       throw new Error("Failed to retrieve updated restaurant");
     }
-    return result[0];
+    return result;
   }
 
   async getOrdersByRestaurant(restaurantId: string): Promise<Order[]> {
