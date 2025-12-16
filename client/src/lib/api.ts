@@ -125,7 +125,9 @@ export async function getAdminOrders(token: string): Promise<Order[]> {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error("Failed to fetch orders");
-  return res.json();
+  const data = await res.json();
+  // Backend returns { orders, total, offset, limit }, extract just orders
+  return Array.isArray(data) ? data : (data.orders || []);
 }
 
 export async function updateOrderStatus(id: string, status: string, token: string): Promise<Order> {
