@@ -112,24 +112,29 @@ export default function AdminDashboard() {
   const statuses = ["pending", "accepted", "preparing", "baking", "ready", "delivery", "delivered", "rejected"] as const;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-serif font-bold">Admin Dashboard</h1>
-            <p className="text-muted-foreground">Gérez les commandes de Tataouine Pizza</p>
+    <div className="min-h-screen bg-gray-50">
+      <div className="border-b bg-white shadow-sm sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-3 md:px-4 py-3 md:py-4">
+          <div className="flex justify-between items-center gap-2">
+            <div className="min-w-0">
+              <h1 className="text-xl md:text-2xl font-serif font-bold truncate">Espace Admin</h1>
+              <p className="text-xs md:text-sm text-muted-foreground truncate">Supervision générale</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLogout}
+              className="px-2 md:px-3 flex-shrink-0"
+              data-testid="button-logout"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden md:inline ml-2">Déconnexion</span>
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            onClick={handleLogout}
-            className="gap-2"
-            data-testid="button-logout"
-          >
-            <LogOut className="w-4 h-4" />
-            Déconnexion
-          </Button>
         </div>
+      </div>
+      
+      <div className="max-w-7xl mx-auto px-3 md:px-4 py-4 md:py-6 space-y-6">
 
         {error && (
           <div className="flex gap-2 p-4 bg-red-50 border border-red-200 rounded-lg">

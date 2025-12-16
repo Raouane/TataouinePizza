@@ -120,26 +120,28 @@ export default function RestaurantDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="border-b bg-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="bg-orange-600 text-white p-2 rounded-full">
-              <ChefHat className="w-6 h-6" />
+      <div className="border-b bg-white shadow-sm sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-3 md:px-4 py-3 md:py-4">
+          <div className="flex justify-between items-center gap-2">
+            <div className="flex items-center gap-2 md:gap-3 min-w-0">
+              <div className="bg-orange-600 text-white p-2 rounded-full flex-shrink-0">
+                <ChefHat className="w-5 h-5 md:w-6 md:h-6" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="font-serif font-bold text-base md:text-lg truncate">Espace Restaurant</h1>
+                <p className="text-xs md:text-sm text-muted-foreground truncate">{restaurantName}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-serif font-bold text-lg">Tableau de bord</h1>
-              <p className="text-sm text-muted-foreground">{restaurantName}</p>
+            <div className="flex gap-1 md:gap-2 flex-shrink-0">
+              <Button variant="outline" size="sm" onClick={() => setLocation("/")} data-testid="button-back-home" className="px-2 md:px-3">
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden md:inline ml-2">Retour</span>
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleLogout} data-testid="button-restaurant-logout" className="px-2 md:px-3">
+                <LogOut className="w-4 h-4" />
+                <span className="hidden md:inline ml-2">Déconnexion</span>
+              </Button>
             </div>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setLocation("/")} data-testid="button-back-home">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Retour
-            </Button>
-            <Button variant="outline" onClick={handleLogout} data-testid="button-restaurant-logout">
-              <LogOut className="w-4 h-4 mr-2" />
-              Déconnexion
-            </Button>
           </div>
         </div>
       </div>
