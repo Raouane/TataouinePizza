@@ -496,7 +496,16 @@ export async function registerRoutes(
   app.get("/api/driver/available-orders", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
       const readyOrders = await storage.getReadyOrders();
-      res.json(readyOrders);
+      const restaurants = await storage.getAllRestaurants();
+      const restaurantMap = new Map(restaurants.map(r => [r.id, r]));
+      
+      const ordersWithRestaurant = readyOrders.map(order => ({
+        ...order,
+        restaurantName: restaurantMap.get(order.restaurantId!)?.name || "Restaurant",
+        restaurantAddress: restaurantMap.get(order.restaurantId!)?.address || "",
+      }));
+      
+      res.json(ordersWithRestaurant);
     } catch (error) {
       errorHandler.sendError(res, error);
     }
@@ -509,7 +518,16 @@ export async function registerRoutes(
       if (!driverId) throw errorHandler.unauthorized("Not authenticated");
       
       const orders = await storage.getOrdersByDriver(driverId);
-      res.json(orders);
+      const restaurants = await storage.getAllRestaurants();
+      const restaurantMap = new Map(restaurants.map(r => [r.id, r]));
+      
+      const ordersWithRestaurant = orders.map(order => ({
+        ...order,
+        restaurantName: restaurantMap.get(order.restaurantId!)?.name || "Restaurant",
+        restaurantAddress: restaurantMap.get(order.restaurantId!)?.address || "",
+      }));
+      
+      res.json(ordersWithRestaurant);
     } catch (error) {
       errorHandler.sendError(res, error);
     }

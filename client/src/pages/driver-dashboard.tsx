@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Truck, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock } from "lucide-react";
+import { Truck, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock, Store, Banknote, Navigation } from "lucide-react";
 import { toast } from "sonner";
 
 interface Order {
@@ -16,8 +16,12 @@ interface Order {
   status: string;
   totalPrice: string;
   restaurantId?: string;
+  restaurantName?: string;
+  restaurantAddress?: string;
   createdAt?: string;
 }
+
+const DRIVER_COMMISSION_RATE = 0.15; // 15% commission
 
 export default function DriverDashboard() {
   const [, setLocation] = useLocation();
@@ -270,53 +274,70 @@ export default function DriverDashboard() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {availableOrders.map((order) => (
-                  <Card key={order.id} className="p-6 border-l-4 border-l-green-500" data-testid={`card-available-${order.id}`}>
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                      <div className="flex-1 space-y-3">
-                        <div className="flex items-center gap-3">
+                {availableOrders.map((order) => {
+                  const commission = Number(order.totalPrice) * DRIVER_COMMISSION_RATE;
+                  return (
+                  <Card key={order.id} className="overflow-hidden border-l-4 border-l-green-500" data-testid={`card-available-${order.id}`}>
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
                           <Badge className={getStatusColor(order.status)}>
                             {getStatusLabel(order.status)}
                           </Badge>
-                          <span className="text-sm text-muted-foreground font-mono">
+                          <span className="text-xs text-muted-foreground font-mono">
                             #{order.id.slice(0, 8)}
                           </span>
                         </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <p className="font-medium">{order.customerName}</p>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Phone className="w-4 h-4" />
-                              <a href={`tel:${order.phone}`} className="hover:text-primary">{order.phone}</a>
-                            </div>
-                          </div>
-                          <div className="flex items-start gap-2 text-sm">
-                            <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p>{order.address}</p>
-                              {order.addressDetails && (
-                                <p className="text-muted-foreground">{order.addressDetails}</p>
-                              )}
-                            </div>
-                          </div>
+                        <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-sm font-medium">
+                          <Banknote className="w-4 h-4" />
+                          +{commission.toFixed(2)} TND
                         </div>
-
-                        <p className="font-bold text-lg">{Number(order.totalPrice).toFixed(2)} TND</p>
                       </div>
 
-                      <Button
-                        onClick={() => handleAcceptOrder(order.id)}
-                        disabled={updating === order.id}
-                        className="bg-green-600 hover:bg-green-700 min-w-[150px]"
-                        data-testid={`button-accept-${order.id}`}
-                      >
-                        <Check className="w-4 h-4 mr-2" />
-                        {updating === order.id ? "..." : "Prendre"}
-                      </Button>
+                      <div className="bg-orange-50 rounded-lg p-3 space-y-1">
+                        <div className="flex items-center gap-2 text-orange-700 font-medium text-sm">
+                          <Store className="w-4 h-4" />
+                          Récupérer chez:
+                        </div>
+                        <p className="font-semibold">{order.restaurantName || "Restaurant"}</p>
+                        <p className="text-sm text-muted-foreground">{order.restaurantAddress}</p>
+                      </div>
+
+                      <div className="bg-blue-50 rounded-lg p-3 space-y-1">
+                        <div className="flex items-center gap-2 text-blue-700 font-medium text-sm">
+                          <Navigation className="w-4 h-4" />
+                          Livrer à:
+                        </div>
+                        <p className="font-semibold">{order.customerName}</p>
+                        <p className="text-sm">{order.address}</p>
+                        {order.addressDetails && (
+                          <p className="text-xs text-muted-foreground">{order.addressDetails}</p>
+                        )}
+                        <a href={`tel:${order.phone}`} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mt-1">
+                          <Phone className="w-3 h-3" />
+                          {order.phone}
+                        </a>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Total commande</p>
+                          <p className="font-bold text-lg">{Number(order.totalPrice).toFixed(2)} TND</p>
+                        </div>
+                        <Button
+                          onClick={() => handleAcceptOrder(order.id)}
+                          disabled={updating === order.id}
+                          className="bg-green-600 hover:bg-green-700"
+                          data-testid={`button-accept-${order.id}`}
+                        >
+                          <Check className="w-4 h-4 mr-2" />
+                          {updating === order.id ? "..." : "Accepter"}
+                        </Button>
+                      </div>
                     </div>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             )}
           </TabsContent>
@@ -330,59 +351,76 @@ export default function DriverDashboard() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {waitingOrders.map((order) => (
-                  <Card key={order.id} className="p-6 border-l-4 border-l-orange-500" data-testid={`card-waiting-${order.id}`}>
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                      <div className="flex-1 space-y-3">
-                        <div className="flex items-center gap-3">
+                {waitingOrders.map((order) => {
+                  const commission = Number(order.totalPrice) * DRIVER_COMMISSION_RATE;
+                  return (
+                  <Card key={order.id} className="overflow-hidden border-l-4 border-l-orange-500" data-testid={`card-waiting-${order.id}`}>
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
                           <Badge className={getStatusColor(order.status)}>
                             {getStatusLabel(order.status)}
                           </Badge>
-                          <span className="text-sm text-muted-foreground font-mono">
+                          <span className="text-xs text-muted-foreground font-mono">
                             #{order.id.slice(0, 8)}
                           </span>
                         </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <p className="font-medium">{order.customerName}</p>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Phone className="w-4 h-4" />
-                              <a href={`tel:${order.phone}`} className="hover:text-primary">{order.phone}</a>
-                            </div>
-                          </div>
-                          <div className="flex items-start gap-2 text-sm">
-                            <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p>{order.address}</p>
-                              {order.addressDetails && (
-                                <p className="text-muted-foreground">{order.addressDetails}</p>
-                              )}
-                            </div>
-                          </div>
+                        <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-sm font-medium">
+                          <Banknote className="w-4 h-4" />
+                          +{commission.toFixed(2)} TND
                         </div>
-
-                        <p className="font-bold text-lg">{Number(order.totalPrice).toFixed(2)} TND</p>
                       </div>
 
-                      {order.status === "ready" ? (
-                        <Button
-                          onClick={() => handleStartDelivery(order.id)}
-                          disabled={updating === order.id}
-                          className="bg-indigo-600 hover:bg-indigo-700 min-w-[150px]"
-                          data-testid={`button-start-delivery-${order.id}`}
-                        >
-                          <Truck className="w-4 h-4 mr-2" />
-                          {updating === order.id ? "..." : "Partir livrer"}
-                        </Button>
-                      ) : (
-                        <div className="text-center text-orange-600 font-medium py-2 px-4 bg-orange-50 rounded-lg">
-                          ⏳ En préparation...
+                      <div className="bg-orange-50 rounded-lg p-3 space-y-1">
+                        <div className="flex items-center gap-2 text-orange-700 font-medium text-sm">
+                          <Store className="w-4 h-4" />
+                          Récupérer chez:
                         </div>
-                      )}
+                        <p className="font-semibold">{order.restaurantName || "Restaurant"}</p>
+                        <p className="text-sm text-muted-foreground">{order.restaurantAddress}</p>
+                      </div>
+
+                      <div className="bg-blue-50 rounded-lg p-3 space-y-1">
+                        <div className="flex items-center gap-2 text-blue-700 font-medium text-sm">
+                          <Navigation className="w-4 h-4" />
+                          Livrer à:
+                        </div>
+                        <p className="font-semibold">{order.customerName}</p>
+                        <p className="text-sm">{order.address}</p>
+                        {order.addressDetails && (
+                          <p className="text-xs text-muted-foreground">{order.addressDetails}</p>
+                        )}
+                        <a href={`tel:${order.phone}`} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mt-1">
+                          <Phone className="w-3 h-3" />
+                          {order.phone}
+                        </a>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Total commande</p>
+                          <p className="font-bold text-lg">{Number(order.totalPrice).toFixed(2)} TND</p>
+                        </div>
+                        {order.status === "ready" ? (
+                          <Button
+                            onClick={() => handleStartDelivery(order.id)}
+                            disabled={updating === order.id}
+                            className="bg-indigo-600 hover:bg-indigo-700"
+                            data-testid={`button-start-delivery-${order.id}`}
+                          >
+                            <Truck className="w-4 h-4 mr-2" />
+                            {updating === order.id ? "..." : "Partir livrer"}
+                          </Button>
+                        ) : (
+                          <div className="text-center text-orange-600 font-medium py-2 px-4 bg-orange-100 rounded-lg text-sm">
+                            En préparation...
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             )}
           </TabsContent>
@@ -396,53 +434,61 @@ export default function DriverDashboard() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {inDeliveryOrders.map((order) => (
-                  <Card key={order.id} className="p-6 border-l-4 border-l-indigo-500" data-testid={`card-delivery-${order.id}`}>
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                      <div className="flex-1 space-y-3">
-                        <div className="flex items-center gap-3">
+                {inDeliveryOrders.map((order) => {
+                  const commission = Number(order.totalPrice) * DRIVER_COMMISSION_RATE;
+                  return (
+                  <Card key={order.id} className="overflow-hidden border-l-4 border-l-indigo-500" data-testid={`card-delivery-${order.id}`}>
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
                           <Badge className={getStatusColor(order.status)}>
                             {getStatusLabel(order.status)}
                           </Badge>
-                          <span className="text-sm text-muted-foreground font-mono">
+                          <span className="text-xs text-muted-foreground font-mono">
                             #{order.id.slice(0, 8)}
                           </span>
                         </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <p className="font-medium">{order.customerName}</p>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Phone className="w-4 h-4" />
-                              <a href={`tel:${order.phone}`} className="hover:text-primary">{order.phone}</a>
-                            </div>
-                          </div>
-                          <div className="flex items-start gap-2 text-sm">
-                            <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p>{order.address}</p>
-                              {order.addressDetails && (
-                                <p className="text-muted-foreground">{order.addressDetails}</p>
-                              )}
-                            </div>
-                          </div>
+                        <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-sm font-medium">
+                          <Banknote className="w-4 h-4" />
+                          +{commission.toFixed(2)} TND
                         </div>
-
-                        <p className="font-bold text-lg">{Number(order.totalPrice).toFixed(2)} TND</p>
                       </div>
 
-                      <Button
-                        onClick={() => handleDelivered(order.id)}
-                        disabled={updating === order.id}
-                        className="bg-emerald-600 hover:bg-emerald-700 min-w-[150px]"
-                        data-testid={`button-delivered-${order.id}`}
-                      >
-                        <Check className="w-4 h-4 mr-2" />
-                        {updating === order.id ? "..." : "Livrée"}
-                      </Button>
+                      <div className="bg-blue-50 rounded-lg p-3 space-y-1">
+                        <div className="flex items-center gap-2 text-blue-700 font-medium text-sm">
+                          <Navigation className="w-4 h-4" />
+                          Livrer à:
+                        </div>
+                        <p className="font-semibold">{order.customerName}</p>
+                        <p className="text-sm">{order.address}</p>
+                        {order.addressDetails && (
+                          <p className="text-xs text-muted-foreground">{order.addressDetails}</p>
+                        )}
+                        <a href={`tel:${order.phone}`} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mt-1">
+                          <Phone className="w-3 h-3" />
+                          {order.phone}
+                        </a>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Total commande</p>
+                          <p className="font-bold text-lg">{Number(order.totalPrice).toFixed(2)} TND</p>
+                        </div>
+                        <Button
+                          onClick={() => handleDelivered(order.id)}
+                          disabled={updating === order.id}
+                          className="bg-emerald-600 hover:bg-emerald-700"
+                          data-testid={`button-delivered-${order.id}`}
+                        >
+                          <Check className="w-4 h-4 mr-2" />
+                          {updating === order.id ? "..." : "Confirmer livraison"}
+                        </Button>
+                      </div>
                     </div>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             )}
           </TabsContent>
@@ -456,26 +502,36 @@ export default function DriverDashboard() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {deliveredOrders.map((order) => (
-                  <Card key={order.id} className="p-6 opacity-75" data-testid={`card-completed-${order.id}`}>
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-3">
-                          <Badge className={getStatusColor(order.status)}>
-                            {getStatusLabel(order.status)}
+                {deliveredOrders.map((order) => {
+                  const commission = Number(order.totalPrice) * DRIVER_COMMISSION_RATE;
+                  return (
+                  <Card key={order.id} className="overflow-hidden opacity-80" data-testid={`card-completed-${order.id}`}>
+                    <div className="p-4 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-emerald-100 text-emerald-800">
+                            Livrée
                           </Badge>
-                          <span className="text-sm text-muted-foreground font-mono">
+                          <span className="text-xs text-muted-foreground font-mono">
                             #{order.id.slice(0, 8)}
                           </span>
                         </div>
-                        <p className="font-medium">{order.customerName}</p>
-                        <p className="text-sm text-muted-foreground">{order.address}</p>
+                        <div className="flex items-center gap-1 text-emerald-700 font-medium text-sm">
+                          <Banknote className="w-4 h-4" />
+                          +{commission.toFixed(2)} TND
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{order.customerName}</p>
+                          <p className="text-sm text-muted-foreground">{order.address}</p>
+                        </div>
                         <p className="font-bold">{Number(order.totalPrice).toFixed(2)} TND</p>
                       </div>
-                      <div className="text-emerald-600 font-medium">✅ Livrée</div>
                     </div>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             )}
           </TabsContent>
