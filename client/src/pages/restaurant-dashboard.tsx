@@ -146,31 +146,31 @@ export default function RestaurantDashboard() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {error && (
-          <div className="flex gap-2 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-            <p className="text-red-600">{error}</p>
+            <p className="text-red-600 text-sm">{error}</p>
           </div>
         )}
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="p-4 border-l-4 border-l-yellow-500">
-            <p className="text-sm text-muted-foreground">Nouvelles</p>
-            <p className="text-3xl font-bold text-yellow-600">{pendingOrders.length}</p>
+        {/* Stats - Grid on mobile */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+          <Card className="p-3 sm:p-4 border-l-4 border-l-yellow-500">
+            <p className="text-xs sm:text-sm text-muted-foreground">Nouvelles</p>
+            <p className="text-2xl sm:text-3xl font-bold text-yellow-600">{pendingOrders.length}</p>
           </Card>
-          <Card className="p-4 border-l-4 border-l-purple-500">
-            <p className="text-sm text-muted-foreground">En cours</p>
-            <p className="text-3xl font-bold text-purple-600">{activeOrders.length}</p>
+          <Card className="p-3 sm:p-4 border-l-4 border-l-purple-500">
+            <p className="text-xs sm:text-sm text-muted-foreground">En cours</p>
+            <p className="text-2xl sm:text-3xl font-bold text-purple-600">{activeOrders.length}</p>
           </Card>
-          <Card className="p-4 border-l-4 border-l-green-500">
-            <p className="text-sm text-muted-foreground">Prêtes</p>
-            <p className="text-3xl font-bold text-green-600">{readyOrders.length}</p>
+          <Card className="p-3 sm:p-4 border-l-4 border-l-green-500">
+            <p className="text-xs sm:text-sm text-muted-foreground">Prêtes</p>
+            <p className="text-2xl sm:text-3xl font-bold text-green-600">{readyOrders.length}</p>
           </Card>
-          <Card className="p-4 border-l-4 border-l-blue-500">
-            <p className="text-sm text-muted-foreground">Total aujourd'hui</p>
-            <p className="text-3xl font-bold text-blue-600">{orders.length}</p>
+          <Card className="p-3 sm:p-4 border-l-4 border-l-blue-500">
+            <p className="text-xs sm:text-sm text-muted-foreground">Total</p>
+            <p className="text-2xl sm:text-3xl font-bold text-blue-600">{orders.length}</p>
           </Card>
         </div>
 
