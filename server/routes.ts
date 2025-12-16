@@ -537,7 +537,7 @@ export async function registerRoutes(
     }
   });
   
-  // Driver updates order status (delivery -> delivered)
+  // Driver updates order status (can set to delivery when ready, or delivered when done)
   app.patch("/api/driver/orders/:id/status", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
       const { status } = req.body as { status?: string };
@@ -550,8 +550,8 @@ export async function registerRoutes(
       if (!order) throw errorHandler.notFound("Order not found");
       if (order.driverId !== driverId) throw errorHandler.forbidden("Order not assigned to you");
       
-      // Driver can only change to: delivered
-      if (status !== "delivered") {
+      // Driver can change to: delivery (when picking up) or delivered (when done)
+      if (status !== "delivery" && status !== "delivered") {
         throw errorHandler.badRequest("Invalid status for driver");
       }
       

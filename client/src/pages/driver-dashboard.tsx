@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Truck, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package } from "lucide-react";
+import { Truck, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 interface Order {
@@ -91,6 +91,31 @@ export default function DriverDashboard() {
     }
   };
 
+  const handleStartDelivery = async (orderId: string) => {
+    setUpdating(orderId);
+    try {
+      const res = await fetch(`/api/driver/orders/${orderId}/status`, {
+        method: "PATCH",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ status: "delivery" }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Erreur");
+      }
+      toast.success("C'est parti! Bonne livraison!");
+      await fetchOrders();
+    } catch (err: any) {
+      setError(err.message);
+      toast.error(err.message);
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const handleDelivered = async (orderId: string) => {
     setUpdating(orderId);
     try {
@@ -126,6 +151,9 @@ export default function DriverDashboard() {
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
+      accepted: "bg-blue-100 text-blue-800",
+      preparing: "bg-purple-100 text-purple-800",
+      baking: "bg-orange-100 text-orange-800",
       ready: "bg-green-100 text-green-800",
       delivery: "bg-indigo-100 text-indigo-800",
       delivered: "bg-emerald-100 text-emerald-800",
@@ -135,13 +163,18 @@ export default function DriverDashboard() {
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      ready: "Prête",
+      accepted: "Acceptée",
+      preparing: "En préparation",
+      baking: "Au four",
+      ready: "Prête à récupérer",
       delivery: "En livraison",
       delivered: "Livrée",
     };
     return labels[status] || status;
   };
 
+  // Orders assigned to driver but not yet in delivery (waiting for restaurant)
+  const waitingOrders = myOrders.filter(o => ["accepted", "preparing", "baking", "ready"].includes(o.status));
   const inDeliveryOrders = myOrders.filter(o => o.status === "delivery");
   const deliveredOrders = myOrders.filter(o => o.status === "delivered");
 
@@ -180,10 +213,14 @@ export default function DriverDashboard() {
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="p-4 border-l-4 border-l-green-500">
             <p className="text-sm text-muted-foreground">Disponibles</p>
             <p className="text-3xl font-bold text-green-600">{availableOrders.length}</p>
+          </Card>
+          <Card className="p-4 border-l-4 border-l-orange-500">
+            <p className="text-sm text-muted-foreground">En attente</p>
+            <p className="text-3xl font-bold text-orange-600">{waitingOrders.length}</p>
           </Card>
           <Card className="p-4 border-l-4 border-l-indigo-500">
             <p className="text-sm text-muted-foreground">En livraison</p>
@@ -207,8 +244,11 @@ export default function DriverDashboard() {
             <TabsTrigger value="available">
               Disponibles ({availableOrders.length})
             </TabsTrigger>
+            <TabsTrigger value="waiting">
+              En attente ({waitingOrders.length})
+            </TabsTrigger>
             <TabsTrigger value="my">
-              Mes livraisons ({inDeliveryOrders.length})
+              En livraison ({inDeliveryOrders.length})
             </TabsTrigger>
             <TabsTrigger value="completed">
               Historique ({deliveredOrders.length})
@@ -272,6 +312,72 @@ export default function DriverDashboard() {
                         <Check className="w-4 h-4 mr-2" />
                         {updating === order.id ? "..." : "Prendre"}
                       </Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="waiting" className="mt-4">
+            {waitingOrders.length === 0 ? (
+              <Card className="p-12 text-center">
+                <Clock className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">Aucune commande en attente</h3>
+                <p className="text-muted-foreground">Vos commandes assignées en cours de préparation apparaîtront ici</p>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {waitingOrders.map((order) => (
+                  <Card key={order.id} className="p-6 border-l-4 border-l-orange-500" data-testid={`card-waiting-${order.id}`}>
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                      <div className="flex-1 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <Badge className={getStatusColor(order.status)}>
+                            {getStatusLabel(order.status)}
+                          </Badge>
+                          <span className="text-sm text-muted-foreground font-mono">
+                            #{order.id.slice(0, 8)}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <p className="font-medium">{order.customerName}</p>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Phone className="w-4 h-4" />
+                              <a href={`tel:${order.phone}`} className="hover:text-primary">{order.phone}</a>
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-2 text-sm">
+                            <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p>{order.address}</p>
+                              {order.addressDetails && (
+                                <p className="text-muted-foreground">{order.addressDetails}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <p className="font-bold text-lg">{Number(order.totalPrice).toFixed(2)} TND</p>
+                      </div>
+
+                      {order.status === "ready" ? (
+                        <Button
+                          onClick={() => handleStartDelivery(order.id)}
+                          disabled={updating === order.id}
+                          className="bg-indigo-600 hover:bg-indigo-700 min-w-[150px]"
+                          data-testid={`button-start-delivery-${order.id}`}
+                        >
+                          <Truck className="w-4 h-4 mr-2" />
+                          {updating === order.id ? "..." : "Partir livrer"}
+                        </Button>
+                      ) : (
+                        <div className="text-center text-orange-600 font-medium py-2 px-4 bg-orange-50 rounded-lg">
+                          ⏳ En préparation...
+                        </div>
+                      )}
                     </div>
                   </Card>
                 ))}

@@ -183,25 +183,25 @@ export class DatabaseStorage implements IStorage {
 
   // Atomic driver acceptance - prevents race condition
   async acceptOrderByDriver(orderId: string, driverId: string): Promise<Order | null> {
-    // Only accept if order is ready AND not assigned to anyone
+    // Accept if order is accepted/preparing/baking/ready AND not assigned to anyone
+    // Driver can accept early to prepare for pickup
     const result = await db.update(orders)
       .set({ 
         driverId, 
-        status: "delivery" as any, 
         updatedAt: new Date() 
       })
       .where(and(
         eq(orders.id, orderId),
-        eq(orders.status, "ready"),
+        sql`${orders.status} IN ('accepted', 'preparing', 'baking', 'ready')`,
         sql`(${orders.driverId} IS NULL OR ${orders.driverId} = '')`
       ));
     
-    // Check if update was successful (affected rows)
+    // Check if update was successful
     const order = await db.select().from(orders).where(eq(orders.id, orderId));
     if (!order[0]) return null;
     
     // If the order now belongs to this driver, success!
-    if (order[0].driverId === driverId && order[0].status === "delivery") {
+    if (order[0].driverId === driverId) {
       return order[0];
     }
     
@@ -335,10 +335,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getReadyOrders(): Promise<Order[]> {
-    // Get orders that are "ready" and not yet assigned to a driver
+    // Get orders that are accepted/preparing/baking/ready and not yet assigned to a driver
+    // This allows drivers to see orders early and prepare to pick them up
     return await db.select().from(orders)
       .where(and(
-        eq(orders.status, "ready"),
+        sql`${orders.status} IN ('accepted', 'preparing', 'baking', 'ready')`,
         sql`${orders.driverId} IS NULL OR ${orders.driverId} = ''`
       ))
       .orderBy(desc(orders.createdAt));
