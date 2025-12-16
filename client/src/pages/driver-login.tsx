@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { sendOtp, verifyOtp } from "@/lib/api";
+import { sendOtp } from "@/lib/api";
 import { Truck, AlertCircle, ArrowLeft, Phone, KeyRound } from "lucide-react";
 
 export default function DriverLogin() {
@@ -35,29 +35,24 @@ export default function DriverLogin() {
     setLoading(true);
 
     try {
-      const result = await verifyOtp(phone, otpCode);
-      if (result.verified) {
-        // Login driver via OTP - call backend to get token
-        const res = await fetch("/api/driver/login-otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone }),
-        });
-        
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || "Livreur non trouvé");
-        }
-        
-        const { token, driver } = await res.json();
-        localStorage.setItem("driverToken", token);
-        localStorage.setItem("driverId", driver.id);
-        localStorage.setItem("driverName", driver.name);
-        localStorage.setItem("driverPhone", phone);
-        setLocation("/driver/dashboard");
-      } else {
-        setError("Code incorrect. Veuillez réessayer.");
+      // Verify OTP and login in one call
+      const res = await fetch("/api/driver/login-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, code: otpCode }),
+      });
+      
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Livreur non trouvé");
       }
+      
+      const { token, driver } = await res.json();
+      localStorage.setItem("driverToken", token);
+      localStorage.setItem("driverId", driver.id);
+      localStorage.setItem("driverName", driver.name);
+      localStorage.setItem("driverPhone", phone);
+      setLocation("/driver/dashboard");
     } catch (err: any) {
       setError(err.message || "Code incorrect");
     } finally {

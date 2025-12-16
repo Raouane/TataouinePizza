@@ -459,16 +459,18 @@ export async function registerRoutes(
 
   // ============ DRIVER AUTH ============
 
-  // Driver: Login via OTP (after OTP is verified)
+  // Driver: Login via OTP (verifies OTP and logs in)
   app.post("/api/driver/login-otp", async (req: Request, res: Response) => {
     try {
-      const { phone } = req.body as { phone?: string };
+      const { phone, code } = req.body as { phone?: string; code?: string };
       if (!phone) return res.status(400).json({ error: "Phone required" });
 
-      // Check if OTP was recently verified for this phone
-      const otpRecord = await storage.getLatestOtpCode(phone);
-      if (!otpRecord || !otpRecord.verified) {
-        return res.status(403).json({ error: "OTP not verified. Please verify first." });
+      // If code provided, verify it directly
+      if (code) {
+        const isValid = await storage.verifyOtpCode(phone, code);
+        if (!isValid) {
+          return res.status(403).json({ error: "Code OTP incorrect" });
+        }
       }
 
       // Find the driver in the database
