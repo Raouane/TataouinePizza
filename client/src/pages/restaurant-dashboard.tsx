@@ -119,24 +119,33 @@ export default function RestaurantDashboard() {
   const activeOrders = orders.filter(o => ["accepted", "preparing", "baking"].includes(o.status));
   const readyOrders = orders.filter(o => o.status === "ready");
 
-  // Calculate revenue for today and week
+  // Calculate revenue
+  const deliveredOrders = orders.filter(o => o.status === "delivered");
+  
+  // Total revenue (all delivered orders)
+  const totalRevenue = deliveredOrders.reduce((sum, o) => sum + Number(o.totalPrice), 0);
+  const totalOrdersCount = deliveredOrders.length;
+  
+  // Try to calculate today/week if dates are available
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const startOfWeek = new Date(startOfDay);
   startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
 
-  const deliveredOrders = orders.filter(o => o.status === "delivered");
+  const todayOrders = deliveredOrders.filter(o => {
+    if (!o.createdAt) return true; // Include if no date (show all)
+    return new Date(o.createdAt) >= startOfDay;
+  });
   
-  const todayRevenue = deliveredOrders
-    .filter(o => o.createdAt && new Date(o.createdAt) >= startOfDay)
-    .reduce((sum, o) => sum + Number(o.totalPrice), 0);
+  const weekOrders = deliveredOrders.filter(o => {
+    if (!o.createdAt) return true; // Include if no date
+    return new Date(o.createdAt) >= startOfWeek;
+  });
   
-  const weekRevenue = deliveredOrders
-    .filter(o => o.createdAt && new Date(o.createdAt) >= startOfWeek)
-    .reduce((sum, o) => sum + Number(o.totalPrice), 0);
-
-  const todayOrdersCount = deliveredOrders.filter(o => o.createdAt && new Date(o.createdAt) >= startOfDay).length;
-  const weekOrdersCount = deliveredOrders.filter(o => o.createdAt && new Date(o.createdAt) >= startOfWeek).length;
+  const todayRevenue = todayOrders.reduce((sum, o) => sum + Number(o.totalPrice), 0);
+  const weekRevenue = weekOrders.reduce((sum, o) => sum + Number(o.totalPrice), 0);
+  const todayOrdersCount = todayOrders.length;
+  const weekOrdersCount = weekOrders.length;
 
   return (
     <div className="min-h-screen bg-gray-50">
