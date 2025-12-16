@@ -15,7 +15,7 @@ import { useLanguage } from "@/lib/i18n";
 type Step = "cart" | "phone" | "verify" | "address";
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, total, clearCart } = useCart();
+  const { items, removeItem, updateQuantity, total, clearCart, restaurantId } = useCart();
   const { startOrder } = useOrder();
   const [step, setStep] = useState<Step>("cart");
   const [phone, setPhone] = useState("");
@@ -60,11 +60,17 @@ export default function CartPage() {
       try {
         const orderItems = items.map(item => ({
           pizzaId: item.id.toString(),
-          size: "medium" as const,
+          size: item.size || "medium" as const,
           quantity: item.quantity,
         }));
         
+        if (!restaurantId) {
+          toast({ title: "Erreur", description: "Restaurant non sélectionné", variant: "destructive" });
+          return;
+        }
+        
         const result = await createOrder({
+          restaurantId,
           customerName: name,
           phone,
           address,

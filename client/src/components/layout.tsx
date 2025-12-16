@@ -135,13 +135,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             <div className="text-center md:text-right text-xs space-y-2">
               <div>
-                <a href="/admin/login" className="text-muted-foreground hover:text-primary transition-colors underline text-xs">
-                  Espace Partenaire
+                <a href="/restaurant/login" className="text-muted-foreground hover:text-primary transition-colors underline text-xs">
+                  Espace Restaurant
                 </a>
               </div>
               <div>
                 <a href="/driver/login" className="text-muted-foreground hover:text-primary transition-colors underline text-xs">
                   Espace Livreur
+                </a>
+              </div>
+              <div>
+                <a href="/admin/login" className="text-muted-foreground hover:text-primary transition-colors underline text-xs">
+                  Administration
                 </a>
               </div>
             </div>

@@ -17,12 +17,30 @@ export const orderStatusEnum = pgEnum("order_status", [
 
 export const pizzaSizeEnum = pgEnum("pizza_size", ["small", "medium", "large"]);
 
-// Admin Users
+// Admin Users (for global supervision)
 export const adminUsers = pgTable("admin_users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Restaurants
+export const restaurants = pgTable("restaurants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  phone: text("phone").notNull().unique(),
+  address: text("address").notNull(),
+  description: text("description"),
+  imageUrl: text("image_url"),
+  category: text("category").default("pizza"), // pizza, burger, etc.
+  isOpen: boolean("is_open").default(true),
+  openingHours: text("opening_hours"), // "09:00-23:00"
+  deliveryTime: integer("delivery_time").default(30), // minutes
+  minOrder: numeric("min_order", { precision: 10, scale: 2 }).default("0"),
+  rating: numeric("rating", { precision: 2, scale: 1 }).default("4.5"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Delivery Drivers
@@ -36,9 +54,10 @@ export const drivers = pgTable("drivers", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Pizzas Menu
+// Pizzas Menu - now linked to restaurant
 export const pizzas = pgTable("pizzas", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
   category: text("category").notNull(), // "classic", "special", "vegetarian"
@@ -67,9 +86,10 @@ export const otpCodes = pgTable("otp_codes", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Customer Orders
+// Customer Orders - now linked to restaurant
 export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id),
   customerName: text("customer_name").notNull(),
   phone: text("phone").notNull(),
   address: text("address").notNull(),
@@ -102,8 +122,16 @@ export const insertAdminUserSchema = createInsertSchema(adminUsers)
     password: z.string().min(6, "Mot de passe min 6 caractères"),
   });
 
+export const insertRestaurantSchema = createInsertSchema(restaurants)
+  .pick({ name: true, phone: true, address: true, description: true, imageUrl: true, category: true })
+  .extend({
+    name: z.string().min(2, "Nom min 2 caractères"),
+    phone: z.string().min(8, "Téléphone invalide"),
+    address: z.string().min(5, "Adresse invalide"),
+  });
+
 export const insertPizzaSchema = createInsertSchema(pizzas)
-  .pick({ name: true, description: true, category: true, imageUrl: true, available: true })
+  .pick({ restaurantId: true, name: true, description: true, category: true, imageUrl: true, available: true })
   .extend({
     name: z.string().min(2, "Nom min 2 caractères"),
     category: z.enum(["classic", "special", "vegetarian"]),
@@ -117,6 +145,7 @@ export const insertPizzaPriceSchema = createInsertSchema(pizzaPrices)
   });
 
 export const insertOrderSchema = z.object({
+  restaurantId: z.string(),
   customerName: z.string().min(2, "Nom min 2 caractères"),
   phone: z.string().min(8, "Téléphone invalide"),
   address: z.string().min(5, "Adresse invalide"),
@@ -156,6 +185,8 @@ export const driverLoginSchema = z.object({
 // Types
 export type InsertAdminUser = z.infer<typeof insertAdminUserSchema>;
 export type AdminUser = typeof adminUsers.$inferSelect;
+export type Restaurant = typeof restaurants.$inferSelect;
+export type InsertRestaurant = z.infer<typeof insertRestaurantSchema>;
 export type Driver = typeof drivers.$inferSelect;
 export type InsertDriver = z.infer<typeof insertDriverSchema>;
 export type Pizza = typeof pizzas.$inferSelect;

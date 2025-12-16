@@ -68,6 +68,7 @@ export async function verifyOtp(phone: string, code: string): Promise<{ verified
 // ============ ORDERS ============
 
 export async function createOrder(data: {
+  restaurantId: string;
   customerName: string;
   phone: string;
   address: string;

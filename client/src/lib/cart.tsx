@@ -2,23 +2,27 @@ import React, { createContext, useContext, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
 export type Pizza = {
-  id: number;
+  id: string;
   name: string;
   description: string;
   price: number;
   image: string;
   category: 'classic' | 'special' | 'vegetarian';
+  restaurantId: string;
 };
 
 type CartItem = Pizza & {
   quantity: number;
+  size: 'small' | 'medium' | 'large';
 };
 
 type CartContextType = {
   items: CartItem[];
-  addItem: (pizza: Pizza) => void;
-  removeItem: (id: number) => void;
-  updateQuantity: (id: number, delta: number) => void;
+  restaurantId: string | null;
+  restaurantName: string | null;
+  addItem: (pizza: Pizza, size?: 'small' | 'medium' | 'large') => boolean;
+  removeItem: (id: string) => void;
+  updateQuantity: (id: string, delta: number) => void;
   clearCart: () => void;
   total: number;
   count: number;
@@ -28,54 +32,90 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const [restaurantName, setRestaurantName] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const addItem = (pizza: Pizza) => {
+  const addItem = (pizza: Pizza, size: 'small' | 'medium' | 'large' = 'medium'): boolean => {
+    // Check if cart is from a different restaurant
+    if (restaurantId && restaurantId !== pizza.restaurantId) {
+      toast({
+        title: "Panier d'un autre restaurant",
+        description: "Videz votre panier pour commander dans un autre restaurant.",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Set restaurant if first item
+    if (!restaurantId) {
+      setRestaurantId(pizza.restaurantId);
+    }
+
     setItems((current) => {
-      const existing = current.find((item) => item.id === pizza.id);
+      const itemKey = `${pizza.id}-${size}`;
+      const existing = current.find((item) => `${item.id}-${item.size}` === itemKey);
       if (existing) {
         toast({
           title: "Quantité mise à jour",
-          description: `Une autre ${pizza.name} a été ajoutée au panier.`,
+          description: `Une autre ${pizza.name} (${size}) a été ajoutée.`,
         });
         return current.map((item) =>
-          item.id === pizza.id
+          `${item.id}-${item.size}` === itemKey
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       }
       toast({
         title: "Ajouté au panier",
-        description: `${pizza.name} a été ajoutée.`,
+        description: `${pizza.name} (${size}) a été ajoutée.`,
       });
-      return [...current, { ...pizza, quantity: 1 }];
+      return [...current, { ...pizza, quantity: 1, size }];
+    });
+    return true;
+  };
+
+  const removeItem = (id: string) => {
+    setItems((current) => {
+      const newItems = current.filter((item) => item.id !== id);
+      if (newItems.length === 0) {
+        setRestaurantId(null);
+        setRestaurantName(null);
+      }
+      return newItems;
     });
   };
 
-  const removeItem = (id: number) => {
-    setItems((current) => current.filter((item) => item.id !== id));
-  };
-
-  const updateQuantity = (id: number, delta: number) => {
-    setItems((current) =>
-      current.map((item) => {
+  const updateQuantity = (id: string, delta: number) => {
+    setItems((current) => {
+      const newItems = current.map((item) => {
         if (item.id === id) {
           const newQuantity = Math.max(0, item.quantity + delta);
           return { ...item, quantity: newQuantity };
         }
         return item;
-      }).filter((item) => item.quantity > 0)
-    );
+      }).filter((item) => item.quantity > 0);
+      
+      if (newItems.length === 0) {
+        setRestaurantId(null);
+        setRestaurantName(null);
+      }
+      return newItems;
+    });
   };
 
-  const clearCart = () => setItems([]);
+  const clearCart = () => {
+    setItems([]);
+    setRestaurantId(null);
+    setRestaurantName(null);
+  };
 
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const count = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <CartContext.Provider
-      value={{ items, addItem, removeItem, updateQuantity, clearCart, total, count }}
+      value={{ items, restaurantId, restaurantName, addItem, removeItem, updateQuantity, clearCart, total, count }}
     >
       {children}
     </CartContext.Provider>

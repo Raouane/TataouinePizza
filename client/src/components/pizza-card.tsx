@@ -7,10 +7,19 @@ import { useLanguage } from "@/lib/i18n";
 
 interface PizzaCardProps {
   pizza: Pizza;
+  onAddToCart?: () => void;
 }
 
-export function PizzaCard({ pizza }: PizzaCardProps) {
+export function PizzaCard({ pizza, onAddToCart }: PizzaCardProps) {
   const { addItem } = useCart();
+  
+  const handleAdd = () => {
+    if (onAddToCart) {
+      onAddToCart();
+    } else {
+      addItem(pizza);
+    }
+  };
   const { t, language } = useLanguage();
   const isRtl = language === 'ar';
 
@@ -41,7 +50,7 @@ export function PizzaCard({ pizza }: PizzaCardProps) {
       </CardContent>
       <CardFooter className="p-4 pt-0">
         <Button 
-          onClick={() => addItem(pizza)}
+          onClick={handleAdd}
           className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm group-active:scale-95 transition-all"
         >
           <Plus className={`w-4 h-4 ${isRtl ? 'ml-2' : 'mr-2'}`} />

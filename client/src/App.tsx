@@ -17,6 +17,8 @@ import AdminLogin from "@/pages/admin-login";
 import AdminDashboard from "@/pages/admin-dashboard";
 import DriverLogin from "@/pages/driver-login";
 import DriverDashboard from "@/pages/driver-dashboard";
+import RestaurantLogin from "@/pages/restaurant-login";
+import RestaurantDashboard from "@/pages/restaurant-dashboard";
 
 function Router() {
   return (
@@ -25,11 +27,14 @@ function Router() {
       <Route path="/admin/dashboard" component={AdminDashboard} />
       <Route path="/driver/login" component={DriverLogin} />
       <Route path="/driver/dashboard" component={DriverDashboard} />
+      <Route path="/restaurant/login" component={RestaurantLogin} />
+      <Route path="/restaurant/dashboard" component={RestaurantDashboard} />
       <Route>
         <Layout>
           <Switch>
             <Route path="/" component={Home} />
             <Route path="/menu" component={Menu} />
+            <Route path="/menu/:restaurantId" component={Menu} />
             <Route path="/cart" component={CartPage} />
             <Route path="/success" component={OrderSuccess} />
             <Route path="/history" component={OrderHistory} />

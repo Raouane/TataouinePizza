@@ -1,7 +1,7 @@
 import { db } from "./db.js";
 import { 
-  adminUsers, pizzas, pizzaPrices, otpCodes, orders, orderItems, drivers,
-  type Pizza, type InsertAdminUser, type AdminUser, type Order, type OrderItem, type OtpCode, type Driver, type InsertDriver
+  adminUsers, pizzas, pizzaPrices, otpCodes, orders, orderItems, drivers, restaurants,
+  type Pizza, type InsertAdminUser, type AdminUser, type Order, type OrderItem, type OtpCode, type Driver, type InsertDriver, type Restaurant, type InsertRestaurant
 } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -11,6 +11,14 @@ export interface IStorage {
   getAdminByEmail(email: string): Promise<AdminUser | undefined>;
   createAdminUser(user: InsertAdminUser): Promise<AdminUser>;
 
+  // Restaurants
+  getAllRestaurants(): Promise<Restaurant[]>;
+  getRestaurantById(id: string): Promise<Restaurant | undefined>;
+  getRestaurantByPhone(phone: string): Promise<Restaurant | undefined>;
+  createRestaurant(restaurant: InsertRestaurant): Promise<Restaurant>;
+  updateRestaurant(id: string, data: Partial<Restaurant>): Promise<Restaurant>;
+  getOrdersByRestaurant(restaurantId: string): Promise<Order[]>;
+
   // Drivers
   getDriverByPhone(phone: string): Promise<Driver | undefined>;
   createDriver(driver: InsertDriver): Promise<Driver>;
@@ -19,10 +27,12 @@ export interface IStorage {
   getOrdersByDriver(driverId: string): Promise<Order[]>;
   updateDriverStatus(id: string, status: string): Promise<Driver>;
   assignOrderToDriver(orderId: string, driverId: string): Promise<Order>;
+  acceptOrderByDriver(orderId: string, driverId: string): Promise<Order | null>;
 
   // Pizzas
   getAllPizzas(): Promise<Pizza[]>;
   getPizzaById(id: string): Promise<Pizza | undefined>;
+  getPizzasByRestaurant(restaurantId: string): Promise<Pizza[]>;
   createPizza(pizza: any): Promise<Pizza>;
   updatePizza(id: string, pizza: any): Promise<Pizza>;
   deletePizza(id: string): Promise<void>;
@@ -41,19 +51,20 @@ export interface IStorage {
   getOrderById(id: string): Promise<Order | undefined>;
   getAllOrders(): Promise<Order[]>;
   getOrdersByPhone(phone: string): Promise<Order[]>;
+  getReadyOrders(): Promise<Order[]>;
   updateOrderStatus(id: string, status: string): Promise<Order>;
   getOrderItems(orderId: string): Promise<OrderItem[]>;
   createOrderItem(item: any): Promise<OrderItem>;
 }
 
 export class DatabaseStorage implements IStorage {
+  // ============ ADMIN ============
   async getAdminByEmail(email: string): Promise<AdminUser | undefined> {
     const result = await db.select().from(adminUsers).where(eq(adminUsers.email, email));
     return result[0];
   }
 
   async createAdminUser(user: InsertAdminUser): Promise<AdminUser> {
-    // Generate UUID client-side since .returning() doesn't work reliably with Neon HTTP
     const adminId = randomUUID();
     const adminWithId = { ...user, id: adminId };
     
@@ -64,7 +75,6 @@ export class DatabaseStorage implements IStorage {
       throw e;
     }
     
-    // Fetch the created admin to return it
     try {
       const result = await db.select().from(adminUsers).where(eq(adminUsers.id, adminId));
       if (!Array.isArray(result) || result.length === 0) {
@@ -77,6 +87,52 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // ============ RESTAURANTS ============
+  async getAllRestaurants(): Promise<Restaurant[]> {
+    try {
+      const result = await db.select().from(restaurants);
+      return Array.isArray(result) ? result : [];
+    } catch (e) {
+      console.error("[DB] getAllRestaurants error:", e);
+      return [];
+    }
+  }
+
+  async getRestaurantById(id: string): Promise<Restaurant | undefined> {
+    const result = await db.select().from(restaurants).where(eq(restaurants.id, id));
+    return result[0];
+  }
+
+  async getRestaurantByPhone(phone: string): Promise<Restaurant | undefined> {
+    const result = await db.select().from(restaurants).where(eq(restaurants.phone, phone));
+    return result[0];
+  }
+
+  async createRestaurant(restaurant: InsertRestaurant): Promise<Restaurant> {
+    const restaurantId = randomUUID();
+    const restaurantWithId = { ...restaurant, id: restaurantId };
+    await db.insert(restaurants).values(restaurantWithId);
+    const result = await db.select().from(restaurants).where(eq(restaurants.id, restaurantId));
+    if (!result || !result[0]) {
+      throw new Error("Failed to retrieve created restaurant");
+    }
+    return result[0];
+  }
+
+  async updateRestaurant(id: string, data: Partial<Restaurant>): Promise<Restaurant> {
+    await db.update(restaurants).set({ ...data, updatedAt: new Date() }).where(eq(restaurants.id, id));
+    const result = await db.select().from(restaurants).where(eq(restaurants.id, id));
+    if (!result || !result[0]) {
+      throw new Error("Failed to retrieve updated restaurant");
+    }
+    return result[0];
+  }
+
+  async getOrdersByRestaurant(restaurantId: string): Promise<Order[]> {
+    return await db.select().from(orders).where(eq(orders.restaurantId, restaurantId)).orderBy(desc(orders.createdAt));
+  }
+
+  // ============ DRIVERS ============
   async getDriverByPhone(phone: string): Promise<Driver | undefined> {
     const result = await db.select().from(drivers).where(eq(drivers.phone, phone));
     return result[0];
@@ -125,6 +181,35 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  // Atomic driver acceptance - prevents race condition
+  async acceptOrderByDriver(orderId: string, driverId: string): Promise<Order | null> {
+    // Only accept if order is ready AND not assigned to anyone
+    const result = await db.update(orders)
+      .set({ 
+        driverId, 
+        status: "delivery" as any, 
+        updatedAt: new Date() 
+      })
+      .where(and(
+        eq(orders.id, orderId),
+        eq(orders.status, "ready"),
+        sql`(${orders.driverId} IS NULL OR ${orders.driverId} = '')`
+      ));
+    
+    // Check if update was successful (affected rows)
+    const order = await db.select().from(orders).where(eq(orders.id, orderId));
+    if (!order[0]) return null;
+    
+    // If the order now belongs to this driver, success!
+    if (order[0].driverId === driverId && order[0].status === "delivery") {
+      return order[0];
+    }
+    
+    // Someone else got it first
+    return null;
+  }
+
+  // ============ PIZZAS ============
   async getAllPizzas(): Promise<Pizza[]> {
     return await db.select().from(pizzas);
   }
@@ -134,14 +219,16 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  async getPizzasByRestaurant(restaurantId: string): Promise<Pizza[]> {
+    return await db.select().from(pizzas).where(eq(pizzas.restaurantId, restaurantId));
+  }
+
   async createPizza(pizza: any): Promise<Pizza> {
-    // Generate UUID client-side since .returning() doesn't work reliably with Neon HTTP
     const pizzaId = randomUUID();
     const pizzaWithId = { ...pizza, id: pizzaId };
     
     await db.insert(pizzas).values(pizzaWithId);
     
-    // Fetch the created pizza to return it
     const result = await db.select().from(pizzas).where(eq(pizzas.id, pizzaId));
     if (!result || !result[0]) {
       throw new Error("Failed to retrieve created pizza");
@@ -159,21 +246,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deletePizza(id: string): Promise<void> {
+    await db.delete(pizzaPrices).where(eq(pizzaPrices.pizzaId, id));
     await db.delete(pizzas).where(eq(pizzas.id, id));
   }
 
+  // ============ PIZZA PRICES ============
   async getPizzaPrices(pizzaId: string): Promise<any[]> {
     return await db.select().from(pizzaPrices).where(eq(pizzaPrices.pizzaId, pizzaId));
   }
 
   async createPizzaPrice(price: any): Promise<any> {
-    // Generate UUID client-side since .returning() doesn't work reliably with Neon HTTP
     const priceId = randomUUID();
     const priceWithId = { ...price, id: priceId };
     
     await db.insert(pizzaPrices).values(priceWithId);
     
-    // Fetch the created price to return it
     const result = await db.select().from(pizzaPrices).where(eq(pizzaPrices.id, priceId));
     if (!result || !result[0]) {
       throw new Error("Failed to retrieve created pizza price");
@@ -181,13 +268,12 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  // ============ OTP ============
   async createOtpCode(phone: string, code: string, expiresAt: Date): Promise<OtpCode> {
-    // Generate UUID client-side since .returning() doesn't work reliably with Neon HTTP
     const otpId = randomUUID();
     
     await db.insert(otpCodes).values({ id: otpId, phone, code, expiresAt });
     
-    // Fetch the created OTP code to return it
     const result = await db.select().from(otpCodes).where(eq(otpCodes.id, otpId));
     if (!result || !result[0]) {
       throw new Error("Failed to retrieve created OTP code");
@@ -221,14 +307,13 @@ export class DatabaseStorage implements IStorage {
     return true;
   }
 
+  // ============ ORDERS ============
   async createOrder(order: any): Promise<Order> {
-    // Generate UUID client-side since .returning() doesn't work reliably with Neon HTTP
     const orderId = randomUUID();
     const orderWithId = { ...order, id: orderId };
     
     await db.insert(orders).values(orderWithId);
     
-    // Fetch the created order to return it
     const result = await db.select().from(orders).where(eq(orders.id, orderId));
     if (!result || !result[0]) {
       throw new Error("Failed to retrieve created order");
@@ -242,11 +327,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllOrders(): Promise<Order[]> {
-    return await db.select().from(orders);
+    return await db.select().from(orders).orderBy(desc(orders.createdAt));
   }
 
   async getOrdersByPhone(phone: string): Promise<Order[]> {
-    return await db.select().from(orders).where(eq(orders.phone, phone));
+    return await db.select().from(orders).where(eq(orders.phone, phone)).orderBy(desc(orders.createdAt));
+  }
+
+  async getReadyOrders(): Promise<Order[]> {
+    // Get orders that are "ready" and not yet assigned to a driver
+    return await db.select().from(orders)
+      .where(and(
+        eq(orders.status, "ready"),
+        sql`${orders.driverId} IS NULL OR ${orders.driverId} = ''`
+      ))
+      .orderBy(desc(orders.createdAt));
   }
 
   async updateOrderStatus(id: string, status: string): Promise<Order> {
@@ -263,13 +358,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createOrderItem(item: any): Promise<any> {
-    // Generate UUID client-side since .returning() doesn't work reliably with Neon HTTP
     const itemId = randomUUID();
     const itemWithId = { ...item, id: itemId };
     
     await db.insert(orderItems).values(itemWithId);
     
-    // Fetch the created order item to return it
     const result = await db.select().from(orderItems).where(eq(orderItems.id, itemId));
     if (!result || !result[0]) {
       throw new Error("Failed to retrieve created order item");
