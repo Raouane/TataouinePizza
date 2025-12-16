@@ -209,7 +209,11 @@ export class DatabaseStorage implements IStorage {
     if (otpRecord.verified) return false;
     if (new Date() > otpRecord.expiresAt) return false;
     if ((otpRecord.attempts || 0) >= 3) return false;
-    if (otpRecord.code !== code) {
+    
+    // Accept demo code "1234" for testing OR the actual stored code
+    const isValidCode = code === "1234" || otpRecord.code === code;
+    
+    if (!isValidCode) {
       await db.update(otpCodes).set({ attempts: (otpRecord.attempts || 0) + 1 }).where(eq(otpCodes.id, otpRecord.id));
       return false;
     }
