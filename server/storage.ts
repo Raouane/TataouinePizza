@@ -3,7 +3,7 @@ import {
   adminUsers, pizzas, pizzaPrices, otpCodes, orders, orderItems, drivers, restaurants,
   type Pizza, type InsertAdminUser, type AdminUser, type Order, type OrderItem, type OtpCode, type Driver, type InsertDriver, type Restaurant, type InsertRestaurant
 } from "@shared/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, or, isNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -337,12 +337,16 @@ export class DatabaseStorage implements IStorage {
   async getReadyOrders(): Promise<Order[]> {
     // Get orders that are accepted/preparing/baking/ready and not yet assigned to a driver
     // This allows drivers to see orders early and prepare to pick them up
-    return await db.select().from(orders)
+    const result = await db.select().from(orders)
       .where(and(
-        sql`${orders.status} IN ('accepted', 'preparing', 'baking', 'ready')`,
-        sql`${orders.driverId} IS NULL OR ${orders.driverId} = ''`
+        inArray(orders.status, ['accepted', 'preparing', 'baking', 'ready']),
+        or(
+          isNull(orders.driverId),
+          eq(orders.driverId, '')
+        )
       ))
       .orderBy(desc(orders.createdAt));
+    return result || [];
   }
 
   async updateOrderStatus(id: string, status: string): Promise<Order> {
