@@ -218,23 +218,41 @@ export default function DriverDashboard() {
           </div>
         )}
 
+        {/* Earnings Card */}
+        <Card className="p-4 bg-gradient-to-r from-emerald-500 to-green-600 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-emerald-100 text-sm">Total gagné</p>
+              <p className="text-3xl font-bold">
+                {(deliveredOrders.reduce((sum, o) => sum + Number(o.totalPrice) * DRIVER_COMMISSION_RATE, 0)).toFixed(2)} TND
+              </p>
+              <p className="text-emerald-100 text-xs mt-1">
+                {deliveredOrders.length} livraison{deliveredOrders.length > 1 ? 's' : ''} effectuée{deliveredOrders.length > 1 ? 's' : ''}
+              </p>
+            </div>
+            <div className="bg-white/20 p-3 rounded-full">
+              <Banknote className="w-8 h-8" />
+            </div>
+          </div>
+        </Card>
+
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="p-4 border-l-4 border-l-green-500">
-            <p className="text-sm text-muted-foreground">Disponibles</p>
-            <p className="text-3xl font-bold text-green-600">{availableOrders.length}</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card className="p-3 border-l-4 border-l-green-500">
+            <p className="text-xs text-muted-foreground">Disponibles</p>
+            <p className="text-2xl font-bold text-green-600">{availableOrders.length}</p>
           </Card>
-          <Card className="p-4 border-l-4 border-l-orange-500">
-            <p className="text-sm text-muted-foreground">En attente</p>
-            <p className="text-3xl font-bold text-orange-600">{waitingOrders.length}</p>
+          <Card className="p-3 border-l-4 border-l-orange-500">
+            <p className="text-xs text-muted-foreground">En attente</p>
+            <p className="text-2xl font-bold text-orange-600">{waitingOrders.length}</p>
           </Card>
-          <Card className="p-4 border-l-4 border-l-indigo-500">
-            <p className="text-sm text-muted-foreground">En livraison</p>
-            <p className="text-3xl font-bold text-indigo-600">{inDeliveryOrders.length}</p>
+          <Card className="p-3 border-l-4 border-l-indigo-500">
+            <p className="text-xs text-muted-foreground">En livraison</p>
+            <p className="text-2xl font-bold text-indigo-600">{inDeliveryOrders.length}</p>
           </Card>
-          <Card className="p-4 border-l-4 border-l-emerald-500">
-            <p className="text-sm text-muted-foreground">Livrées</p>
-            <p className="text-3xl font-bold text-emerald-600">{deliveredOrders.length}</p>
+          <Card className="p-3 border-l-4 border-l-emerald-500">
+            <p className="text-xs text-muted-foreground">Livrées</p>
+            <p className="text-2xl font-bold text-emerald-600">{deliveredOrders.length}</p>
           </Card>
         </div>
 

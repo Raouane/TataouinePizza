@@ -24,36 +24,34 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Desktop/Tablet Header */}
       <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between px-4 md:px-8">
-          <Link href="/">
-            <a className="flex items-center gap-2 group">
-              <div className="bg-primary text-primary-foreground p-1 rounded-md group-hover:rotate-12 transition-transform">
-                <Pizza className="h-6 w-6" />
-              </div>
-              <span className="font-serif text-xl font-bold tracking-tight">
-                Tataouine<span className="text-primary">Pizza</span>
-              </span>
-            </a>
+          <Link href="/" className="flex items-center gap-2 group">
+            <div className="bg-primary text-primary-foreground p-1 rounded-md group-hover:rotate-12 transition-transform">
+              <Pizza className="h-6 w-6" />
+            </div>
+            <span className="font-serif text-xl font-bold tracking-tight">
+              Tataouine<span className="text-primary">Pizza</span>
+            </span>
           </Link>
 
           <div className="flex items-center gap-6">
             <nav className="hidden md:flex items-center gap-6">
               {navItems.map((item) => (
-                <Link key={item.href} href={item.href}>
-                  <a
-                    className={cn(
-                      "text-sm font-medium transition-colors hover:text-primary flex items-center gap-2",
-                      location === item.href
-                        ? "text-primary"
-                        : "text-muted-foreground"
-                    )}
-                  >
-                    {item.label}
-                    {item.badge ? (
-                      <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center">
-                        {item.badge}
-                      </span>
-                    ) : null}
-                  </a>
+                <Link 
+                  key={item.href} 
+                  href={item.href}
+                  className={cn(
+                    "text-sm font-medium transition-colors hover:text-primary flex items-center gap-2",
+                    location === item.href
+                      ? "text-primary"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  {item.label}
+                  {item.badge ? (
+                    <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center">
+                      {item.badge}
+                    </span>
+                  ) : null}
                 </Link>
               ))}
             </nav>
@@ -95,25 +93,25 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {navItems.map((item) => {
             const isActive = location === item.href;
             return (
-              <Link key={item.href} href={item.href}>
-                <a
-                  className={cn(
-                    "flex flex-col items-center gap-1 transition-all duration-300 p-1",
-                    isActive ? "text-primary scale-110" : "text-muted-foreground"
-                  )}
-                >
-                  <div className="relative">
-                    <item.icon
-                      className={cn("h-5 w-5", isActive && "fill-current/20")}
-                    />
-                    {item.badge && item.badge > 0 ? (
-                      <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[8px] font-bold h-3 w-3 flex items-center justify-center rounded-full animate-in zoom-in">
-                        {item.badge}
-                      </span>
-                    ) : null}
-                  </div>
-                  <span className="text-[9px] font-medium">{item.label}</span>
-                </a>
+              <Link 
+                key={item.href} 
+                href={item.href}
+                className={cn(
+                  "flex flex-col items-center gap-1 transition-all duration-300 p-1",
+                  isActive ? "text-primary scale-110" : "text-muted-foreground"
+                )}
+              >
+                <div className="relative">
+                  <item.icon
+                    className={cn("h-5 w-5", isActive && "fill-current/20")}
+                  />
+                  {item.badge && item.badge > 0 ? (
+                    <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[8px] font-bold h-3 w-3 flex items-center justify-center rounded-full animate-in zoom-in">
+                      {item.badge}
+                    </span>
+                  ) : null}
+                </div>
+                <span className="text-[9px] font-medium">{item.label}</span>
               </Link>
             );
           })}

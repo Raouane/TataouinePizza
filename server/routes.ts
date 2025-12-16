@@ -495,7 +495,18 @@ export async function registerRoutes(
   // Get ready orders available for pickup (for all drivers)
   app.get("/api/driver/available-orders", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
-      const readyOrders = await storage.getReadyOrders();
+      let readyOrders;
+      try {
+        readyOrders = await storage.getReadyOrders();
+      } catch (err) {
+        console.error("[DRIVER] Error fetching ready orders:", err);
+        readyOrders = [];
+      }
+      
+      if (!readyOrders || readyOrders.length === 0) {
+        return res.json([]);
+      }
+      
       const restaurants = await storage.getAllRestaurants();
       const restaurantMap = new Map(restaurants.map(r => [r.id, r]));
       
