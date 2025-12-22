@@ -19,10 +19,16 @@ import DriverLogin from "@/pages/driver-login";
 import DriverDashboard from "@/pages/driver-dashboard";
 import RestaurantLogin from "@/pages/restaurant-login";
 import RestaurantDashboard from "@/pages/restaurant-dashboard";
+import OnboardingPage, { getOnboarding } from "@/pages/onboarding";
+
+function isOnboarded() {
+  return !!getOnboarding();
+}
 
 function Router() {
   return (
     <Switch>
+      <Route path="/onboarding" component={OnboardingPage} />
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
       <Route path="/driver/login" component={DriverLogin} />
@@ -32,12 +38,36 @@ function Router() {
       <Route>
         <Layout>
           <Switch>
-            <Route path="/" component={Home} />
-            <Route path="/menu" component={Menu} />
-            <Route path="/menu/:restaurantId" component={Menu} />
-            <Route path="/cart" component={CartPage} />
-            <Route path="/success" component={OrderSuccess} />
-            <Route path="/history" component={OrderHistory} />
+            <Route
+              path="/"
+              component={() => (isOnboarded() ? <Home /> : <OnboardingPage />)}
+            />
+            <Route
+              path="/menu"
+              component={() => (isOnboarded() ? <Menu /> : <OnboardingPage />)}
+            />
+            <Route
+              path="/menu/:restaurantId"
+              component={() => (isOnboarded() ? <Menu /> : <OnboardingPage />)}
+            />
+            <Route
+              path="/cart"
+              component={() =>
+                isOnboarded() ? <CartPage /> : <OnboardingPage />
+              }
+            />
+            <Route
+              path="/success"
+              component={() =>
+                isOnboarded() ? <OrderSuccess /> : <OnboardingPage />
+              }
+            />
+            <Route
+              path="/history"
+              component={() =>
+                isOnboarded() ? <OrderHistory /> : <OnboardingPage />
+              }
+            />
             <Route component={NotFound} />
           </Switch>
         </Layout>

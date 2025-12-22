@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Search, MapPin, Star, Clock, ChevronRight, Flame, Gift, Percent, Sparkles, ArrowRight } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { motion } from "framer-motion";
+import { getOnboarding } from "@/pages/onboarding";
 
 interface Restaurant {
   id: string;
@@ -33,6 +34,10 @@ export default function Home() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
+  // Récupérer le prénom de l'utilisateur depuis l'onboarding
+  const onboarding = getOnboarding();
+  const firstName = onboarding?.name?.split(" ")[0] || ""; // Prend le premier mot du nom
 
   useEffect(() => {
     fetchRestaurants();
@@ -95,9 +100,20 @@ export default function Home() {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return language === 'ar' ? "صباح الخير" : language === 'en' ? "Good morning" : "Bonjour";
-    if (hour < 18) return language === 'ar' ? "مساء الخير" : language === 'en' ? "Good afternoon" : "Bon après-midi";
-    return language === 'ar' ? "مساء الخير" : language === 'en' ? "Good evening" : "Bonsoir";
+    let greeting = "";
+    if (hour < 12) {
+      greeting = language === 'ar' ? "صباح الخير" : language === 'en' ? "Good morning" : "Bonjour";
+    } else if (hour < 18) {
+      greeting = language === 'ar' ? "مساء الخير" : language === 'en' ? "Good afternoon" : "Bon après-midi";
+    } else {
+      greeting = language === 'ar' ? "مساء الخير" : language === 'en' ? "Good evening" : "Bonsoir";
+    }
+    
+    // Ajouter le prénom si disponible
+    if (firstName) {
+      return `${greeting} ${firstName}`;
+    }
+    return greeting;
   };
 
   return (

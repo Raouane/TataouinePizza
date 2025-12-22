@@ -39,11 +39,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const addItem = (pizza: Pizza, size: 'small' | 'medium' | 'large' = 'medium'): boolean => {
     // Check if cart is from a different restaurant
     if (restaurantId && restaurantId !== pizza.restaurantId) {
-      toast({
-        title: "Panier d'un autre restaurant",
-        description: "Videz votre panier pour commander dans un autre restaurant.",
-        variant: "destructive"
-      });
+      // Delay toast to avoid render issue
+      setTimeout(() => {
+        toast({
+          title: "Panier d'un autre restaurant",
+          description: "Videz votre panier pour commander dans un autre restaurant.",
+          variant: "destructive"
+        });
+      }, 0);
       return false;
     }
 
@@ -52,26 +55,36 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       setRestaurantId(pizza.restaurantId);
     }
 
+    const itemKey = `${pizza.id}-${size}`;
+    let toastMessage: { title: string; description: string } | null = null;
+
     setItems((current) => {
-      const itemKey = `${pizza.id}-${size}`;
       const existing = current.find((item) => `${item.id}-${item.size}` === itemKey);
       if (existing) {
-        toast({
+        toastMessage = {
           title: "Quantité mise à jour",
           description: `Une autre ${pizza.name} (${size}) a été ajoutée.`,
-        });
+        };
         return current.map((item) =>
           `${item.id}-${item.size}` === itemKey
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       }
-      toast({
+      toastMessage = {
         title: "Ajouté au panier",
         description: `${pizza.name} (${size}) a été ajoutée.`,
-      });
+      };
       return [...current, { ...pizza, quantity: 1, size }];
     });
+
+    // Show toast after state update
+    if (toastMessage) {
+      setTimeout(() => {
+        toast(toastMessage!);
+      }, 0);
+    }
+
     return true;
   };
 

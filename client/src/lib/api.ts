@@ -73,6 +73,8 @@ export async function createOrder(data: {
   phone: string;
   address: string;
   addressDetails?: string;
+  customerLat?: number;
+  customerLng?: number;
   items: OrderItem[];
 }): Promise<{ orderId: string; totalPrice: number }> {
   const res = await fetch(`${API_BASE}/orders`, {

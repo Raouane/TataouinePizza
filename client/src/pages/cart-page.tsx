@@ -11,32 +11,54 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "@/lib/i18n";
+import { getOnboarding } from "@/pages/onboarding";
 
-type Step = "cart" | "phone" | "verify" | "address";
+type Step = "cart" | "phone" | "verify" | "address" | "summary";
+
+const DELIVERY_FEE = 2.00; // Prix de livraison fixe en TND
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, total, clearCart, restaurantId } = useCart();
   const { startOrder } = useOrder();
+  const onboarding = getOnboarding();
+  const hasPhoneFromOnboarding = !!onboarding?.phone;
   const [step, setStep] = useState<Step>("cart");
-  const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
+  const [phone, setPhone] = useState(onboarding?.phone || "");
+  const [name, setName] = useState(onboarding?.name || "");
   const [code, setCode] = useState("");
-  const [address, setAddress] = useState("");
+  const [address, setAddress] = useState(onboarding?.address || "");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { t, language } = useLanguage();
   const isRtl = language === 'ar';
 
+  // Total avec livraison
+  const totalWithDelivery = total + DELIVERY_FEE;
+
   const handleNext = async () => {
     if (step === "cart") {
-      setStep("phone");
-    } else if (step === "phone") {
-      if(phone.length < 8) {
-        toast({ title: t('cart.error.phone'), variant: "destructive" });
-        return;
+      // Si l'utilisateur a déjà fait l'onboarding (téléphone vérifié),
+      // on saute directement à l'étape adresse.
+      if (hasPhoneFromOnboarding) {
+        setStep("address");
+      } else {
+        setStep("phone");
       }
+    } else if (step === "phone") {
       if(name.length < 2) {
         toast({ title: t('cart.error.name'), variant: "destructive" });
+        return;
+      }
+
+      // Si le téléphone vient déjà de l'onboarding, on ne renvoie pas d'OTP ici
+      // et on passe directement à l'adresse.
+      if (hasPhoneFromOnboarding) {
+        setStep("address");
+        return;
+      }
+
+      if(phone.length < 8) {
+        toast({ title: t('cart.error.phone'), variant: "destructive" });
         return;
       }
       try {
@@ -57,40 +79,48 @@ export default function CartPage() {
         toast({ title: t('cart.error.address'), variant: "destructive" });
         return;
       }
-      try {
-        const orderItems = items.map(item => ({
-          pizzaId: item.id.toString(),
-          size: item.size || "medium" as const,
-          quantity: item.quantity,
-        }));
-        
-        if (!restaurantId) {
-          toast({ title: "Erreur", description: "Restaurant non sélectionné", variant: "destructive" });
-          return;
-        }
-        
-        const result = await createOrder({
-          restaurantId,
-          customerName: name,
-          phone,
-          address,
-          addressDetails: "",
-          items: orderItems,
-        });
-        
-        clearCart();
-        startOrder();
-        setLocation("/success");
-      } catch (error: any) {
-        toast({ title: "Erreur", description: error.message || "Erreur création commande", variant: "destructive" });
-      }
+      // Passer à l'étape récapitulatif au lieu de créer directement la commande
+      setStep("summary");
     }
   };
 
   const handleBack = () => {
       if (step === "phone") setStep("cart");
       if (step === "verify") setStep("phone");
-      if (step === "address") setStep("verify");
+      if (step === "address") setStep(hasPhoneFromOnboarding ? "cart" : "verify");
+      if (step === "summary") setStep("address");
+  };
+
+  const handleConfirmOrder = async () => {
+    try {
+      const orderItems = items.map(item => ({
+        pizzaId: item.id.toString(),
+        size: item.size || "medium" as const,
+        quantity: item.quantity,
+      }));
+      
+      if (!restaurantId) {
+        toast({ title: "Erreur", description: "Restaurant non sélectionné", variant: "destructive" });
+        return;
+      }
+      
+      const result = await createOrder({
+        restaurantId,
+        customerName: name,
+        phone,
+        address,
+        addressDetails: "",
+        customerLat: onboarding?.lat,
+        customerLng: onboarding?.lng,
+        items: orderItems,
+      });
+      
+      clearCart();
+      startOrder();
+      setLocation("/success");
+    } catch (error: any) {
+      toast({ title: "Erreur", description: error.message || "Erreur création commande", variant: "destructive" });
+    }
   };
 
   if (items.length === 0 && step === "cart") {
@@ -122,14 +152,16 @@ export default function CartPage() {
         <h1 className={`text-2xl font-serif font-bold flex-1 text-center md:text-left ${isRtl ? 'md:pr-4' : 'md:pl-4'}`}>
           {step === "cart" && t('cart.step.1')}
           {step === "phone" && t('cart.step.2')}
-          {step === "verify" && t('cart.step.3')}
-          {step === "address" && t('cart.step.4')}
+          {!hasPhoneFromOnboarding && step === "verify" && t('cart.step.3')}
+          {step === "address" && (hasPhoneFromOnboarding ? t('cart.step.3') : t('cart.step.4'))}
+          {step === "summary" && (language === 'ar' ? "ملخص الطلب" : language === 'en' ? "Order Summary" : "Récapitulatif")}
         </h1>
         <div className="text-sm font-medium text-muted-foreground">
-            {step === "cart" && "1/4"}
-            {step === "phone" && "2/4"}
-            {step === "verify" && "3/4"}
-            {step === "address" && "4/4"}
+          {step === "cart" && (hasPhoneFromOnboarding ? "1/3" : "1/5")}
+          {step === "phone" && (hasPhoneFromOnboarding ? "2/3" : "2/5")}
+          {!hasPhoneFromOnboarding && step === "verify" && "3/5"}
+          {step === "address" && (hasPhoneFromOnboarding ? "2/3" : "4/5")}
+          {step === "summary" && (hasPhoneFromOnboarding ? "3/3" : "5/5")}
         </div>
       </div>
 
@@ -192,8 +224,8 @@ export default function CartPage() {
                 </motion.div>
             )}
 
-            {/* STEP 2: PHONE INPUT */}
-            {step === "phone" && (
+            {/* STEP 2: PHONE INPUT (seulement si pas d'onboarding) */}
+            {!hasPhoneFromOnboarding && step === "phone" && (
                 <motion.div
                     key="phone"
                     initial={{ opacity: 0, x: isRtl ? -20 : 20 }}
@@ -302,22 +334,141 @@ export default function CartPage() {
                     </div>
                 </motion.div>
             )}
+
+            {/* STEP 5: SUMMARY / RÉCAPITULATIF */}
+            {step === "summary" && (
+                <motion.div
+                    key="summary"
+                    initial={{ opacity: 0, x: isRtl ? -20 : 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: isRtl ? 20 : -20 }}
+                    className="p-6 md:p-10 h-full space-y-6"
+                >
+                    <div className="text-center mb-6">
+                        <h3 className="text-xl font-bold mb-2">
+                            {language === 'ar' ? "ملخص الطلب" : language === 'en' ? "Order Summary" : "Récapitulatif de commande"}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                            {language === 'ar' ? "تحقق من معلوماتك قبل التأكيد" : language === 'en' ? "Review your information before confirming" : "Vérifiez vos informations avant de confirmer"}
+                        </p>
+                    </div>
+
+                    {/* Informations client */}
+                    <div className="bg-muted/50 rounded-xl p-4 space-y-3">
+                        <h4 className="font-semibold text-sm text-muted-foreground uppercase">
+                            {language === 'ar' ? "معلومات العميل" : language === 'en' ? "Customer Information" : "Informations client"}
+                        </h4>
+                        <div className="space-y-2">
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">
+                                    {language === 'ar' ? "الاسم" : language === 'en' ? "Name" : "Nom"}
+                                </span>
+                                <span className="font-medium">{name}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">
+                                    {language === 'ar' ? "الهاتف" : language === 'en' ? "Phone" : "Téléphone"}
+                                </span>
+                                <span className="font-medium">+216 {phone}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">
+                                    {language === 'ar' ? "العنوان" : language === 'en' ? "Address" : "Adresse"}
+                                </span>
+                                <span className="font-medium text-right max-w-[60%]">{address}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Détails de la commande */}
+                    <div className="bg-muted/50 rounded-xl p-4 space-y-3">
+                        <h4 className="font-semibold text-sm text-muted-foreground uppercase">
+                            {language === 'ar' ? "تفاصيل الطلب" : language === 'en' ? "Order Details" : "Détails de la commande"}
+                        </h4>
+                        <div className="space-y-3">
+                            {items.map((item) => (
+                                <div key={`${item.id}-${item.size}`} className="flex justify-between items-center">
+                                    <div className="flex-1">
+                                        <p className="font-medium">{item.name}</p>
+                                        <p className="text-sm text-muted-foreground">
+                                            {item.size} × {item.quantity}
+                                        </p>
+                                    </div>
+                                    <p className="font-semibold">
+                                        {(item.price * item.quantity).toFixed(2)} TND
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Total */}
+                    <div className="border-t pt-4 space-y-2">
+                        <div className="flex justify-between items-center text-sm">
+                            <span className="text-muted-foreground">
+                                {language === 'ar' ? "المجموع الفرعي" : language === 'en' ? "Subtotal" : "Sous-total"}
+                            </span>
+                            <span className="font-medium">{total.toFixed(2)} TND</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                            <span className="text-muted-foreground">
+                                {language === 'ar' ? "رسوم التوصيل" : language === 'en' ? "Delivery fee" : "Frais de livraison"}
+                            </span>
+                            <span className="font-medium">{DELIVERY_FEE.toFixed(2)} TND</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t">
+                            <span className="text-lg font-semibold">
+                                {language === 'ar' ? "المجموع الكلي" : language === 'en' ? "Total" : "Total"}
+                            </span>
+                            <span className="text-2xl font-bold text-primary">{totalWithDelivery.toFixed(2)} TND</span>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
         
         </AnimatePresence>
 
         {/* Footer Actions */}
         <div className="bg-muted/30 p-6 border-t mt-auto">
-            <div className="flex justify-between items-center mb-4">
-                <span className="text-muted-foreground">{t('cart.total')}</span>
-                <span className="text-2xl font-bold font-serif">{total.toFixed(2)} TND</span>
-            </div>
-            <Button 
-                className="w-full h-12 text-lg rounded-xl shadow-lg shadow-primary/20" 
-                onClick={handleNext}
-            >
-                {step === "address" ? t('cart.confirm') : t('cart.continue')}
-                <ArrowRight className={`w-5 h-5 ${isRtl ? 'mr-2 rotate-180' : 'ml-2'}`} />
-            </Button>
+            {step !== "summary" && (
+                <>
+                    <div className="flex justify-between items-center mb-4">
+                        <span className="text-muted-foreground">{t('cart.total')}</span>
+                        <span className="text-2xl font-bold font-serif">{total.toFixed(2)} TND</span>
+                    </div>
+                    <Button 
+                        className="w-full h-12 text-lg rounded-xl shadow-lg shadow-primary/20" 
+                        onClick={handleNext}
+                    >
+                        {step === "address" ? t('cart.confirm') : t('cart.continue')}
+                        <ArrowRight className={`w-5 h-5 ${isRtl ? 'mr-2 rotate-180' : 'ml-2'}`} />
+                    </Button>
+                </>
+            )}
+            {step === "summary" && (
+                <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">{t('cart.total')}</span>
+                        <span className="text-2xl font-bold font-serif">{totalWithDelivery.toFixed(2)} TND</span>
+                    </div>
+                    <div className="flex gap-3">
+                        <Button 
+                            variant="outline"
+                            className="flex-1 h-12 text-lg rounded-xl" 
+                            onClick={handleBack}
+                        >
+                            {language === 'ar' ? "تعديل" : language === 'en' ? "Modify" : "Modifier"}
+                        </Button>
+                        <Button 
+                            className="flex-1 h-12 text-lg rounded-xl shadow-lg shadow-primary/20" 
+                            onClick={handleConfirmOrder}
+                        >
+                            {language === 'ar' ? "تأكيد الطلب" : language === 'en' ? "Confirm Order" : "Confirmer la commande"}
+                            <ArrowRight className={`w-5 h-5 ${isRtl ? 'mr-2 rotate-180' : 'ml-2'}`} />
+                        </Button>
+                    </div>
+                </div>
+            )}
         </div>
       </div>
     </div>

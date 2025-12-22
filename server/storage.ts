@@ -270,11 +270,33 @@ export class DatabaseStorage implements IStorage {
   }
 
   async assignOrderToDriver(orderId: string, driverId: string): Promise<Order> {
-    await db.update(orders).set({ driverId, updatedAt: new Date() }).where(eq(orders.id, orderId));
-    const result = await db.select().from(orders).where(eq(orders.id, orderId));
+    // Atomic update: only assign if not already assigned
+    const result = await db.update(orders)
+      .set({ 
+        driverId, 
+        assignedAt: sql`NOW()`,
+        updatedAt: new Date() 
+      })
+      .where(
+        and(
+          eq(orders.id, orderId),
+          or(
+            sql`${orders.driverId} IS NULL`,
+            eq(orders.driverId, "")
+          )
+        )
+      )
+      .returning();
+    
     if (!result || !result[0]) {
-      throw new Error("Failed to retrieve updated order");
+      // Order might already be assigned, fetch it to check
+      const existing = await db.select().from(orders).where(eq(orders.id, orderId));
+      if (existing[0] && existing[0].driverId && existing[0].driverId !== driverId) {
+        throw new Error("Order already assigned to another driver");
+      }
+      throw new Error("Failed to assign order to driver");
     }
+    
     return result[0];
   }
 

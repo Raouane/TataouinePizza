@@ -47,9 +47,10 @@ export const restaurants = pgTable("restaurants", {
 export const drivers = pgTable("drivers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
-  phone: text("phone").notNull().unique(),
+  phone: text("phone").notNull().unique(), // Utilisé aussi pour WhatsApp
   password: text("password").notNull(),
-  status: text("status").default("available"), // "available", "on_delivery", "offline"
+  status: text("status").default("available"), // "available", "on_delivery", "offline", "online"
+  lastSeen: timestamp("last_seen").defaultNow(), // Pour détecter les livreurs connectés
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -94,12 +95,15 @@ export const orders = pgTable("orders", {
   phone: text("phone").notNull(),
   address: text("address").notNull(),
   addressDetails: text("address_details"),
+  customerLat: numeric("customer_lat", { precision: 10, scale: 7 }), // Coordonnées GPS client
+  customerLng: numeric("customer_lng", { precision: 10, scale: 7 }), // Coordonnées GPS client
   status: orderStatusEnum("status").default("pending"),
   totalPrice: numeric("total_price", { precision: 10, scale: 2 }).notNull(),
   paymentMethod: text("payment_method").default("cash"),
   notes: text("notes"),
   estimatedDeliveryTime: integer("estimated_delivery_time"), // in minutes
   driverId: varchar("driver_id").references(() => drivers.id, { onDelete: "set null" }),
+  assignedAt: timestamp("assigned_at"), // Timestamp d'assignation pour le timer 20 secondes
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -150,6 +154,8 @@ export const insertOrderSchema = z.object({
   phone: z.string().min(8, "Téléphone invalide"),
   address: z.string().min(5, "Adresse invalide"),
   addressDetails: z.string().optional(),
+  customerLat: z.number().optional(),
+  customerLng: z.number().optional(),
   items: z.array(z.object({
     pizzaId: z.string(),
     size: z.enum(["small", "medium", "large"]),

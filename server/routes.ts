@@ -5,6 +5,7 @@ import { insertPizzaSchema, insertOrderSchema, verifyOtpSchema, sendOtpSchema, u
 import { z } from "zod";
 import { authenticateAdmin, generateToken, hashPassword, comparePassword, type AuthRequest } from "./auth";
 import { errorHandler, AppError } from "./errors";
+import { setupWebSocket, notifyDriversOfNewOrder } from "./websocket";
 
 declare global {
   namespace Express {
@@ -32,6 +33,13 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  
+  // Health check endpoint pour Render
+  app.get("/api/health", (req: Request, res: Response) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+  // ============ WEBSOCKET SETUP ============
+  setupWebSocket(httpServer);
   
   // ============ SEED DATA ============
   if (!seeded) {
@@ -199,8 +207,12 @@ export async function registerRoutes(
       
       console.log(`[OTP] Code for ${data.phone}: ${code}`);
       res.json({ message: "OTP sent", code });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to send OTP" });
+    } catch (error: any) {
+      console.error("[OTP] Erreur lors de l'envoi:", error);
+      res.status(500).json({ 
+        error: "Failed to send OTP",
+        details: process.env.NODE_ENV === "development" ? error.message : undefined
+      });
     }
   });
   
@@ -218,6 +230,21 @@ export async function registerRoutes(
   
   // ============ ORDERS (PUBLIC) ============
   
+  // Helper function to check if restaurant is open now
+  function isRestaurantOpenNow(restaurant: any): boolean {
+    if (!restaurant.isOpen) return false;
+    if (!restaurant.openingHours) return true; // Si pas d'horaires, considérer ouvert
+    
+    // Parse opening hours (format: "09:00-23:00")
+    const [openTime, closeTime] = restaurant.openingHours.split("-");
+    if (!openTime || !closeTime) return true;
+    
+    const now = new Date();
+    const currentTime = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+    
+    return currentTime >= openTime && currentTime <= closeTime;
+  }
+  
   app.post("/api/orders", async (req, res) => {
     try {
       const data = validate(insertOrderSchema, req.body);
@@ -227,8 +254,17 @@ export async function registerRoutes(
       const restaurant = await storage.getRestaurantById(data.restaurantId);
       if (!restaurant) return res.status(404).json({ error: "Restaurant not found" });
       
+      // Check if restaurant is open
+      if (!isRestaurantOpenNow(restaurant)) {
+        return res.status(400).json({
+          error: "Le restaurant est actuellement fermé. Merci de commander pendant les horaires d'ouverture.",
+        });
+      }
+      
       // Calculate total price and validate pizzas belong to restaurant
       let totalPrice = 0;
+      const orderItemsDetails: Array<{ name: string; size: string; quantity: number }> = [];
+      
       for (const item of data.items) {
         const pizza = await storage.getPizzaById(item.pizzaId);
         if (!pizza) return res.status(404).json({ error: `Pizza ${item.pizzaId} not found` });
@@ -240,7 +276,24 @@ export async function registerRoutes(
         const sizePrice = prices.find((p: any) => p.size === item.size);
         if (!sizePrice) return res.status(400).json({ error: `Invalid size for pizza ${pizza.name}` });
         totalPrice += Number(sizePrice.price) * item.quantity;
+        
+        orderItemsDetails.push({
+          name: pizza.name,
+          size: item.size,
+          quantity: item.quantity,
+        });
       }
+      
+      // Add delivery fee (2 TND)
+      const deliveryFee = 2.0;
+      totalPrice += deliveryFee;
+      
+      // Create order with status "accepted" if restaurant is open
+      console.log("[ORDER] Création commande avec coordonnées GPS:", {
+        customerLat: data.customerLat,
+        customerLng: data.customerLng,
+        address: data.address,
+      });
       
       const order = await storage.createOrder({
         restaurantId: data.restaurantId,
@@ -248,8 +301,16 @@ export async function registerRoutes(
         phone: data.phone,
         address: data.address,
         addressDetails: data.addressDetails,
+        customerLat: data.customerLat?.toString(),
+        customerLng: data.customerLng?.toString(),
         totalPrice: totalPrice.toString(),
-        status: "pending",
+        status: "accepted", // Auto-accept if restaurant is open
+      });
+      
+      console.log("[ORDER] Commande créée:", {
+        id: order.id,
+        customerLat: order.customerLat,
+        customerLng: order.customerLng,
       });
       
       for (const item of data.items) {
@@ -262,6 +323,53 @@ export async function registerRoutes(
           quantity: item.quantity,
           pricePerUnit: sizePrice.price,
         });
+      }
+      
+      // Notify drivers via WebSocket
+      try {
+        await notifyDriversOfNewOrder({
+          type: "new_order",
+          orderId: order.id,
+          restaurantName: restaurant.name,
+          customerName: data.customerName,
+          address: data.address,
+          customerLat: data.customerLat,
+          customerLng: data.customerLng,
+          totalPrice: totalPrice.toString(),
+          items: orderItemsDetails,
+        });
+      } catch (wsError) {
+        console.error("[ORDER] Erreur notification WebSocket:", wsError);
+        // Continue même si WebSocket échoue
+      }
+      
+      // Send webhook to n8n
+      try {
+        const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
+        if (n8nWebhookUrl) {
+          await fetch(n8nWebhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              orderId: order.id,
+              restaurantId: restaurant.id,
+              restaurantName: restaurant.name,
+              restaurantPhone: restaurant.phone,
+              customerName: data.customerName,
+              customerPhone: data.phone,
+              address: data.address,
+              addressDetails: data.addressDetails,
+              totalPrice: totalPrice.toString(),
+              items: orderItemsDetails,
+              status: order.status,
+              createdAt: order.createdAt,
+            }),
+          });
+          console.log(`[ORDER] Webhook n8n envoyé pour commande ${order.id}`);
+        }
+      } catch (webhookError) {
+        console.error("[ORDER] Erreur webhook n8n:", webhookError);
+        // Continue même si webhook échoue
       }
       
       res.status(201).json({ orderId: order.id, totalPrice });
@@ -543,11 +651,23 @@ export async function registerRoutes(
       const restaurants = await storage.getAllRestaurants();
       const restaurantMap = new Map(restaurants.map(r => [r.id, r]));
       
-      const ordersWithRestaurant = readyOrders.map(order => ({
-        ...order,
-        restaurantName: restaurantMap.get(order.restaurantId!)?.name || "Restaurant",
-        restaurantAddress: restaurantMap.get(order.restaurantId!)?.address || "",
-      }));
+      const ordersWithRestaurant = readyOrders.map(order => {
+        // S'assurer que les coordonnées GPS sont bien converties en nombres
+        const orderData = {
+          ...order,
+          restaurantName: restaurantMap.get(order.restaurantId!)?.name || "Restaurant",
+          restaurantAddress: restaurantMap.get(order.restaurantId!)?.address || "",
+          // Convertir les coordonnées GPS en nombres si elles sont des strings
+          customerLat: order.customerLat ? (typeof order.customerLat === 'string' ? parseFloat(order.customerLat) : order.customerLat) : null,
+          customerLng: order.customerLng ? (typeof order.customerLng === 'string' ? parseFloat(order.customerLng) : order.customerLng) : null,
+        };
+        console.log(`[API] Commande ${order.id} - Coordonnées GPS:`, {
+          customerLat: orderData.customerLat,
+          customerLng: orderData.customerLng,
+          address: order.address,
+        });
+        return orderData;
+      });
       
       res.json(ordersWithRestaurant);
     } catch (error) {
@@ -565,11 +685,18 @@ export async function registerRoutes(
       const restaurants = await storage.getAllRestaurants();
       const restaurantMap = new Map(restaurants.map(r => [r.id, r]));
       
-      const ordersWithRestaurant = orders.map(order => ({
-        ...order,
-        restaurantName: restaurantMap.get(order.restaurantId!)?.name || "Restaurant",
-        restaurantAddress: restaurantMap.get(order.restaurantId!)?.address || "",
-      }));
+      const ordersWithRestaurant = orders.map(order => {
+        // S'assurer que les coordonnées GPS sont bien converties en nombres
+        const orderData = {
+          ...order,
+          restaurantName: restaurantMap.get(order.restaurantId!)?.name || "Restaurant",
+          restaurantAddress: restaurantMap.get(order.restaurantId!)?.address || "",
+          // Convertir les coordonnées GPS en nombres si elles sont des strings
+          customerLat: order.customerLat ? (typeof order.customerLat === 'string' ? parseFloat(order.customerLat) : order.customerLat) : null,
+          customerLng: order.customerLng ? (typeof order.customerLng === 'string' ? parseFloat(order.customerLng) : order.customerLng) : null,
+        };
+        return orderData;
+      });
       
       res.json(ordersWithRestaurant);
     } catch (error) {
