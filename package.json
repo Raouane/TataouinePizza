@@ -11,6 +11,8 @@
     "check": "tsc",
     "db:push": "drizzle-kit push",
     "db:migrate": "tsx script/migrate-db.ts",
+    "db:clear": "tsx script/clear-database.ts",
+    "db:seed": "tsx script/seed-data.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:watch": "vitest --watch",

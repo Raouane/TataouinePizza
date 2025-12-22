@@ -44,7 +44,7 @@ export async function runMigrationsOnStartup() {
         address TEXT NOT NULL,
         description TEXT,
         image_url TEXT,
-        category TEXT DEFAULT 'pizza',
+        categories TEXT,
         is_open BOOLEAN DEFAULT true,
         opening_hours TEXT,
         delivery_time INTEGER DEFAULT 30,
@@ -55,6 +55,27 @@ export async function runMigrationsOnStartup() {
       );
     `);
     console.log("[DB] ✅ Table restaurants créée/vérifiée");
+    
+    // Ajouter la colonne categories si elle n'existe pas et migrer category vers categories
+    await db.execute(sql`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'restaurants' AND column_name = 'categories'
+        ) THEN
+          ALTER TABLE restaurants ADD COLUMN categories TEXT;
+          -- Migrer les données existantes de category vers categories
+          UPDATE restaurants 
+          SET categories = CASE 
+            WHEN category IS NOT NULL THEN json_build_array(category)::text
+            ELSE '["pizza"]'::text
+          END
+          WHERE categories IS NULL;
+        END IF;
+      END $$;
+    `);
+    console.log("[DB] ✅ Colonne categories ajoutée/vérifiée");
 
     // Créer la table drivers si elle n'existe pas
     await db.execute(sql`
@@ -78,6 +99,7 @@ export async function runMigrationsOnStartup() {
         restaurant_id VARCHAR NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
         description TEXT,
+        product_type TEXT DEFAULT 'pizza',
         category TEXT NOT NULL,
         image_url TEXT,
         available BOOLEAN DEFAULT true,
@@ -86,6 +108,20 @@ export async function runMigrationsOnStartup() {
       );
     `);
     console.log("[DB] ✅ Table pizzas créée/vérifiée");
+    
+    // Ajouter la colonne product_type si elle n'existe pas (migration)
+    await db.execute(sql`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'pizzas' AND column_name = 'product_type'
+        ) THEN
+          ALTER TABLE pizzas ADD COLUMN product_type TEXT DEFAULT 'pizza';
+        END IF;
+      END $$;
+    `);
+    console.log("[DB] ✅ Colonne product_type ajoutée/vérifiée");
 
     // Créer la table pizza_prices si elle n'existe pas
     await db.execute(sql`
@@ -144,4 +180,5 @@ export async function runMigrationsOnStartup() {
     // On continue quand même, certaines tables peuvent déjà exister
   }
 }
+
 

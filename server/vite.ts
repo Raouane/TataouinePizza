@@ -29,10 +29,21 @@ export async function setupVite(server: Server, app: Express) {
     appType: "custom",
   });
 
-  app.use(vite.middlewares);
+  // Middleware pour ignorer les routes API
+  app.use((req, res, next) => {
+    if (req.originalUrl?.startsWith("/api/") || req.url?.startsWith("/api/")) {
+      return next();
+    }
+    vite.middlewares(req, res, next);
+  });
 
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
+
+    // Ne pas intercepter les routes API
+    if (url.startsWith("/api/")) {
+      return next();
+    }
 
     try {
       const clientTemplate = path.resolve(

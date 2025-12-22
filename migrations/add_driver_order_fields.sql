@@ -15,3 +15,4 @@ SET last_seen = NOW()
 WHERE last_seen IS NULL;
 
 
+

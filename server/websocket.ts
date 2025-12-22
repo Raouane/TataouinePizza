@@ -12,8 +12,22 @@ const driverConnections = new Map<string, WebSocket>();
 // Key: orderId, Value: NodeJS.Timeout
 const orderAcceptanceTimers = new Map<string, NodeJS.Timeout>();
 
+// Map pour stocker les timers de heartbeat par connexion
+// Key: driverId, Value: NodeJS.Timeout
+const heartbeatTimers = new Map<string, NodeJS.Timeout>();
+
 // Durée du timer d'acceptation (20 secondes)
 const ACCEPTANCE_TIMEOUT = 20000; // 20 secondes
+
+// Timeout pour le heartbeat (30 secondes d'inactivité = connexion morte)
+const HEARTBEAT_TIMEOUT = 30000; // 30 secondes
+
+// Intervalle de nettoyage (5 minutes)
+const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+// Timeout pour fermer le WebSocket si pas d'activité (10 minutes)
+const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+let inactivityTimer: NodeJS.Timeout | null = null;
 
 export interface OrderNotification {
   type: "new_order";
@@ -48,6 +62,14 @@ export function setupWebSocket(httpServer: Server): WebSocketServer {
     path: "/ws"
   });
 
+  wssInstance = wss;
+
+  // Démarrer le nettoyage périodique
+  startPeriodicCleanup(wss);
+  
+  // Démarrer le timer d'inactivité
+  resetInactivityTimer(wss);
+
   wss.on("connection", (ws: WebSocket, req) => {
     console.log("[WebSocket] Nouvelle connexion");
 
@@ -69,8 +91,14 @@ export function setupWebSocket(httpServer: Server): WebSocketServer {
     driverConnections.set(driverId, ws);
     console.log(`[WebSocket] Livreur ${driverId} connecté`);
 
+    // Réinitialiser le timer d'inactivité
+    resetInactivityTimer(wss);
+
     // Mettre à jour last_seen dans la DB
     updateDriverLastSeen(driverId);
+
+    // Démarrer le heartbeat pour cette connexion
+    startHeartbeat(driverId, ws);
 
     // Envoyer un message de confirmation
     ws.send(JSON.stringify({
@@ -90,7 +118,10 @@ export function setupWebSocket(httpServer: Server): WebSocketServer {
         } else if (message.type === "ping") {
           // Heartbeat pour maintenir la connexion
           updateDriverLastSeen(driverId);
+          resetHeartbeat(driverId, ws);
           ws.send(JSON.stringify({ type: "pong" }));
+          // Réinitialiser le timer d'inactivité
+          resetInactivityTimer(wss);
         }
       } catch (error) {
         console.error("[WebSocket] Erreur traitement message:", error);
@@ -100,12 +131,12 @@ export function setupWebSocket(httpServer: Server): WebSocketServer {
     // Gérer la déconnexion
     ws.on("close", () => {
       console.log(`[WebSocket] Livreur ${driverId} déconnecté`);
-      driverConnections.delete(driverId);
+      cleanupDriverConnection(driverId);
     });
 
     ws.on("error", (error) => {
       console.error(`[WebSocket] Erreur pour livreur ${driverId}:`, error);
-      driverConnections.delete(driverId);
+      cleanupDriverConnection(driverId);
     });
   });
 
@@ -165,6 +196,11 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
 
   // Démarrer le timer d'acceptation (20 secondes)
   startAcceptanceTimer(orderData.orderId);
+
+  // Réinitialiser le timer d'inactivité car il y a une nouvelle commande
+  if (wssInstance) {
+    resetInactivityTimer(wssInstance);
+  }
 
   return notifiedCount;
 }
@@ -286,6 +322,148 @@ function notifyOtherDriversOrderTaken(orderId: string, acceptedDriverId: string)
       }
     }
   }
+}
+
+/**
+ * Démarre le heartbeat pour une connexion
+ */
+function startHeartbeat(driverId: string, ws: WebSocket) {
+  // Nettoyer le timer existant
+  const existingTimer = heartbeatTimers.get(driverId);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+
+  // Créer un nouveau timer
+  const timer = setTimeout(() => {
+    console.log(`[WebSocket] Heartbeat timeout pour livreur ${driverId} - fermeture de la connexion`);
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.close(1000, "Heartbeat timeout");
+    }
+    cleanupDriverConnection(driverId);
+  }, HEARTBEAT_TIMEOUT);
+
+  heartbeatTimers.set(driverId, timer);
+}
+
+/**
+ * Réinitialise le heartbeat pour une connexion
+ */
+function resetHeartbeat(driverId: string, ws: WebSocket) {
+  startHeartbeat(driverId, ws);
+}
+
+/**
+ * Nettoie les ressources d'une connexion livreur
+ */
+function cleanupDriverConnection(driverId: string) {
+  driverConnections.delete(driverId);
+  const heartbeatTimer = heartbeatTimers.get(driverId);
+  if (heartbeatTimer) {
+    clearTimeout(heartbeatTimer);
+    heartbeatTimers.delete(driverId);
+  }
+}
+
+/**
+ * Réinitialise le timer d'inactivité globale
+ */
+function resetInactivityTimer(wss: WebSocketServer) {
+  if (inactivityTimer) {
+    clearTimeout(inactivityTimer);
+  }
+
+  inactivityTimer = setTimeout(async () => {
+    console.log("[WebSocket] Vérification de l'inactivité...");
+    
+    const hasConnectedDrivers = driverConnections.size > 0;
+    const hasPendingOrders = await checkPendingOrders();
+    const hasActiveTimers = orderAcceptanceTimers.size > 0;
+
+    if (!hasConnectedDrivers && !hasPendingOrders && !hasActiveTimers) {
+      console.log("[WebSocket] Aucune activité - WebSocket en veille (connexions maintenues mais pas de traitement actif)");
+      // On ne ferme pas le serveur WebSocket, mais on arrête les timers inutiles
+    } else {
+      console.log(`[WebSocket] Activité détectée: ${driverConnections.size} livreur(s), ${hasPendingOrders ? 'commandes en attente' : 'pas de commandes'}, ${orderAcceptanceTimers.size} timer(s) actif(s)`);
+      // Réinitialiser le timer
+      resetInactivityTimer(wss);
+    }
+  }, INACTIVITY_TIMEOUT);
+}
+
+/**
+ * Vérifie s'il y a des commandes en attente
+ */
+async function checkPendingOrders(): Promise<boolean> {
+  try {
+    const { storage } = await import("./storage");
+    const orders = await storage.getAllOrders();
+    const pendingOrders = orders.filter(
+      (order) => 
+        order.status === "pending" || 
+        order.status === "accepted" || 
+        (order.status === "ready" && !order.driverId)
+    );
+    return pendingOrders.length > 0;
+  } catch (error) {
+    console.error("[WebSocket] Erreur vérification commandes:", error);
+    return false;
+  }
+}
+
+/**
+ * Nettoie périodiquement les connexions inactives et les timers expirés
+ */
+function startPeriodicCleanup(wss: WebSocketServer) {
+  setInterval(async () => {
+    console.log("[WebSocket] Nettoyage périodique...");
+    
+    // Nettoyer les connexions mortes
+    const deadConnections: string[] = [];
+    for (const [driverId, ws] of driverConnections.entries()) {
+      if (ws.readyState !== WebSocket.OPEN) {
+        deadConnections.push(driverId);
+      }
+    }
+    
+    for (const driverId of deadConnections) {
+      console.log(`[WebSocket] Suppression connexion morte: ${driverId}`);
+      cleanupDriverConnection(driverId);
+    }
+
+    // Nettoyer les timers expirés (ils se nettoient normalement, mais on vérifie)
+    const expiredTimers: string[] = [];
+    for (const [orderId, timer] of orderAcceptanceTimers.entries()) {
+      // Les timers sont automatiquement nettoyés, mais on peut vérifier s'ils sont toujours valides
+      // (cette vérification est optionnelle car les timers se nettoient eux-mêmes)
+    }
+
+    // Mettre à jour le statut des livreurs inactifs dans la DB
+    try {
+      await db
+        .update(drivers)
+        .set({ 
+          status: sql`CASE 
+            WHEN last_seen < NOW() - INTERVAL '5 minutes' THEN 'offline'
+            ELSE status
+          END`
+        })
+        .where(sql`last_seen < NOW() - INTERVAL '5 minutes' AND status = 'online'`);
+    } catch (error) {
+      console.error("[WebSocket] Erreur mise à jour statut livreurs:", error);
+    }
+
+    const activeConnections = driverConnections.size;
+    const activeTimers = orderAcceptanceTimers.size;
+    const hasPending = await checkPendingOrders();
+
+    console.log(`[WebSocket] État: ${activeConnections} connexion(s), ${activeTimers} timer(s), ${hasPending ? 'commandes en attente' : 'pas de commandes'}`);
+
+    // Si aucune activité, on peut réduire la fréquence des vérifications
+    if (activeConnections === 0 && activeTimers === 0 && !hasPending) {
+      console.log("[WebSocket] Mode veille - aucune activité détectée");
+    }
+  }, CLEANUP_INTERVAL);
 }
 
 /**

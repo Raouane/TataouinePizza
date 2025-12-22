@@ -26,6 +26,7 @@ export interface IStorage {
   getAllDrivers(): Promise<Driver[]>;
   getOrdersByDriver(driverId: string): Promise<Order[]>;
   updateDriverStatus(id: string, status: string): Promise<Driver>;
+  updateDriver(id: string, data: Partial<Driver>): Promise<Driver>;
   assignOrderToDriver(orderId: string, driverId: string): Promise<Order>;
   acceptOrderByDriver(orderId: string, driverId: string): Promise<Order | null>;
 
@@ -100,7 +101,7 @@ export class DatabaseStorage implements IStorage {
     try {
       // Use raw SQL with text cast to bypass Neon HTTP boolean parsing bug
       const rawResult = await db.execute(sql`
-        SELECT id, name, phone, address, description, image_url, category, 
+        SELECT id, name, phone, address, description, image_url, categories, 
                is_open::text as is_open_text, opening_hours, delivery_time, 
                min_order, rating, created_at, updated_at 
         FROM restaurants ORDER BY name
@@ -117,7 +118,7 @@ export class DatabaseStorage implements IStorage {
         address: row.address,
         description: row.description,
         imageUrl: row.image_url,
-        category: row.category,
+        categories: row.categories ? (typeof row.categories === 'string' ? JSON.parse(row.categories) : row.categories) : [],
         isOpen: row.is_open_text === 'true',
         openingHours: row.opening_hours,
         deliveryTime: row.delivery_time,
@@ -135,7 +136,7 @@ export class DatabaseStorage implements IStorage {
   async getRestaurantById(id: string): Promise<Restaurant | undefined> {
     try {
       const rawResult = await db.execute(sql`
-        SELECT id, name, phone, address, description, image_url, category, 
+        SELECT id, name, phone, address, description, image_url, categories, 
                is_open::text as is_open_text, opening_hours, delivery_time, 
                min_order, rating, created_at, updated_at 
         FROM restaurants WHERE id = ${id}
@@ -153,7 +154,7 @@ export class DatabaseStorage implements IStorage {
         address: row.address,
         description: row.description,
         imageUrl: row.image_url,
-        category: row.category,
+        categories: row.categories ? (typeof row.categories === 'string' ? JSON.parse(row.categories) : row.categories) : [],
         isOpen: row.is_open_text === 'true',
         openingHours: row.opening_hours,
         deliveryTime: row.delivery_time,
@@ -171,7 +172,7 @@ export class DatabaseStorage implements IStorage {
   async getRestaurantByPhone(phone: string): Promise<Restaurant | undefined> {
     try {
       const rawResult = await db.execute(sql`
-        SELECT id, name, phone, address, description, image_url, category, 
+        SELECT id, name, phone, address, description, image_url, categories, 
                is_open::text as is_open_text, opening_hours, delivery_time, 
                min_order, rating, created_at, updated_at 
         FROM restaurants WHERE phone = ${phone}
@@ -189,7 +190,7 @@ export class DatabaseStorage implements IStorage {
         address: row.address,
         description: row.description,
         imageUrl: row.image_url,
-        category: row.category,
+        categories: row.categories ? (typeof row.categories === 'string' ? JSON.parse(row.categories) : row.categories) : [],
         isOpen: row.is_open_text === 'true',
         openingHours: row.opening_hours,
         deliveryTime: row.delivery_time,
@@ -262,6 +263,15 @@ export class DatabaseStorage implements IStorage {
 
   async updateDriverStatus(id: string, status: string): Promise<Driver> {
     await db.update(drivers).set({ status, updatedAt: new Date() }).where(eq(drivers.id, id));
+    const result = await db.select().from(drivers).where(eq(drivers.id, id));
+    if (!result || !result[0]) {
+      throw new Error("Failed to retrieve updated driver");
+    }
+    return result[0];
+  }
+
+  async updateDriver(id: string, data: Partial<Driver>): Promise<Driver> {
+    await db.update(drivers).set({ ...data, updatedAt: new Date() }).where(eq(drivers.id, id));
     const result = await db.select().from(drivers).where(eq(drivers.id, id));
     if (!result || !result[0]) {
       throw new Error("Failed to retrieve updated driver");

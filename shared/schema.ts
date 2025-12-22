@@ -33,7 +33,7 @@ export const restaurants = pgTable("restaurants", {
   address: text("address").notNull(),
   description: text("description"),
   imageUrl: text("image_url"),
-  category: text("category").default("pizza"), // pizza, burger, etc.
+  categories: text("categories"), // JSON array: ["pizza", "burger", "salade"]
   isOpen: boolean("is_open").default(true),
   openingHours: text("opening_hours"), // "09:00-23:00"
   deliveryTime: integer("delivery_time").default(30), // minutes
@@ -61,7 +61,8 @@ export const pizzas = pgTable("pizzas", {
   restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
-  category: text("category").notNull(), // "classic", "special", "vegetarian"
+  productType: text("product_type").default("pizza"), // "pizza", "burger", "salade", "drink", etc.
+  category: text("category").notNull(), // "classic", "special", "vegetarian" (pour pizza) ou "beef", "chicken" (pour burger), etc.
   imageUrl: text("image_url"),
   available: boolean("available").default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -127,18 +128,20 @@ export const insertAdminUserSchema = createInsertSchema(adminUsers)
   });
 
 export const insertRestaurantSchema = createInsertSchema(restaurants)
-  .pick({ name: true, phone: true, address: true, description: true, imageUrl: true, category: true })
+  .pick({ name: true, phone: true, address: true, description: true, imageUrl: true, categories: true })
   .extend({
     name: z.string().min(2, "Nom min 2 caractères"),
     phone: z.string().min(8, "Téléphone invalide"),
     address: z.string().min(5, "Adresse invalide"),
+    categories: z.array(z.string()).optional().default([]),
   });
 
 export const insertPizzaSchema = createInsertSchema(pizzas)
-  .pick({ restaurantId: true, name: true, description: true, category: true, imageUrl: true, available: true })
+  .pick({ restaurantId: true, name: true, description: true, productType: true, category: true, imageUrl: true, available: true })
   .extend({
     name: z.string().min(2, "Nom min 2 caractères"),
-    category: z.enum(["classic", "special", "vegetarian"]),
+    productType: z.enum(["pizza", "burger", "salade", "drink", "dessert", "other"]).optional().default("pizza"),
+    category: z.string().min(1, "Catégorie requise"), // Peut être "classic", "special", "vegetarian" pour pizza, ou autre pour d'autres types
     available: z.boolean().optional().default(true),
   });
 
