@@ -42,13 +42,11 @@ export async function registerRoutes(
   // ============ AUTO MIGRATIONS ============
   // Exécuter les migrations automatiquement au démarrage (pour Render)
   try {
-    console.log("[DB] Exécution des migrations automatiques...");
-    const { execSync } = await import("child_process");
-    execSync("npm run db:push", { stdio: "inherit", cwd: process.cwd() });
-    console.log("[DB] Migrations terminées avec succès");
+    const { runMigrationsOnStartup } = await import("./migrate-on-startup");
+    await runMigrationsOnStartup();
   } catch (error: any) {
-    console.warn("[DB] Erreur lors des migrations automatiques (peut être normal si tables existent déjà):", error.message);
-    // On continue quand même, les tables peuvent déjà exister
+    console.warn("[DB] Erreur lors des migrations automatiques:", error.message);
+    // On continue quand même, certaines tables peuvent déjà exister
   }
   
   // ============ WEBSOCKET SETUP ============
