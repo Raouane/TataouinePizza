@@ -38,6 +38,19 @@ export async function registerRoutes(
   app.get("/api/health", (req: Request, res: Response) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
+  
+  // ============ AUTO MIGRATIONS ============
+  // Exécuter les migrations automatiquement au démarrage (pour Render)
+  try {
+    console.log("[DB] Exécution des migrations automatiques...");
+    const { execSync } = await import("child_process");
+    execSync("npm run db:push", { stdio: "inherit", cwd: process.cwd() });
+    console.log("[DB] Migrations terminées avec succès");
+  } catch (error: any) {
+    console.warn("[DB] Erreur lors des migrations automatiques (peut être normal si tables existent déjà):", error.message);
+    // On continue quand même, les tables peuvent déjà exister
+  }
+  
   // ============ WEBSOCKET SETUP ============
   setupWebSocket(httpServer);
   
