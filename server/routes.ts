@@ -166,15 +166,23 @@ export async function registerRoutes(
   
   app.get("/api/restaurants/:id/menu", async (req, res) => {
     try {
-      const pizzas = await storage.getPizzasByRestaurant(req.params.id);
+      const restaurantId = req.params.id;
+      console.log(`[API] Récupération du menu pour le restaurant: ${restaurantId}`);
+      
+      const pizzas = await storage.getPizzasByRestaurant(restaurantId);
+      console.log(`[API] ${pizzas.length} produits trouvés pour le restaurant ${restaurantId}`);
+      
       const pizzasWithPrices = await Promise.all(
         pizzas.map(async (pizza) => {
           const prices = await storage.getPizzaPrices(pizza.id);
           return { ...pizza, prices };
         })
       );
+      
+      console.log(`[API] Menu envoyé avec ${pizzasWithPrices.length} produits`);
       res.json(pizzasWithPrices);
     } catch (error) {
+      console.error("[API] Erreur lors de la récupération du menu:", error);
       res.status(500).json({ error: "Failed to fetch menu" });
     }
   });

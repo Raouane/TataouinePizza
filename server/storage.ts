@@ -349,7 +349,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPizzasByRestaurant(restaurantId: string): Promise<Pizza[]> {
-    return await db.select().from(pizzas).where(eq(pizzas.restaurantId, restaurantId));
+    try {
+      const result = await db.select().from(pizzas).where(eq(pizzas.restaurantId, restaurantId));
+      console.log(`[DB] getPizzasByRestaurant(${restaurantId}): ${result.length} produits trouvés`);
+      return result;
+    } catch (error) {
+      console.error(`[DB] Erreur getPizzasByRestaurant(${restaurantId}):`, error);
+      return [];
+    }
   }
 
   async createPizza(pizza: any): Promise<Pizza> {
