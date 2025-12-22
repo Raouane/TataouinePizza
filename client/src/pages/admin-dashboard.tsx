@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { getAdminOrders, updateOrderStatus, getAdminDrivers, assignOrderToDriver, getAdminRestaurants, createRestaurant, updateRestaurant, deleteRestaurant, createDriver, updateDriver, deleteDriver, getAdminPizzas, createPizza, updatePizza, deletePizza } from "@/lib/api";
 import type { Order, Driver, Restaurant, Pizza } from "@/lib/api";
-import { LogOut, RefreshCw, AlertCircle, Plus, Store, Truck, Pizza as PizzaIcon, ShoppingCart, Edit, Trash2 } from "lucide-react";
+import { LogOut, RefreshCw, AlertCircle, Plus, Store, Truck, Pizza as PizzaIcon, ShoppingCart, Edit, Trash2, MapPin, Phone, User, Calendar, Package } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminDashboard() {
@@ -63,7 +64,14 @@ export default function AdminDashboard() {
   }, [token, setLocation]);
 
   const fetchAll = async () => {
-    await Promise.all([fetchOrders(), fetchDrivers(), fetchRestaurants(), fetchPizzas()]);
+    setLoading(true);
+    try {
+      await Promise.all([fetchOrders(), fetchDrivers(), fetchRestaurants(), fetchPizzas()]);
+    } catch (err) {
+      console.error("Erreur lors du chargement des données:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchRestaurants = async () => {
@@ -111,10 +119,12 @@ export default function AdminDashboard() {
       const data = await getAdminOrders(token);
       setOrders(data);
       setError("");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch orders:", err);
-    } finally {
-      setLoading(false);
+      if (err.message?.includes("401") || err.message?.includes("token") || err.message?.includes("Invalid")) {
+        localStorage.removeItem("adminToken");
+        setLocation("/admin/login");
+      }
     }
   };
 
@@ -448,6 +458,34 @@ export default function AdminDashboard() {
     return colors[status] || "bg-gray-100 text-gray-800";
   };
 
+  const getCardHeaderColor = (status: string) => {
+    const colors: Record<string, string> = {
+      pending: "bg-gradient-to-r from-yellow-400 to-yellow-500",
+      accepted: "bg-gradient-to-r from-blue-400 to-blue-500",
+      preparing: "bg-gradient-to-r from-purple-400 to-purple-500",
+      baking: "bg-gradient-to-r from-orange-400 to-orange-500",
+      ready: "bg-gradient-to-r from-green-400 to-green-500",
+      delivery: "bg-gradient-to-r from-indigo-400 to-indigo-500",
+      delivered: "bg-gradient-to-r from-emerald-400 to-emerald-500",
+      rejected: "bg-gradient-to-r from-red-400 to-red-500",
+    };
+    return colors[status] || "bg-gradient-to-r from-gray-400 to-gray-500";
+  };
+
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      pending: "En attente",
+      accepted: "Acceptée",
+      preparing: "En préparation",
+      baking: "Au four",
+      ready: "Prête",
+      delivery: "En livraison",
+      delivered: "Livrée",
+      rejected: "Refusée",
+    };
+    return labels[status] || status;
+  };
+
   const statuses = ["pending", "accepted", "preparing", "baking", "ready", "delivery", "delivered", "rejected"] as const;
 
   return (
@@ -527,111 +565,170 @@ export default function AdminDashboard() {
               </Card>
             </div>
 
-            <Card className="overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-100 border-b">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Commande</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Client</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Téléphone</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Adresse</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Total</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Livreur</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Statut</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {loading ? (
-                      <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                          Chargement des commandes...
-                        </td>
-                      </tr>
-                    ) : orders.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                          Aucune commande pour le moment
-                        </td>
-                      </tr>
-                    ) : (
-                      orders.map((order) => (
-                        <tr key={order.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-mono">
-                            {order.id.slice(0, 8)}
-                          </td>
-                          <td className="px-4 py-3 text-sm font-medium">{order.customerName}</td>
-                          <td className="px-4 py-3 text-sm">{order.phone}</td>
-                          <td className="px-4 py-3 text-sm text-muted-foreground truncate max-w-xs">
-                            {order.address}
-                          </td>
-                          <td className="px-4 py-3 text-sm font-semibold">
+            {loading ? (
+              <Card className="p-12 text-center">
+                <RefreshCw className="w-8 h-8 mx-auto text-muted-foreground mb-4 animate-spin" />
+                <p className="text-muted-foreground">Chargement des commandes...</p>
+              </Card>
+            ) : orders.length === 0 ? (
+              <Card className="p-12 text-center">
+                <ShoppingCart className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">Aucune commande</h3>
+                <p className="text-muted-foreground">Les nouvelles commandes apparaîtront ici</p>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {orders.map((order) => (
+                  <Card key={order.id} className="p-0 hover:shadow-lg transition-shadow overflow-hidden">
+                    {/* Header coloré */}
+                    <div className={`${getCardHeaderColor(order.status)} p-4 text-white`}>
+                      <div className="flex items-center justify-between flex-wrap gap-3">
+                        <div className="flex items-center gap-3">
+                          <Badge className="bg-white/20 text-white border-white/30 backdrop-blur-sm">
+                            {getStatusLabel(order.status)}
+                          </Badge>
+                          <span className="text-sm font-mono text-white/90">
+                            #{order.id.slice(0, 8)}
+                          </span>
+                          {order.createdAt && (
+                            <div className="flex items-center gap-1 text-xs text-white/80">
+                              <Calendar className="w-3 h-3" />
+                              {new Date(order.createdAt).toLocaleDateString("fr-FR", {
+                                day: "2-digit",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Package className="w-5 h-5 text-white" />
+                          <span className="text-2xl font-bold text-white">
                             {Number(order.totalPrice).toFixed(2)} TND
-                          </td>
-                          <td className="px-4 py-3">
-                            <Select
-                              disabled={assigning === order.id}
-                              onValueChange={(value) => handleAssignDriver(order.id, value)}
-                            >
-                              <SelectTrigger className="w-40">
-                                <SelectValue placeholder="Assigner..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {drivers.length === 0 ? (
-                                  <div className="px-2 py-2 text-sm text-muted-foreground">
-                                    Aucun livreur
-                                  </div>
-                                ) : (
-                                  drivers.map((driver) => (
-                                    <SelectItem key={driver.id} value={driver.id}>
-                                      {driver.name} ({driver.status})
-                                    </SelectItem>
-                                  ))
-                                )}
-                              </SelectContent>
-                            </Select>
-                          </td>
-                          <td className="px-4 py-3">
-                            <Select
-                              value={order.status}
-                              onValueChange={(value) => handleStatusChange(order.id, value)}
-                              disabled={updating === order.id}
-                            >
-                              <SelectTrigger className={`w-40 ${getStatusColor(order.status)}`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {statuses.map((status) => (
-                                  <SelectItem key={status} value={status}>
-                                    {status === "pending" && "En attente"}
-                                    {status === "accepted" && "Acceptée"}
-                                    {status === "preparing" && "Préparation"}
-                                    {status === "baking" && "Cuisson"}
-                                    {status === "ready" && "Prête"}
-                                    {status === "delivery" && "En livraison"}
-                                    {status === "delivered" && "Livrée"}
-                                    {status === "rejected" && "Rejetée"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Contenu de la carte */}
+                    <div className="p-6">
+                      <div className="flex flex-col lg:flex-row gap-6">
+                        {/* Informations principales */}
+                        <div className="flex-1 space-y-4">
+                          {/* Informations client */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <User className="w-4 h-4" />
+                              <span className="font-medium">Client</span>
+                            </div>
+                            <p className="font-semibold text-lg">{order.customerName}</p>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Phone className="w-4 h-4" />
+                              <span className="font-medium">Téléphone</span>
+                            </div>
+                            <p className="font-medium">{order.phone}</p>
+                          </div>
+                        </div>
+
+                        {/* Adresse */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <MapPin className="w-4 h-4" />
+                            <span className="font-medium">Adresse de livraison</span>
+                          </div>
+                          <p className="text-sm">{order.address}</p>
+                          {order.addressDetails && (
+                            <p className="text-sm text-muted-foreground">{order.addressDetails}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Actions et contrôles */}
+                      <div className="lg:w-80 space-y-4 border-t lg:border-t-0 lg:border-l pt-4 lg:pt-0 lg:pl-6">
+                        {/* Assignation livreur */}
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Assigner un livreur</Label>
+                          <Select
+                            disabled={assigning === order.id}
+                            onValueChange={(value) => handleAssignDriver(order.id, value)}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Sélectionner un livreur..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {drivers.length === 0 ? (
+                                <div className="px-2 py-2 text-sm text-muted-foreground">
+                                  Aucun livreur disponible
+                                </div>
+                              ) : (
+                                drivers.map((driver) => (
+                                  <SelectItem key={driver.id} value={driver.id}>
+                                    <div className="flex items-center gap-2">
+                                      <Truck className="w-4 h-4" />
+                                      <span>{driver.name}</span>
+                                      <Badge variant="outline" className="ml-2 text-xs">
+                                        {driver.status}
+                                      </Badge>
+                                    </div>
                                   </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                          {assigning === order.id && (
+                            <p className="text-xs text-muted-foreground">Assignation en cours...</p>
+                          )}
+                        </div>
+
+                        {/* Changement de statut */}
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Modifier le statut</Label>
+                          <Select
+                            value={order.status}
+                            onValueChange={(value) => handleStatusChange(order.id, value)}
+                            disabled={updating === order.id}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {statuses.map((status) => (
+                                <SelectItem key={status} value={status}>
+                                  {getStatusLabel(status)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {updating === order.id && (
+                            <p className="text-xs text-muted-foreground">Mise à jour en cours...</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    </div>
+                  </Card>
+                ))}
               </div>
-              <div className="px-4 py-3 border-t bg-gray-50 flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Mise à jour automatique toutes les 5 secondes
-                </p>
-                <Button variant="outline" size="sm" onClick={fetchOrders} disabled={loading}>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Actualiser
-                </Button>
-              </div>
-            </Card>
+            )}
+
+            {/* Footer avec actualisation */}
+            {orders.length > 0 && (
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Mise à jour automatique toutes les 5 secondes
+                  </p>
+                  <Button variant="outline" size="sm" onClick={fetchOrders} disabled={loading}>
+                    <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+                    Actualiser
+                  </Button>
+                </div>
+              </Card>
+            )}
           </TabsContent>
 
           {/* RESTAURANTS TAB */}

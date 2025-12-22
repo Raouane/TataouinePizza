@@ -28,6 +28,9 @@ export interface Order {
   status: string;
   totalPrice: string;
   items: OrderItem[];
+  createdAt?: string;
+  driverId?: string;
+  restaurantId?: string;
 }
 
 // ============ PUBLIC ENDPOINTS ============

@@ -13,6 +13,7 @@
     "db:migrate": "tsx script/migrate-db.ts",
     "db:clear": "tsx script/clear-database.ts",
     "db:seed": "tsx script/seed-data.ts",
+    "create-test-orders": "tsx script/create-test-orders.ts",
     "create-admin": "tsx script/create-admin.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
