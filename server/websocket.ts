@@ -28,6 +28,7 @@ const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
 // Timeout pour fermer le WebSocket si pas d'activité (10 minutes)
 const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 let inactivityTimer: NodeJS.Timeout | null = null;
+let wssInstance: WebSocketServer | null = null;
 
 export interface OrderNotification {
   type: "new_order";

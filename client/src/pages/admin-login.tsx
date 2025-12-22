@@ -12,6 +12,9 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Désactiver l'enregistrement en production
+  // Désactiver l'enregistrement en production
+  const isProduction = window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
   const [isRegistering, setIsRegistering] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,19 +105,28 @@ export default function AdminLogin() {
             </Button>
           </form>
 
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setIsRegistering(!isRegistering);
-                setError("");
-              }}
-              className="text-sm text-primary hover:underline"
-              data-testid="button-toggle-register"
-            >
-              {isRegistering ? "Déjà inscrit ? Se connecter" : "Créer un compte admin"}
-            </button>
-          </div>
+          {!isProduction && (
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRegistering(!isRegistering);
+                  setError("");
+                }}
+                className="text-sm text-primary hover:underline"
+                data-testid="button-toggle-register"
+              >
+                {isRegistering ? "Déjà inscrit ? Se connecter" : "Créer un compte admin"}
+              </button>
+            </div>
+          )}
+          {isProduction && (
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">
+                En production, utilisez le script <code className="bg-gray-100 px-1 rounded">npm run create-admin</code> pour créer un admin
+              </p>
+            </div>
+          )}
         </Card>
 
         <div className="text-center">

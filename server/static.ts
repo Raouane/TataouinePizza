@@ -10,10 +10,18 @@ export function serveStatic(app: Express) {
     );
   }
 
+  // Servir les fichiers statiques (CSS, JS, images, etc.)
   app.use(express.static(distPath));
 
   // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
+  // MAIS ignorer les routes API
+  app.use("*", (req, res, next) => {
+    // Ne pas intercepter les routes API
+    if (req.originalUrl?.startsWith("/api/") || req.url?.startsWith("/api/")) {
+      return next();
+    }
+    
+    // Servir index.html pour toutes les autres routes (SPA routing)
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

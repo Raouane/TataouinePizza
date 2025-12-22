@@ -69,22 +69,38 @@ export default function AdminDashboard() {
   const fetchRestaurants = async () => {
     try {
       const token = localStorage.getItem("adminToken");
-      if (!token) return;
+      if (!token) {
+        console.error("[ADMIN] Token manquant pour fetchRestaurants");
+        setLocation("/admin/login");
+        return;
+      }
       const data = await getAdminRestaurants(token);
       setRestaurants(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch restaurants:", err);
+      if (err.message?.includes("401") || err.message?.includes("token") || err.message?.includes("Invalid")) {
+        localStorage.removeItem("adminToken");
+        setLocation("/admin/login");
+      }
     }
   };
 
   const fetchDrivers = async () => {
     try {
       const token = localStorage.getItem("adminToken");
-      if (!token) return;
+      if (!token) {
+        console.error("[ADMIN] Token manquant pour fetchDrivers");
+        setLocation("/admin/login");
+        return;
+      }
       const data = await getAdminDrivers(token);
       setDrivers(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch drivers:", err);
+      if (err.message?.includes("401") || err.message?.includes("token") || err.message?.includes("Invalid")) {
+        localStorage.removeItem("adminToken");
+        setLocation("/admin/login");
+      }
     }
   };
 
@@ -105,11 +121,19 @@ export default function AdminDashboard() {
   const fetchPizzas = async () => {
     try {
       const token = localStorage.getItem("adminToken");
-      if (!token) return;
+      if (!token) {
+        console.error("[ADMIN] Token manquant pour fetchPizzas");
+        setLocation("/admin/login");
+        return;
+      }
       const data = await getAdminPizzas(token);
       setPizzas(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch pizzas:", err);
+      if (err.message?.includes("401") || err.message?.includes("token") || err.message?.includes("Invalid")) {
+        localStorage.removeItem("adminToken");
+        setLocation("/admin/login");
+      }
     }
   };
 

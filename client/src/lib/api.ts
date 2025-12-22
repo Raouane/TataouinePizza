@@ -198,6 +198,10 @@ export async function createRestaurant(
   data: { name: string; phone: string; address: string; description?: string; imageUrl?: string; categories?: string[] },
   token: string
 ): Promise<Restaurant> {
+  if (!token) {
+    throw new Error("Token manquant. Veuillez vous reconnecter.");
+  }
+  
   const res = await fetch(`${API_BASE}/admin/restaurants`, {
     method: "POST",
     headers: {
@@ -361,6 +365,10 @@ export async function createPizza(
   },
   token: string
 ): Promise<Pizza> {
+  if (!token) {
+    throw new Error("Token manquant. Veuillez vous reconnecter.");
+  }
+  
   const res = await fetch(`${API_BASE}/admin/pizzas`, {
     method: "POST",
     headers: {

@@ -4,6 +4,11 @@ import type { Request, Response, NextFunction } from "express";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-key-change-in-production";
 
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  console.warn("⚠️  WARNING: JWT_SECRET n'est pas défini en production !");
+  console.warn("   Définissez JWT_SECRET dans vos variables d'environnement.");
+}
+
 export interface AuthRequest extends Request {
   admin?: { id: string; email: string };
 }
@@ -30,18 +35,45 @@ export function verifyToken(token: string): { id: string; email: string } | null
 }
 
 export function authenticateAdmin(req: AuthRequest, res: Response, next: NextFunction): void {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) {
+  const authHeader = req.headers.authorization;
+  const url = req.url || req.path || "unknown";
+  
+  console.log(`[AUTH] Requête ${req.method} ${url}`);
+  
+  if (!authHeader) {
+    console.log("[AUTH] ❌ Pas de header Authorization");
     res.status(401).json({ error: "No token provided" });
     return;
   }
 
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    console.log("[AUTH] ❌ Token manquant dans le header Authorization");
+    res.status(401).json({ error: "No token provided" });
+    return;
+  }
+
+  console.log(`[AUTH] 🔍 Vérification du token (longueur: ${token.length}, préfixe: ${token.substring(0, 20)}...)`);
   const decoded = verifyToken(token);
   if (!decoded) {
+    console.log("[AUTH] ❌ Token invalide ou expiré");
+    // Log plus de détails
+    try {
+      const jwt = require("jsonwebtoken");
+      jwt.verify(token, JWT_SECRET);
+    } catch (error: any) {
+      console.log(`[AUTH] ❌ Erreur JWT: ${error.message}`);
+      if (error.name === "JsonWebTokenError") {
+        console.log("[AUTH] ⚠️  Le JWT_SECRET pourrait être différent entre dev et prod");
+      } else if (error.name === "TokenExpiredError") {
+        console.log(`[AUTH] ⚠️  Token expiré le: ${error.expiredAt}`);
+      }
+    }
     res.status(401).json({ error: "Invalid token" });
     return;
   }
 
+  console.log(`[AUTH] ✅ Token valide pour admin: ${decoded.email} (ID: ${decoded.id})`);
   req.admin = decoded;
   next();
 }

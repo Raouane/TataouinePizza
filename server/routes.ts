@@ -423,6 +423,14 @@ export async function registerRoutes(
   // ============ ADMIN AUTH ============
   
   app.post("/api/admin/register", async (req, res) => {
+    // Désactiver l'enregistrement en production pour des raisons de sécurité
+    if (process.env.NODE_ENV === "production") {
+      console.log("[ADMIN REGISTER] Tentative d'enregistrement bloquée en production");
+      return res.status(403).json({ 
+        error: "Registration is disabled in production. Use the create-admin script instead." 
+      });
+    }
+    
     try {
       const data = validate(insertAdminUserSchema, req.body);
       if (!data) return res.status(400).json({ error: "Invalid data" });
@@ -443,18 +451,30 @@ export async function registerRoutes(
   app.post("/api/admin/login", async (req, res) => {
     try {
       const { email, password } = req.body;
-      if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+      if (!email || !password) {
+        console.log("[ADMIN LOGIN] Tentative de connexion sans email/password");
+        return res.status(400).json({ error: "Email and password required" });
+      }
       
+      console.log(`[ADMIN LOGIN] Tentative de connexion pour: ${email}`);
       const admin = await storage.getAdminByEmail(email);
-      if (!admin) return res.status(401).json({ error: "Invalid credentials" });
+      if (!admin) {
+        console.log(`[ADMIN LOGIN] Admin non trouvé: ${email}`);
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
       
       const valid = await comparePassword(password, admin.password);
-      if (!valid) return res.status(401).json({ error: "Invalid credentials" });
+      if (!valid) {
+        console.log(`[ADMIN LOGIN] Mot de passe incorrect pour: ${email}`);
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
       
       const token = generateToken(admin.id, admin.email);
+      console.log(`[ADMIN LOGIN] Connexion réussie pour: ${email}`);
       res.json({ token });
-    } catch (error) {
-      res.status(500).json({ error: "Login failed" });
+    } catch (error: any) {
+      console.error("[ADMIN LOGIN] Erreur:", error);
+      res.status(500).json({ error: "Login failed", details: process.env.NODE_ENV === "development" ? error.message : undefined });
     }
   });
   
