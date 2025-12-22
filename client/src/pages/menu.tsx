@@ -41,6 +41,8 @@ interface Restaurant {
   description?: string;
   rating?: string;
   deliveryTime?: number;
+  isOpen?: boolean;
+  openingHours?: string;
 }
 
 export default function Menu() {
@@ -51,11 +53,27 @@ export default function Menu() {
   const [pizzas, setPizzas] = useState<Pizza[]>([]);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isRestaurantOpen, setIsRestaurantOpen] = useState(true);
   const { t, language } = useLanguage();
   const { addItem, restaurantId: cartRestaurantId } = useCart();
   const isRtl = language === 'ar';
   
   const restaurantId = params.restaurantId;
+
+  // Fonction pour vérifier si le restaurant est ouvert maintenant
+  const checkIfRestaurantIsOpen = (restaurant: Restaurant): boolean => {
+    if (restaurant.isOpen === false) return false;
+    if (!restaurant.openingHours) return true; // Si pas d'horaires, considérer ouvert
+    
+    // Parse opening hours (format: "09:00-23:00")
+    const [openTime, closeTime] = restaurant.openingHours.split("-");
+    if (!openTime || !closeTime) return true;
+    
+    const now = new Date();
+    const currentTime = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+    
+    return currentTime >= openTime && currentTime <= closeTime;
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -70,6 +88,7 @@ export default function Menu() {
           if (restRes.ok) {
             const restData = await restRes.json();
             setRestaurant(restData);
+            setIsRestaurantOpen(checkIfRestaurantIsOpen(restData));
           }
           
           if (menuRes.ok) {
@@ -168,9 +187,37 @@ export default function Menu() {
                   <Clock className="w-4 h-4" />
                   <span>{restaurant.deliveryTime || 30} min</span>
                 </div>
+                {isRestaurantOpen ? (
+                  <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-medium">
+                    Ouvert
+                  </span>
+                ) : (
+                  <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
+                    Fermé
+                  </span>
+                )}
               </div>
             </div>
           </div>
+          
+          {/* Alerte si le restaurant est fermé */}
+          {!isRestaurantOpen && (
+            <div className="mt-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+              <div className="flex items-center gap-2">
+                <span className="text-red-500 text-xl">🚫</span>
+                <div>
+                  <p className="font-semibold text-red-800">
+                    Restaurant fermé
+                  </p>
+                  <p className="text-sm text-red-600 mt-1">
+                    {restaurant.openingHours 
+                      ? `Le restaurant sera ouvert de ${restaurant.openingHours}`
+                      : "Le restaurant est actuellement fermé. Merci de commander pendant les horaires d'ouverture."}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -239,6 +286,7 @@ export default function Menu() {
                   key={pizza.id} 
                   pizza={pizza} 
                   onAddToCart={() => handleAddToCart(pizza)}
+                  disabled={!isRestaurantOpen}
                 />
               ))}
             </div>

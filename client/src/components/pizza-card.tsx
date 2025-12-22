@@ -8,9 +8,10 @@ import { useLanguage } from "@/lib/i18n";
 interface PizzaCardProps {
   pizza: Pizza;
   onAddToCart?: () => void;
+  disabled?: boolean;
 }
 
-export function PizzaCard({ pizza, onAddToCart }: PizzaCardProps) {
+export function PizzaCard({ pizza, onAddToCart, disabled = false }: PizzaCardProps) {
   const { addItem } = useCart();
   
   const handleAdd = () => {
@@ -24,7 +25,10 @@ export function PizzaCard({ pizza, onAddToCart }: PizzaCardProps) {
   const isRtl = language === 'ar';
 
   return (
-    <Card className="overflow-hidden group border-none shadow-sm hover:shadow-md transition-all duration-300 bg-card/50">
+    <Card className={cn(
+      "overflow-hidden group border-none shadow-sm hover:shadow-md transition-all duration-300 bg-card/50",
+      disabled && "opacity-60"
+    )}>
       <div className="aspect-square overflow-hidden relative">
         <img
           src={pizza.image}
@@ -51,10 +55,11 @@ export function PizzaCard({ pizza, onAddToCart }: PizzaCardProps) {
       <CardFooter className="p-4 pt-0">
         <Button 
           onClick={handleAdd}
-          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm group-active:scale-95 transition-all"
+          disabled={disabled}
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm group-active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className={`w-4 h-4 ${isRtl ? 'ml-2' : 'mr-2'}`} />
-          {t('card.add')}
+          {disabled ? "Restaurant fermé" : t('card.add')}
         </Button>
       </CardFooter>
     </Card>

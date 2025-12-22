@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChefHat, LogOut, Clock, Check, X, RefreshCw, AlertCircle, ArrowLeft, Flame, Package, Banknote, Calendar, Power } from "lucide-react";
+import { ChefHat, LogOut, Check, X, RefreshCw, AlertCircle, ArrowLeft, Package, Banknote, Calendar } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
@@ -39,7 +39,7 @@ export default function RestaurantDashboard() {
     fetchStatus();
     const interval = setInterval(fetchOrders, 5000);
     return () => clearInterval(interval);
-  }, [token]);
+  }, [token, setLocation]);
 
   const fetchStatus = async () => {
     try {
@@ -150,7 +150,7 @@ export default function RestaurantDashboard() {
   };
 
   const pendingOrders = orders.filter(o => o.status === "pending");
-  const activeOrders = orders.filter(o => ["accepted", "preparing", "baking"].includes(o.status));
+  const activeOrders = orders.filter(o => o.status === "accepted");
   const readyOrders = orders.filter(o => o.status === "ready");
 
   // Calculate revenue
@@ -350,28 +350,6 @@ export default function RestaurantDashboard() {
                     )}
 
                     {order.status === "accepted" && (
-                      <Button
-                        onClick={() => handleUpdateStatus(order.id, "preparing")}
-                        disabled={updating === order.id}
-                        className="bg-purple-600 hover:bg-purple-700"
-                      >
-                        <Clock className="w-4 h-4 mr-2" />
-                        {updating === order.id ? "..." : "En préparation"}
-                      </Button>
-                    )}
-
-                    {order.status === "preparing" && (
-                      <Button
-                        onClick={() => handleUpdateStatus(order.id, "baking")}
-                        disabled={updating === order.id}
-                        className="bg-orange-600 hover:bg-orange-700"
-                      >
-                        <Flame className="w-4 h-4 mr-2" />
-                        {updating === order.id ? "..." : "Au four"}
-                      </Button>
-                    )}
-
-                    {order.status === "baking" && (
                       <Button
                         onClick={() => handleUpdateStatus(order.id, "ready")}
                         disabled={updating === order.id}

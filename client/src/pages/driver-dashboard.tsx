@@ -40,6 +40,7 @@ export default function DriverDashboard() {
   const [lastNotification, setLastNotification] = useState<any>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showCustomerDialog, setShowCustomerDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState("available"); // État pour contrôler l'onglet actif
   const wsRef = useRef<WebSocket | null>(null);
   
   // États pour la visibilité cyclique des commandes
@@ -78,7 +79,7 @@ export default function DriverDashboard() {
           toast.success("Connecté aux notifications en temps réel");
         };
 
-        ws.onmessage = (event) => {
+        ws.onmessage = async (event) => {
           try {
             const message = JSON.parse(event.data);
             console.log("[WebSocket] Message reçu:", message);
@@ -127,6 +128,24 @@ export default function DriverDashboard() {
               // Mettre à jour immédiatement l'état local
               setAvailableOrders(prev => prev.filter(o => o.id !== message.orderId));
               setUpdating(null);
+              // Mettre à jour le statut directement à "delivery" (en route)
+              try {
+                const updateRes = await fetch(`/api/driver/orders/${message.orderId}/status`, {
+                  method: "PATCH",
+                  headers: { 
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}` 
+                  },
+                  body: JSON.stringify({ status: "delivery" }),
+                });
+                if (updateRes.ok) {
+                  toast.info("En route vers le client!");
+                }
+              } catch (updateError) {
+                console.error("[WebSocket] Erreur mise à jour statut:", updateError);
+              }
+              // Changer automatiquement vers l'onglet "Mes livraisons"
+              setActiveTab("active");
               // Rafraîchir pour obtenir les détails complets
               fetchOrders();
             } else if (message.type === "order_rejected" || message.type === "order_already_taken") {
@@ -213,7 +232,7 @@ export default function DriverDashboard() {
       fetchOrders();
     }, 30000); // 30 secondes pour ne pas perturber les timers de visibilité
     return () => clearInterval(interval);
-  }, [token]);
+  }, [token, setLocation]);
 
   const fetchStatus = async () => {
     try {
@@ -441,10 +460,28 @@ export default function DriverDashboard() {
         const err = await res.json();
         throw new Error(err.error || "Erreur");
       }
-      toast.success("Commande acceptée! En livraison.");
-      // Retirer immédiatement de la liste des disponibles
-      setAvailableOrders(prev => prev.filter(o => o.id !== orderId));
-      await fetchOrders();
+      // Mettre à jour le statut directement à "delivery" (en route)
+      const updateRes = await fetch(`/api/driver/orders/${orderId}/status`, {
+        method: "PATCH",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ status: "delivery" }),
+      });
+      if (updateRes.ok) {
+        toast.success("Commande acceptée! En route vers le client.");
+        // Retirer immédiatement de la liste des disponibles
+        setAvailableOrders(prev => prev.filter(o => o.id !== orderId));
+        // Changer automatiquement vers l'onglet "Mes livraisons"
+        setActiveTab("active");
+        await fetchOrders();
+      } else {
+        toast.success("Commande acceptée!");
+        setAvailableOrders(prev => prev.filter(o => o.id !== orderId));
+        setActiveTab("active");
+        await fetchOrders();
+      }
     } catch (err: any) {
       setError(err.message);
       toast.error(err.message);
@@ -468,6 +505,8 @@ export default function DriverDashboard() {
         throw new Error(err.error || "Erreur");
       }
       toast.success("C'est parti! Bonne livraison!");
+      // Changer automatiquement vers l'onglet "Mes livraisons"
+      setActiveTab("active");
       await fetchOrders();
     } catch (err: any) {
       setError(err.message);
@@ -493,6 +532,8 @@ export default function DriverDashboard() {
         throw new Error(err.error || "Erreur");
       }
       toast.success("Commande livrée!");
+      // Changer automatiquement vers l'onglet "Historique"
+      setActiveTab("completed");
       await fetchOrders();
     } catch (err: any) {
       setError(err.message);
@@ -534,9 +575,8 @@ export default function DriverDashboard() {
     return labels[status] || status;
   };
 
-  // Orders assigned to driver but not yet in delivery (waiting for restaurant)
-  const waitingOrders = myOrders.filter(o => ["accepted", "preparing", "baking", "ready"].includes(o.status));
-  const inDeliveryOrders = myOrders.filter(o => o.status === "delivery");
+  // Fusionner "En attente" et "En livraison" en un seul onglet "Mes livraisons"
+  const activeDeliveryOrders = myOrders.filter(o => ["accepted", "preparing", "baking", "ready", "delivery"].includes(o.status));
   const deliveredOrders = myOrders.filter(o => o.status === "delivered");
 
   return (
@@ -616,13 +656,9 @@ export default function DriverDashboard() {
             <p className="text-xs text-muted-foreground">Disponibles</p>
             <p className="text-2xl font-bold text-green-600">{availableOrders.length}</p>
           </Card>
-          <Card className="p-3 border-l-4 border-l-orange-500">
-            <p className="text-xs text-muted-foreground">En attente</p>
-            <p className="text-2xl font-bold text-orange-600">{waitingOrders.length}</p>
-          </Card>
           <Card className="p-3 border-l-4 border-l-indigo-500">
-            <p className="text-xs text-muted-foreground">En livraison</p>
-            <p className="text-2xl font-bold text-indigo-600">{inDeliveryOrders.length}</p>
+            <p className="text-xs text-muted-foreground">Mes livraisons</p>
+            <p className="text-2xl font-bold text-indigo-600">{activeDeliveryOrders.length}</p>
           </Card>
           <Card className="p-3 border-l-4 border-l-emerald-500">
             <p className="text-xs text-muted-foreground">Livrées</p>
@@ -637,27 +673,19 @@ export default function DriverDashboard() {
           </Button>
         </div>
 
-        <Tabs defaultValue="available">
-          <TabsList className="w-full grid grid-cols-4 h-auto">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="w-full grid grid-cols-3 h-auto">
             <TabsTrigger value="available" className="text-xs px-1 py-2">
               <span className="hidden sm:inline">Disponibles</span>
               <span className="sm:hidden">Dispo</span>
-              <span className="ml-1">({availableOrders.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="waiting" className="text-xs px-1 py-2">
-              <span className="hidden sm:inline">En attente</span>
-              <span className="sm:hidden">Attente</span>
-              <span className="ml-1">({waitingOrders.length})</span>
-            </TabsTrigger>
-            <TabsTrigger value="my" className="text-xs px-1 py-2">
-              <span className="hidden sm:inline">En livraison</span>
+            <TabsTrigger value="active" className="text-xs px-1 py-2">
+              <span className="hidden sm:inline">Mes livraisons</span>
               <span className="sm:hidden">Livr.</span>
-              <span className="ml-1">({inDeliveryOrders.length})</span>
             </TabsTrigger>
             <TabsTrigger value="completed" className="text-xs px-1 py-2">
               <span className="hidden sm:inline">Historique</span>
               <span className="sm:hidden">Hist.</span>
-              <span className="ml-1">({deliveredOrders.length})</span>
             </TabsTrigger>
           </TabsList>
 
@@ -764,116 +792,20 @@ export default function DriverDashboard() {
             )}
           </TabsContent>
 
-          <TabsContent value="waiting" className="mt-4">
-            {waitingOrders.length === 0 ? (
-              <Card className="p-12 text-center">
-                <Clock className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">Aucune commande en attente</h3>
-                <p className="text-muted-foreground">Vos commandes assignées en cours de préparation apparaîtront ici</p>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {waitingOrders.map((order) => {
-                  const commission = Number(order.totalPrice) * DRIVER_COMMISSION_RATE;
-                  return (
-                  <Card key={order.id} className="overflow-hidden border-l-4 border-l-orange-500" data-testid={`card-waiting-${order.id}`}>
-                    <div className="p-4 space-y-3">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="flex items-center gap-2">
-                          <Badge className={getStatusColor(order.status)}>
-                            {getStatusLabel(order.status)}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground font-mono">
-                            #{order.id.slice(0, 8)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-sm font-medium">
-                          <Banknote className="w-4 h-4" />
-                          +{commission.toFixed(2)} TND
-                        </div>
-                      </div>
-
-                      <div className="bg-orange-50 rounded-lg p-3 space-y-1">
-                        <div className="flex items-center gap-2 text-orange-700 font-medium text-sm">
-                          <Store className="w-4 h-4" />
-                          Récupérer chez:
-                        </div>
-                        <p className="font-semibold">{order.restaurantName || "Restaurant"}</p>
-                        <p className="text-sm text-muted-foreground">{order.restaurantAddress}</p>
-                      </div>
-
-                      <div className="bg-blue-50 rounded-lg p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-blue-700 font-medium text-sm">
-                            <Navigation className="w-4 h-4" />
-                            Livrer à:
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedOrder(order);
-                              setShowCustomerDialog(true);
-                            }}
-                            className="h-7 text-xs"
-                          >
-                            <ExternalLink className="w-3 h-3 mr-1" />
-                            Détails
-                          </Button>
-                        </div>
-                        <p className="font-semibold">{order.customerName}</p>
-                        <p className="text-sm">{order.address}</p>
-                        {order.addressDetails && (
-                          <p className="text-xs text-muted-foreground">{order.addressDetails}</p>
-                        )}
-                        <a href={`tel:${order.phone}`} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mt-1">
-                          <Phone className="w-3 h-3" />
-                          {order.phone}
-                        </a>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2 border-t">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Total commande</p>
-                          <p className="font-bold text-lg">{Number(order.totalPrice).toFixed(2)} TND</p>
-                        </div>
-                        {order.status === "ready" ? (
-                          <Button
-                            onClick={() => handleStartDelivery(order.id)}
-                            disabled={updating === order.id}
-                            className="bg-indigo-600 hover:bg-indigo-700"
-                            data-testid={`button-start-delivery-${order.id}`}
-                          >
-                            <Truck className="w-4 h-4 mr-2" />
-                            {updating === order.id ? "..." : "Partir livrer"}
-                          </Button>
-                        ) : (
-                          <div className="text-center text-orange-600 font-medium py-2 px-4 bg-orange-100 rounded-lg text-sm">
-                            En préparation...
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </Card>
-                  );
-                })}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="my" className="mt-4">
-            {inDeliveryOrders.length === 0 ? (
+          <TabsContent value="active" className="mt-4">
+            {activeDeliveryOrders.length === 0 ? (
               <Card className="p-12 text-center">
                 <Truck className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">Aucune livraison en cours</h3>
-                <p className="text-muted-foreground">Acceptez une commande disponible</p>
+                <p className="text-muted-foreground">Acceptez une commande disponible pour commencer</p>
               </Card>
             ) : (
               <div className="space-y-4">
-                {inDeliveryOrders.map((order) => {
+                {activeDeliveryOrders.map((order) => {
                   const commission = Number(order.totalPrice) * DRIVER_COMMISSION_RATE;
+                  const isInDelivery = order.status === "delivery";
                   return (
-                  <Card key={order.id} className="overflow-hidden border-l-4 border-l-indigo-500" data-testid={`card-delivery-${order.id}`}>
+                  <Card key={order.id} className={`overflow-hidden border-l-4 ${isInDelivery ? 'border-l-indigo-500' : 'border-l-orange-500'}`} data-testid={`card-active-${order.id}`}>
                     <div className="p-4 space-y-3">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2">
@@ -889,6 +821,17 @@ export default function DriverDashboard() {
                           +{commission.toFixed(2)} TND
                         </div>
                       </div>
+
+                      {!isInDelivery && (
+                        <div className="bg-orange-50 rounded-lg p-3 space-y-1">
+                          <div className="flex items-center gap-2 text-orange-700 font-medium text-sm">
+                            <Store className="w-4 h-4" />
+                            Récupérer chez:
+                          </div>
+                          <p className="font-semibold">{order.restaurantName || "Restaurant"}</p>
+                          <p className="text-sm text-muted-foreground">{order.restaurantAddress}</p>
+                        </div>
+                      )}
 
                       <div className="bg-blue-50 rounded-lg p-3 space-y-2">
                         <div className="flex items-center justify-between">
@@ -925,15 +868,21 @@ export default function DriverDashboard() {
                           <p className="text-xs text-muted-foreground">Total commande</p>
                           <p className="font-bold text-lg">{Number(order.totalPrice).toFixed(2)} TND</p>
                         </div>
-                        <Button
-                          onClick={() => handleDelivered(order.id)}
-                          disabled={updating === order.id}
-                          className="bg-emerald-600 hover:bg-emerald-700"
-                          data-testid={`button-delivered-${order.id}`}
-                        >
-                          <Check className="w-4 h-4 mr-2" />
-                          {updating === order.id ? "..." : "Confirmer livraison"}
-                        </Button>
+                        {isInDelivery ? (
+                          <Button
+                            onClick={() => handleDelivered(order.id)}
+                            disabled={updating === order.id}
+                            className="bg-emerald-600 hover:bg-emerald-700"
+                            data-testid={`button-delivered-${order.id}`}
+                          >
+                            <Check className="w-4 h-4 mr-2" />
+                            {updating === order.id ? "..." : "Livré"}
+                          </Button>
+                        ) : (
+                          <div className="text-center text-orange-600 font-medium py-2 px-4 bg-orange-100 rounded-lg text-sm">
+                            {order.status === "ready" ? "Prête à récupérer" : "En préparation..."}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </Card>
