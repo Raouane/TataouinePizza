@@ -127,6 +127,23 @@ export class DatabaseStorage implements IStorage {
           categories = [];
         }
 
+        // Parser isOpen de manière plus robuste
+        let isOpen = false;
+        try {
+          if (row.is_open_text === 'true' || row.is_open_text === 't' || row.is_open_text === true) {
+            isOpen = true;
+          } else if (row.is_open_text === 'false' || row.is_open_text === 'f' || row.is_open_text === false) {
+            isOpen = false;
+          } else {
+            // Fallback: si la valeur n'est pas claire, considérer comme ouvert par défaut
+            console.warn(`[DB] Valeur is_open_text inattendue pour ${row.name}: "${row.is_open_text}", défaut à true`);
+            isOpen = true;
+          }
+        } catch (e) {
+          console.error(`[DB] Erreur parsing is_open pour ${row.name}:`, e);
+          isOpen = true; // Par défaut, considérer ouvert
+        }
+
         return {
           id: row.id,
           name: row.name,
@@ -135,7 +152,7 @@ export class DatabaseStorage implements IStorage {
           description: row.description,
           imageUrl: row.image_url,
           categories,
-          isOpen: row.is_open_text === 'true',
+          isOpen,
           openingHours: row.opening_hours,
           deliveryTime: row.delivery_time,
           minOrder: row.min_order,

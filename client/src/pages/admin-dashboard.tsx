@@ -735,12 +735,20 @@ export default function AdminDashboard() {
           <TabsContent value="restaurants" className="space-y-4">
             <div className="flex justify-between items-center flex-wrap gap-2">
               <h2 className="text-xl font-bold">Restaurants</h2>
+              {!token && (
+                <p className="text-sm text-red-500">⚠️ Vous devez être connecté pour utiliser ces boutons</p>
+              )}
               <div className="flex gap-2">
                 <Button
                   variant="outline"
+                  disabled={!token || loading}
                   onClick={async () => {
-                    if (!token) return;
+                    if (!token) {
+                      toast.error("Vous devez être connecté pour créer des restaurants");
+                      return;
+                    }
                     try {
+                      toast.info("Création des restaurants de test...");
                       const result = await seedTestRestaurants(token);
                       toast.success(
                         `✅ ${result.restaurantsCreated} restaurant(s) créé(s), ${result.restaurantsSkipped} ignoré(s), ${result.productsCreated} produit(s) ajouté(s)`
@@ -748,6 +756,7 @@ export default function AdminDashboard() {
                       await fetchRestaurants();
                       await fetchPizzas();
                     } catch (err: any) {
+                      console.error("Erreur création restaurants:", err);
                       toast.error(err.message || "Erreur lors de la création des restaurants de test");
                     }
                   }}
@@ -757,8 +766,12 @@ export default function AdminDashboard() {
                 </Button>
                 <Button
                   variant="outline"
+                  disabled={!token || loading}
                   onClick={async () => {
-                    if (!token) return;
+                    if (!token) {
+                      toast.error("Vous devez être connecté pour enrichir les restaurants");
+                      return;
+                    }
                     try {
                       toast.info("Enrichissement en cours...");
                       const result = await enrichAllRestaurants(token);
@@ -768,6 +781,7 @@ export default function AdminDashboard() {
                       await fetchRestaurants();
                       await fetchPizzas();
                     } catch (err: any) {
+                      console.error("Erreur enrichissement restaurants:", err);
                       toast.error(err.message || "Erreur lors de l'enrichissement des restaurants");
                     }
                   }}
