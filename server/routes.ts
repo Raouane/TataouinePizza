@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertPizzaSchema, insertOrderSchema, verifyOtpSchema, sendOtpSchema, updateOrderStatusSchema, insertAdminUserSchema, insertDriverSchema, driverLoginSchema, insertRestaurantSchema, restaurants, drivers, pizzaPrices } from "@shared/schema";
 import { z } from "zod";
-import { authenticateAdmin, generateToken, hashPassword, comparePassword, type AuthRequest } from "./auth";
+import { authenticateAdmin, authenticateN8nWebhook, generateToken, hashPassword, comparePassword, type AuthRequest } from "./auth";
 import { errorHandler, AppError } from "./errors";
 import { setupWebSocket, notifyDriversOfNewOrder } from "./websocket";
 import { db } from "./db";
@@ -1367,6 +1367,30 @@ export async function registerRoutes(
       }
       
       const updatedOrder = await storage.updateOrderStatus(req.params.id, status);
+      
+      // Envoyer webhook à n8n si status = "ready"
+      if (status === "ready") {
+        try {
+          const restaurant = await storage.getRestaurantById(updatedOrder.restaurantId);
+          await sendN8nWebhook("order-ready", {
+            orderId: updatedOrder.id,
+            restaurantId: updatedOrder.restaurantId,
+            restaurantName: restaurant?.name || "Restaurant",
+            restaurantAddress: restaurant?.address || "",
+            client: {
+              name: updatedOrder.customerName,
+              phone: updatedOrder.phone,
+              address: updatedOrder.address,
+              lat: updatedOrder.customerLat ? parseFloat(updatedOrder.customerLat.toString()) : null,
+              lng: updatedOrder.customerLng ? parseFloat(updatedOrder.customerLng.toString()) : null,
+            },
+            total: updatedOrder.totalPrice.toString(),
+          });
+        } catch (webhookError) {
+          console.error("[N8N] Erreur webhook order-ready:", webhookError);
+        }
+      }
+      
       res.json(updatedOrder);
     } catch (error) {
       errorHandler.sendError(res, error);
@@ -1543,6 +1567,38 @@ export async function registerRoutes(
       }
       
       const updatedOrder = await storage.updateOrderStatus(req.params.id, status);
+      
+      // Envoyer webhook à n8n selon le statut
+      try {
+        if (status === "delivery") {
+          const driver = await storage.getDriverById(driverId);
+          await sendN8nWebhook("order-picked-up", {
+            orderId: updatedOrder.id,
+            driverId: driverId,
+            driverName: driver?.name || "Livreur",
+            client: {
+              name: updatedOrder.customerName,
+              phone: updatedOrder.phone,
+              address: updatedOrder.address,
+            },
+          });
+        } else if (status === "delivered") {
+          const driver = await storage.getDriverById(driverId);
+          await sendN8nWebhook("order-delivered", {
+            orderId: updatedOrder.id,
+            driverId: driverId,
+            driverName: driver?.name || "Livreur",
+            total: updatedOrder.totalPrice.toString(),
+            client: {
+              name: updatedOrder.customerName,
+              phone: updatedOrder.phone,
+            },
+          });
+        }
+      } catch (webhookError) {
+        console.error("[N8N] Erreur webhook driver status:", webhookError);
+      }
+      
       res.json(updatedOrder);
     } catch (error) {
       errorHandler.sendError(res, error);
@@ -1580,6 +1636,151 @@ export async function registerRoutes(
     } catch (error) {
       errorHandler.sendError(res, error);
     }
+  });
+  
+  // ============ N8N WEBHOOKS (Endpoints que n8n appelle) ============
+  
+  // Helper function pour envoyer des webhooks à n8n
+  async function sendN8nWebhook(event: string, data: any): Promise<void> {
+    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
+    if (!n8nWebhookUrl) {
+      console.log(`[N8N] Webhook URL non configurée, skip event: ${event}`);
+      return;
+    }
+    
+    const webhookUrl = `${n8nWebhookUrl}/${event}`;
+    try {
+      await fetch(webhookUrl, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "x-n8n-token": process.env.N8N_WEBHOOK_TOKEN || "",
+        },
+        body: JSON.stringify({
+          event,
+          timestamp: new Date().toISOString(),
+          ...data,
+        }),
+      });
+      console.log(`[N8N] Webhook ${event} envoyé avec succès`);
+    } catch (error: any) {
+      console.error(`[N8N] Erreur envoi webhook ${event}:`, error.message);
+      // Ne pas bloquer le flux si le webhook échoue
+    }
+  }
+  
+  // Webhook: n8n peut mettre à jour le statut d'une commande
+  app.patch("/webhook/orders/:id/status", authenticateN8nWebhook, async (req: Request, res: Response) => {
+    try {
+      const { status } = req.body;
+      if (!status) {
+        return res.status(400).json({ error: "Status required" });
+      }
+      
+      const order = await storage.getOrderById(req.params.id);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      const updatedOrder = await storage.updateOrderStatus(req.params.id, status);
+      res.json({ success: true, order: updatedOrder });
+    } catch (error: any) {
+      console.error("[N8N] Erreur webhook update status:", error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+  
+  // Webhook: n8n peut assigner un livreur à une commande
+  app.post("/webhook/orders/:id/assign-driver", authenticateN8nWebhook, async (req: Request, res: Response) => {
+    try {
+      const { driverId } = req.body;
+      if (!driverId) {
+        return res.status(400).json({ error: "driverId required" });
+      }
+      
+      const order = await storage.getOrderById(req.params.id);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      // Vérifier que la commande est disponible
+      if (order.status !== "ready" && order.status !== "accepted") {
+        return res.status(400).json({ error: `Order status must be 'ready' or 'accepted', got '${order.status}'` });
+      }
+      
+      if (order.driverId) {
+        return res.status(400).json({ error: "Order already assigned" });
+      }
+      
+      // Assigner le livreur
+      const acceptedOrder = await storage.acceptOrderByDriver(req.params.id, driverId);
+      if (!acceptedOrder) {
+        return res.status(400).json({ error: "Failed to assign driver" });
+      }
+      
+      res.json({ success: true, order: acceptedOrder });
+    } catch (error: any) {
+      console.error("[N8N] Erreur webhook assign driver:", error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+  
+  // Webhook: n8n peut enregistrer les commissions
+  app.post("/webhook/orders/:id/commissions", authenticateN8nWebhook, async (req: Request, res: Response) => {
+    try {
+      const { driverCommission, appCommission } = req.body;
+      
+      const order = await storage.getOrderById(req.params.id);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      // Pour l'instant, on log juste les commissions
+      // TODO: Créer une table commissions si nécessaire
+      console.log(`[N8N] Commissions pour commande ${req.params.id}:`, {
+        driverCommission,
+        appCommission,
+        restaurantCommission: Number(order.totalPrice) - (Number(driverCommission || 0) + Number(appCommission || 0)),
+      });
+      
+      res.json({ 
+        success: true, 
+        commissions: {
+          driver: driverCommission,
+          app: appCommission,
+          restaurant: (Number(order.totalPrice) - (Number(driverCommission || 0) + Number(appCommission || 0))).toFixed(2),
+        },
+      });
+    } catch (error: any) {
+      console.error("[N8N] Erreur webhook commissions:", error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+  
+  // Webhook: n8n peut recevoir des messages WhatsApp entrants
+  app.post("/webhook/whatsapp-incoming", authenticateN8nWebhook, async (req: Request, res: Response) => {
+    try {
+      const { from, message, orderId } = req.body;
+      
+      console.log(`[N8N] Message WhatsApp reçu de ${from}:`, message);
+      
+      // Traiter le message (ex: "ACCEPTER" pour livreur)
+      // Cette logique sera gérée par n8n, on log juste ici
+      
+      res.json({ success: true, received: true });
+    } catch (error: any) {
+      console.error("[N8N] Erreur webhook whatsapp incoming:", error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+  
+  // Webhook: Health check pour n8n
+  app.get("/webhook/health", authenticateN8nWebhook, async (req: Request, res: Response) => {
+    res.json({ 
+      status: "ok", 
+      timestamp: new Date().toISOString(),
+      service: "tataouine-pizza-backend",
+    });
   });
 
   return httpServer;

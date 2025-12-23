@@ -25,6 +25,7 @@
     "fix-production-restaurants": "tsx script/fix-production-restaurants.ts",
     "debug-production-restaurants": "tsx script/debug-production-restaurants.ts",
     "check-production-api": "tsx script/check-production-api.ts",
+    "add-missing-restaurants": "tsx script/add-missing-restaurants-via-api.ts",
     "enrich-restaurants": "tsx script/enrich-all-restaurants.ts",
     "create-test-orders": "tsx script/create-test-orders.ts",
     "create-admin": "tsx script/create-admin.ts",

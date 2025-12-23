@@ -34,6 +34,27 @@ export function verifyToken(token: string): { id: string; email: string } | null
   }
 }
 
+// Middleware pour authentifier les webhooks n8n
+export function authenticateN8nWebhook(req: Request, res: Response, next: NextFunction): void {
+  const token = req.headers['x-n8n-token'] || req.headers['authorization']?.replace('Bearer ', '');
+  const expectedToken = process.env.N8N_WEBHOOK_TOKEN;
+  
+  if (!expectedToken) {
+    console.warn("[N8N] N8N_WEBHOOK_TOKEN non configuré - webhook non sécurisé");
+    next();
+    return;
+  }
+  
+  if (!token || token !== expectedToken) {
+    console.log("[N8N] ❌ Webhook rejeté: token invalide");
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  
+  console.log("[N8N] ✅ Webhook authentifié");
+  next();
+}
+
 export function authenticateAdmin(req: AuthRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
   const url = req.url || req.path || "unknown";

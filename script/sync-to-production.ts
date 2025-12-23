@@ -23,6 +23,27 @@ async function syncToProduction() {
   const dbUrlPreview = process.env.DATABASE_URL.substring(0, 30) + "...";
   console.log(`🔗 URL: ${dbUrlPreview}\n`);
 
+  // S'assurer que l'URL a le bon format pour Render (avec SSL et hostname complet)
+  let databaseUrl = process.env.DATABASE_URL;
+  
+  // Si l'URL ne contient pas le hostname complet, essayer de le construire
+  if (databaseUrl && databaseUrl.includes('@dpg-') && !databaseUrl.includes('.render.com')) {
+    // Extraire les parties de l'URL
+    const match = databaseUrl.match(/postgresql:\/\/([^:]+):([^@]+)@dpg-([^\/]+)\/(.+)/);
+    if (match) {
+      const [, user, password, dbId, dbName] = match;
+      // Construire l'URL externe avec le hostname complet (généralement frankfurt-postgres.render.com)
+      databaseUrl = `postgresql://${user}:${password}@dpg-${dbId}.frankfurt-postgres.render.com/${dbName}?sslmode=require`;
+      process.env.DATABASE_URL = databaseUrl;
+      console.log("🔒 URL externe Render avec SSL activé\n");
+    }
+  } else if (databaseUrl && !databaseUrl.includes('?') && databaseUrl.includes('render.com')) {
+    // Ajouter les paramètres SSL pour Render si pas déjà présent
+    databaseUrl = databaseUrl + (databaseUrl.includes('?') ? '&' : '?') + 'sslmode=require';
+    process.env.DATABASE_URL = databaseUrl;
+    console.log("🔒 SSL activé pour la connexion Render\n");
+  }
+
   try {
     // Test de connexion
     const testQuery = await db.select().from(restaurants).limit(1);
