@@ -224,7 +224,11 @@ export class DatabaseStorage implements IStorage {
 
   async createRestaurant(restaurant: InsertRestaurant): Promise<Restaurant> {
     const restaurantId = randomUUID();
-    const restaurantWithId = { ...restaurant, id: restaurantId };
+    const restaurantWithId = { 
+      ...restaurant, 
+      id: restaurantId,
+      categories: Array.isArray(restaurant.categories) ? JSON.stringify(restaurant.categories) : (restaurant.categories || null)
+    };
     await db.insert(restaurants).values(restaurantWithId);
     const result = await db.select().from(restaurants).where(eq(restaurants.id, restaurantId));
     if (!result || !result[0]) {

@@ -157,3 +157,5 @@ const isRtl = language === 'ar';
 
 Si vous avez des questions ou besoin d'ajouter une nouvelle section de traductions, consultez `client/src/lib/i18n.tsx` pour voir les exemples existants.
 
+
+

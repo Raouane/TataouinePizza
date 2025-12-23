@@ -71,3 +71,5 @@ JWT_SECRET=votre-secret-jwt-tres-securise-en-production
 - Le token peut être expiré (durée de vie : 7 jours)
 
 
+
+

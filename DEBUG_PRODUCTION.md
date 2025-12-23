@@ -118,3 +118,5 @@ Les restaurants **sans produits** devraient quand même apparaître sur la page 
 
 Les logs de débogage nous diront exactement où est le problème.
 
+
+

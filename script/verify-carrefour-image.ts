@@ -70,3 +70,5 @@ async function verifyCarrefourImage() {
 
 verifyCarrefourImage();
 
+
+

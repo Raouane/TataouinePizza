@@ -867,7 +867,7 @@ export async function registerRoutes(
           // Créer le restaurant
           const restaurant = await storage.createRestaurant({
             ...restaurantInfo,
-            categories: JSON.stringify(restaurantInfo.categories),
+            categories: restaurantInfo.categories,
           });
           
           restaurantsCreated++;
