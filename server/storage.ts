@@ -111,22 +111,39 @@ export class DatabaseStorage implements IStorage {
         return [];
       }
       
-      return rawResult.rows.map((row: any) => ({
-        id: row.id,
-        name: row.name,
-        phone: row.phone,
-        address: row.address,
-        description: row.description,
-        imageUrl: row.image_url,
-        categories: row.categories ? (typeof row.categories === 'string' ? JSON.parse(row.categories) : row.categories) : [],
-        isOpen: row.is_open_text === 'true',
-        openingHours: row.opening_hours,
-        deliveryTime: row.delivery_time,
-        minOrder: row.min_order,
-        rating: row.rating,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      })) as Restaurant[];
+      return rawResult.rows.map((row: any) => {
+        // Parse categories safely
+        let categories: string[] = [];
+        try {
+          if (row.categories) {
+            if (typeof row.categories === 'string') {
+              categories = JSON.parse(row.categories);
+            } else if (Array.isArray(row.categories)) {
+              categories = row.categories;
+            }
+          }
+        } catch (e) {
+          console.error(`[DB] Error parsing categories for restaurant ${row.name}:`, e);
+          categories = [];
+        }
+
+        return {
+          id: row.id,
+          name: row.name,
+          phone: row.phone,
+          address: row.address,
+          description: row.description,
+          imageUrl: row.image_url,
+          categories,
+          isOpen: row.is_open_text === 'true',
+          openingHours: row.opening_hours,
+          deliveryTime: row.delivery_time,
+          minOrder: row.min_order,
+          rating: row.rating,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        } as Restaurant;
+      });
     } catch (e) {
       console.error("[DB] getAllRestaurants error:", e);
       return [];
