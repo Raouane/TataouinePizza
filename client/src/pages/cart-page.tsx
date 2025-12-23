@@ -93,32 +93,59 @@ export default function CartPage() {
 
   const handleConfirmOrder = async () => {
     try {
-      const orderItems = items.map(item => ({
-        pizzaId: item.id.toString(),
-        size: item.size || "medium" as const,
-        quantity: item.quantity,
-      }));
+      // Validation des champs requis
+      if (!name || name.trim().length < 2) {
+        toast({ title: "Erreur", description: "Le nom doit contenir au moins 2 caractères", variant: "destructive" });
+        return;
+      }
+      
+      if (!phone || phone.trim().length < 8) {
+        toast({ title: "Erreur", description: "Le téléphone doit contenir au moins 8 caractères", variant: "destructive" });
+        return;
+      }
+      
+      if (!address || address.trim().length < 5) {
+        toast({ title: "Erreur", description: "L'adresse doit contenir au moins 5 caractères", variant: "destructive" });
+        return;
+      }
       
       if (!restaurantId) {
         toast({ title: "Erreur", description: "Restaurant non sélectionné", variant: "destructive" });
         return;
       }
       
+      if (items.length === 0) {
+        toast({ title: "Erreur", description: "Le panier est vide", variant: "destructive" });
+        return;
+      }
+      
+      const orderItems = items.map(item => ({
+        pizzaId: item.id.toString(),
+        size: (item.size || "medium") as "small" | "medium" | "large",
+        quantity: item.quantity,
+      }));
+      
+      console.log("[Cart] Création de commande...", { restaurantId, customerName: name.trim(), phone: phone.trim(), itemsCount: orderItems.length });
+      
       const result = await createOrder({
         restaurantId,
-        customerName: name,
-        phone,
-        address,
+        customerName: name.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
         addressDetails: "",
         customerLat: onboarding?.lat,
         customerLng: onboarding?.lng,
         items: orderItems,
       });
       
+      console.log("[Cart] Commande créée avec succès:", result);
+      
       clearCart();
       startOrder();
+      console.log("[Cart] Navigation vers /success");
       setLocation("/success");
     } catch (error: any) {
+      console.error("[Cart] Erreur lors de la création de commande:", error);
       toast({ title: "Erreur", description: error.message || "Erreur création commande", variant: "destructive" });
     }
   };
@@ -181,7 +208,13 @@ export default function CartPage() {
                         {items.map((item) => (
                         <div key={item.id} className="flex gap-4 animate-in slide-in-from-bottom-2">
                             <div className="h-20 w-20 rounded-lg overflow-hidden shrink-0">
-                                <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                                {item.image && item.image.trim() !== "" ? (
+                                    <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                                        <span className="text-2xl">🍕</span>
+                                    </div>
+                                )}
                             </div>
                             <div className="flex-1 flex flex-col justify-between">
                                 <div className="flex justify-between items-start">

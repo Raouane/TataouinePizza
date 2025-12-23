@@ -47,3 +47,4 @@ Une fois le code poussé sur GitHub, vous pourrez :
 Consultez le guide complet : [docs/GIT_AUTHENTICATION.md](./docs/GIT_AUTHENTICATION.md)
 
 
+

@@ -13,6 +13,10 @@ export default function OrderSuccess() {
   const isDelivering = status === 'delivery';
 
   useEffect(() => {
+    console.log("[OrderSuccess] Page de confirmation chargée");
+  }, []);
+
+  useEffect(() => {
     const duration = 3 * 1000;
     const animationEnd = Date.now() + duration;
     const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };

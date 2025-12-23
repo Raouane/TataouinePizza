@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/lib/i18n";
 import { CartProvider } from "@/lib/cart";
 import { OrderProvider } from "@/lib/order-context";
+import LoadingScreen from "@/components/loading-screen";
 import NotFound from "@/pages/not-found";
 import Layout from "@/components/layout";
 import Home from "@/pages/home";
@@ -24,6 +25,14 @@ import OnboardingPage, { getOnboarding } from "@/pages/onboarding";
 
 function isOnboarded() {
   return !!getOnboarding();
+}
+
+function MenuRedirect() {
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    setLocation("/");
+  }, [setLocation]);
+  return null;
 }
 
 function AdminRedirect() {
@@ -61,7 +70,7 @@ function Router() {
             />
             <Route
               path="/menu"
-              component={() => (isOnboarded() ? <Menu /> : <OnboardingPage />)}
+              component={() => (isOnboarded() ? <MenuRedirect /> : <OnboardingPage />)}
             />
             <Route
               path="/menu/:restaurantId"
@@ -100,6 +109,7 @@ function App() {
         <LanguageProvider>
           <OrderProvider>
             <CartProvider>
+              <LoadingScreen />
               <Toaster />
               <Router />
             </CartProvider>

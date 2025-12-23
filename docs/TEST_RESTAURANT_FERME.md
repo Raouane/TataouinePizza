@@ -96,3 +96,4 @@ WHERE name = 'Tataouine Pizza';
 - Si `isOpen = false`, le restaurant est toujours fermé, peu importe les horaires
 
 
+

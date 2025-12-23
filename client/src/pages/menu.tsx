@@ -70,7 +70,7 @@ export default function Menu() {
           }
           
           if (menuRes.ok) {
-            const menuData = await restRes.json();
+            const menuData = await menuRes.json();
             console.log(`[Menu] ${menuData.length} produits chargés pour le restaurant ${restaurantId}`, menuData);
             setPizzas(menuData);
           } else {
@@ -89,14 +89,19 @@ export default function Menu() {
   }, [restaurantId]);
 
   const filteredPizzas = pizzas.filter(pizza => {
-    return category === "all" || pizza.category === category;
+    if (category === "all") return true;
+    return pizza.category === category;
   });
 
-  const categories = Array.from(new Set(pizzas.map(p => p.category)));
+  const categories = Array.from(new Set(pizzas.map(p => p.category).filter(Boolean)));
+  
+  console.log(`[Menu] Filtrage: catégorie="${category}", ${pizzas.length} produits totaux, ${filteredPizzas.length} produits filtrés`);
+  console.log(`[Menu] Catégories disponibles:`, categories);
+  console.log(`[Menu] Produits:`, pizzas.map(p => ({ name: p.name, category: p.category, prices: p.prices?.length || 0 })));
 
   const handleAddToCart = (pizza: Pizza) => {
     // Prendre le prix medium par défaut, sinon le premier disponible
-    const defaultPrice = pizza.prices.find(p => p.size === "medium") || pizza.prices[0];
+    const defaultPrice = pizza.prices?.find(p => p.size === "medium") || pizza.prices?.[0];
     const price = parseFloat(defaultPrice?.price || "15");
     
     addItem({
@@ -114,10 +119,12 @@ export default function Menu() {
     const labels: Record<string, string> = {
       classic: "Classique",
       special: "Spéciale",
+      speciale: "Spéciale",
       vegetarian: "Végétarienne",
+      vegetarien: "Végétarienne",
       all: "Tout",
     };
-    return labels[cat] || cat;
+    return labels[cat] || cat.charAt(0).toUpperCase() + cat.slice(1);
   };
 
   if (loading) {
@@ -146,7 +153,7 @@ export default function Menu() {
     <div className="min-h-screen bg-gray-50 pb-24">
       {/* Hero Image Section */}
       <div className="relative h-64 md:h-80 overflow-hidden">
-        {restaurant.imageUrl ? (
+        {restaurant.imageUrl && restaurant.imageUrl.trim() !== "" ? (
           <img
             src={restaurant.imageUrl}
             alt={restaurant.name}
@@ -296,7 +303,12 @@ export default function Menu() {
         ) : (
           <div className="space-y-4">
             {filteredPizzas.map((pizza) => {
-              const defaultPrice = pizza.prices.find(p => p.size === "medium") || pizza.prices[0];
+              // Vérifier que le produit a des prix
+              if (!pizza.prices || pizza.prices.length === 0) {
+                console.warn(`[Menu] Produit ${pizza.name} n'a pas de prix`);
+              }
+              
+              const defaultPrice = pizza.prices?.find(p => p.size === "medium") || pizza.prices?.[0];
               const price = parseFloat(defaultPrice?.price || "15");
               
               return (
@@ -307,7 +319,7 @@ export default function Menu() {
                   <div className="flex gap-4 p-4">
                     {/* Product Image */}
                     <div className="w-24 h-24 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100">
-                      {pizza.imageUrl ? (
+                      {pizza.imageUrl && pizza.imageUrl.trim() !== "" ? (
                         <img
                           src={pizza.imageUrl}
                           alt={pizza.name}

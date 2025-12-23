@@ -111,3 +111,4 @@ Les nouveaux logs vous aideront à diagnostiquer :
 4. Reconnectez-vous avec le nouvel admin
 5. Vérifiez que `JWT_SECRET` est bien défini
 
+

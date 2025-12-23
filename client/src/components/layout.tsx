@@ -14,7 +14,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { href: "/", icon: Home, label: t('nav.home') },
-    { href: "/menu", icon: Pizza, label: t('nav.menu') },
     { href: "/history", icon: History, label: "Historique" },
     { href: "/cart", icon: ShoppingBag, label: t('nav.cart'), badge: count },
   ];

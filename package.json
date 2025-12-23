@@ -16,6 +16,7 @@
     "fix-products": "tsx script/fix-restaurant-products.ts",
     "reassign-products": "tsx script/reassign-products.ts",
     "debug-restaurants": "tsx script/debug-restaurants.ts",
+    "check-product": "tsx script/check-product.ts",
     "create-test-orders": "tsx script/create-test-orders.ts",
     "create-admin": "tsx script/create-admin.ts",
     "test": "vitest",

@@ -18,16 +18,37 @@ interface Restaurant {
   rating?: string;
 }
 
+interface Pizza {
+  id: string;
+  name: string;
+  description?: string;
+  restaurantId: string;
+  category?: string;
+  imageUrl?: string;
+  prices?: Array<{ size: string; price: string }>;
+}
+
 export default function Home() {
   const { language } = useLanguage();
   const { count } = useCart();
   const [searchQuery, setSearchQuery] = useState("");
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [pizzas, setPizzas] = useState<Pizza[]>([]);
+  const [loadingPizzas, setLoadingPizzas] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchRestaurants();
   }, []);
+
+  // Charger les plats seulement quand il y a une recherche (lazy loading)
+  useEffect(() => {
+    if (searchQuery.trim().length > 0) {
+      fetchPizzas();
+    } else {
+      setPizzas([]); // Réinitialiser si recherche vide
+    }
+  }, [searchQuery]);
 
   const fetchRestaurants = async () => {
     try {
@@ -43,7 +64,43 @@ export default function Home() {
     }
   };
 
+  const fetchPizzas = async () => {
+    setLoadingPizzas(true);
+    try {
+      const res = await fetch("/api/pizzas");
+      if (res.ok) {
+        const data = await res.json();
+        setPizzas(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch pizzas:", err);
+    } finally {
+      setLoadingPizzas(false);
+    }
+  };
+
+  // Filtrer les plats selon la recherche (seulement des restaurants ouverts)
+  const filteredPizzas = pizzas.filter(pizza => {
+    if (!searchQuery.trim()) return false;
+    
+    const query = searchQuery.toLowerCase();
+    const restaurant = restaurants.find(r => r.id === pizza.restaurantId);
+    
+    // Ne montrer que les plats des restaurants ouverts
+    if (!restaurant || restaurant.isOpen === false) return false;
+    
+    return (
+      pizza.name.toLowerCase().includes(query) ||
+      pizza.description?.toLowerCase().includes(query) ||
+      pizza.category?.toLowerCase().includes(query) ||
+      restaurant?.name.toLowerCase().includes(query)
+    );
+  }).slice(0, 20); // Limiter à 20 résultats max
+
+  // Si pas de recherche, afficher les restaurants normalement
+  const showSearchResults = searchQuery.trim().length > 0;
   const filteredRestaurants = restaurants.filter(r => {
+    if (showSearchResults) return false; // Ne pas afficher les restaurants si on cherche des plats
     const matchesSearch = r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.description?.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSearch;
@@ -135,7 +192,92 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Restaurants Section */}
+      {/* Search Results - Plats */}
+      {showSearchResults && (
+        <section className="px-4 mt-8 max-w-4xl mx-auto">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">
+            {loadingPizzas 
+              ? "Recherche en cours..."
+              : filteredPizzas.length > 0 
+                ? `${filteredPizzas.length} plat${filteredPizzas.length > 1 ? 's' : ''} trouvé${filteredPizzas.length > 1 ? 's' : ''}`
+                : "Aucun plat trouvé"}
+          </h2>
+          
+          {loadingPizzas ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-gray-200 rounded-2xl h-24 animate-pulse" />
+              ))}
+            </div>
+          ) : filteredPizzas.length > 0 ? (
+            <div className="space-y-4">
+              {filteredPizzas.map((pizza) => {
+                const restaurant = restaurants.find(r => r.id === pizza.restaurantId);
+                const defaultPrice = pizza.prices?.find(p => p.size === "medium") || pizza.prices?.[0];
+                const price = parseFloat(defaultPrice?.price || "15");
+                
+                return (
+                  <Link key={pizza.id} href={`/menu/${pizza.restaurantId}`}>
+                    <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex gap-4 p-4">
+                        {/* Product Image */}
+                        <div className="w-24 h-24 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100">
+                          {pizza.imageUrl && pizza.imageUrl.trim() !== "" ? (
+                            <img
+                              src={pizza.imageUrl}
+                              alt={pizza.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <span className="text-3xl">🍕</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Product Info */}
+                        <div className="flex-1 flex flex-col justify-between min-w-0">
+                          <div>
+                            <h3 className="font-bold text-lg text-gray-900 mb-1">
+                              {pizza.name}
+                            </h3>
+                            <p className="text-sm text-gray-600 line-clamp-2 mb-2">
+                              {pizza.description || "Délicieux plat préparé avec soin"}
+                            </p>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-orange-500 font-bold text-lg">
+                                {price.toFixed(2)} DT
+                              </span>
+                              {pizza.category && (
+                                <span className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-md">
+                                  {pizza.category}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                              <MapPin className="w-4 h-4" />
+                              <span>{restaurant?.name || "Restaurant"}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-12 bg-white rounded-2xl">
+              <div className="text-4xl mb-3">🔍</div>
+              <p className="text-gray-600 font-medium">Aucun plat trouvé</p>
+              <p className="text-sm text-gray-500 mt-2">Essayez avec d'autres mots-clés</p>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Restaurants Section - Affiché seulement si pas de recherche */}
+      {!showSearchResults && (
       <section className="px-4 mt-8 max-w-4xl mx-auto">
         {loading ? (
           <div className="space-y-4">
@@ -318,6 +460,7 @@ export default function Home() {
           </>
         )}
       </section>
+      )}
     </div>
   );
 }

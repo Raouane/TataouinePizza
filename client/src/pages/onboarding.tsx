@@ -136,8 +136,16 @@ export default function OnboardingPage() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const c = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setCoords(c);
-        setLoading(false);
+        // Sauvegarder et rediriger immédiatement sans afficher les coordonnées
+        saveOnboarding({
+          name,
+          phone,
+          address,
+          lat: c.lat,
+          lng: c.lng,
+        });
+        // Utiliser window.location pour forcer la redirection
+        window.location.href = "/";
       },
       () => {
         setError(
@@ -164,8 +172,8 @@ export default function OnboardingPage() {
       lat: coords?.lat,
       lng: coords?.lng,
     });
-    // Navigate to menu (different route) to force Wouter to re-evaluate routing
-    navigate("/menu");
+    // Navigate to home page
+    navigate("/");
   }
 
   return (
@@ -349,13 +357,6 @@ export default function OnboardingPage() {
                       )}
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    onClick={handleFinish}
-                    className="w-full h-12 text-base"
-                  >
-                    {t("Voir le menu", "See the menu", "عرض القائمة")}
-                  </Button>
                 </div>
               )}
               {error && step === "location" && !coords && (

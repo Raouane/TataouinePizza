@@ -70,3 +70,4 @@ JWT_SECRET=votre-secret-jwt-tres-securise-en-production
 - Vérifiez que `JWT_SECRET` est le même entre les environnements
 - Le token peut être expiré (durée de vie : 7 jours)
 
+
