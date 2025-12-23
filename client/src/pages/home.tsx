@@ -37,6 +37,11 @@ export default function Home() {
   const [loadingPizzas, setLoadingPizzas] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Log initial pour vérifier que le composant se charge
+  useEffect(() => {
+    console.log('[Home] Composant Home monté - Version avec logs de débogage');
+  }, []);
+
   useEffect(() => {
     fetchRestaurants();
   }, []);
