@@ -254,10 +254,6 @@ export async function updateRestaurant(
 }
 
 export async function seedTestRestaurants(token: string): Promise<{ success: boolean; message: string; restaurantsCreated: number; restaurantsSkipped: number; productsCreated: number }> {
-  if (!token) {
-    throw new Error("Token manquant. Veuillez vous reconnecter.");
-  }
-  
   const res = await fetch(`${API_BASE}/admin/restaurants/seed-test-data`, {
     method: "POST",
     headers: {
@@ -265,12 +261,25 @@ export async function seedTestRestaurants(token: string): Promise<{ success: boo
       Authorization: `Bearer ${token}`,
     },
   });
-  
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({ error: "Failed to seed test restaurants" }));
-    throw new Error(errorData.error || "Failed to seed test restaurants");
+    const error = await res.json();
+    throw new Error(error.error || "Failed to seed test restaurants");
   }
-  
+  return res.json();
+}
+
+export async function enrichAllRestaurants(token: string): Promise<{ success: boolean; message: string; restaurantsProcessed: number; imagesUpdated: number; productsAdded: number }> {
+  const res = await fetch(`${API_BASE}/admin/restaurants/enrich-all`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to enrich restaurants");
+  }
   return res.json();
 }
 

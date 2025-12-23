@@ -23,6 +23,7 @@
     "sync-to-production": "tsx script/sync-to-production.ts",
     "check-production-data": "tsx script/check-production-data.ts",
     "fix-production-restaurants": "tsx script/fix-production-restaurants.ts",
+    "enrich-restaurants": "tsx script/enrich-all-restaurants.ts",
     "create-test-orders": "tsx script/create-test-orders.ts",
     "create-admin": "tsx script/create-admin.ts",
     "test": "vitest",

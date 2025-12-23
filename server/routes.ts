@@ -915,6 +915,195 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/restaurants/enrich-all", authenticateAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      console.log("[ADMIN] Enrichissement de tous les restaurants...");
+      
+      const restaurants = await storage.getAllRestaurants();
+      let imagesUpdated = 0;
+      let productsAdded = 0;
+      let restaurantsProcessed = 0;
+
+      // Images par catégorie
+      const restaurantImages: Record<string, string> = {
+        pizza: "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800",
+        grill: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800",
+        tunisian: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800",
+        traditional: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800",
+        supermarket: "https://images.unsplash.com/photo-1556910103-2c02749b8eff?w=800",
+        grocery: "https://images.unsplash.com/photo-1556910103-2c02749b8eff?w=800",
+        butcher: "https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=800",
+        poultry: "https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=800",
+        jewelry: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800",
+        default: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800",
+      };
+
+      // Produits par catégorie (simplifié pour l'API)
+      const getProductsForCategory = (categories: string[]): any[] => {
+        const products: any[] = [];
+        
+        if (categories.includes("pizza")) {
+          products.push({
+            name: "Pizza Margherita",
+            description: "Tomate, mozzarella, basilic frais",
+            productType: "pizza",
+            category: "classic",
+            imageUrl: "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=800",
+            available: true,
+            prices: [
+              { size: "small", price: "14.00" },
+              { size: "medium", price: "18.00" },
+              { size: "large", price: "22.00" },
+            ],
+          });
+        }
+        
+        if (categories.includes("grill") || categories.includes("tunisian")) {
+          products.push({
+            name: "Kafta",
+            description: "Brochettes de viande hachée épicée",
+            productType: "grill",
+            category: "beef",
+            imageUrl: "https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=800",
+            available: true,
+            prices: [
+              { size: "small", price: "18.00" },
+              { size: "medium", price: "25.00" },
+            ],
+          });
+        }
+        
+        if (categories.includes("supermarket") || categories.includes("grocery")) {
+          products.push({
+            name: "Lait 1L",
+            description: "Lait frais pasteurisé",
+            productType: "grocery",
+            category: "dairy",
+            imageUrl: "https://images.unsplash.com/photo-1563636619-e9143da7973b?w=800",
+            available: true,
+            prices: [{ size: "small", price: "4.50" }],
+          });
+        }
+        
+        if (categories.includes("butcher")) {
+          products.push({
+            name: "Viande Hachée 500g",
+            description: "Viande hachée fraîche",
+            productType: "butcher",
+            category: "beef",
+            imageUrl: "https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=800",
+            available: true,
+            prices: [{ size: "small", price: "25.00" }],
+          });
+        }
+        
+        if (categories.includes("poultry")) {
+          products.push({
+            name: "Poulet Entier",
+            description: "Poulet frais entier",
+            productType: "poultry",
+            category: "chicken",
+            imageUrl: "https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=800",
+            available: true,
+            prices: [{ size: "small", price: "22.00" }],
+          });
+        }
+        
+        if (categories.includes("jewelry")) {
+          products.push({
+            name: "Bague en Or",
+            description: "Bague en or 18 carats",
+            productType: "jewelry",
+            category: "ring",
+            imageUrl: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800",
+            available: true,
+            prices: [{ size: "small", price: "500.00" }],
+          });
+        }
+        
+        // Toujours ajouter des boissons
+        products.push({
+          name: "Coca Cola",
+          description: "Boisson gazeuse 33cl",
+          productType: "drink",
+          category: "soda",
+          imageUrl: "https://images.unsplash.com/photo-1554866585-cd94860890b7?w=800",
+          available: true,
+          prices: [{ size: "small", price: "3.00" }],
+        });
+        
+        return products.slice(0, 5); // Max 5 produits par restaurant
+      };
+
+      for (const restaurant of restaurants) {
+        restaurantsProcessed++;
+        
+        // 1. Ajouter une image si elle manque
+        if (!restaurant.imageUrl) {
+          const categories = restaurant.categories || [];
+          let imageUrl = restaurantImages.default;
+          for (const cat of categories) {
+            if (restaurantImages[cat]) {
+              imageUrl = restaurantImages[cat];
+              break;
+            }
+          }
+          await storage.updateRestaurant(restaurant.id, { imageUrl });
+          imagesUpdated++;
+        }
+
+        // 2. Vérifier les produits existants
+        const existingProducts = await storage.getPizzasByRestaurant(restaurant.id);
+        
+        // 3. Ajouter des produits si nécessaire
+        if (existingProducts.length < 5) {
+          const productsToAdd = getProductsForCategory(restaurant.categories || []);
+          const productsNeeded = Math.min(5 - existingProducts.length, productsToAdd.length);
+
+          for (let i = 0; i < productsNeeded; i++) {
+            const product = productsToAdd[i];
+            if (!product) continue;
+
+            try {
+              const { prices, ...productData } = product;
+              const newProduct = await storage.createPizza({
+                ...productData,
+                restaurantId: restaurant.id,
+              });
+
+              // Ajouter les prix
+              for (const price of prices) {
+                await storage.createPizzaPrice({
+                  pizzaId: newProduct.id,
+                  size: price.size as "small" | "medium" | "large",
+                  price: price.price,
+                });
+              }
+
+              productsAdded++;
+            } catch (error: any) {
+              // Ignorer les erreurs de doublons
+              if (error.code !== '23505') {
+                console.error(`[ADMIN] Erreur produit "${product.name}":`, error.message);
+              }
+            }
+          }
+        }
+      }
+
+      res.json({
+        success: true,
+        message: "Restaurants enrichis avec succès",
+        restaurantsProcessed,
+        imagesUpdated,
+        productsAdded,
+      });
+    } catch (error: any) {
+      console.error("[ADMIN] Erreur enrichissement:", error);
+      res.status(500).json({ error: "Failed to enrich restaurants", details: error.message });
+    }
+  });
+
   app.delete("/api/admin/restaurants/:id", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
       const restaurantId = req.params.id;

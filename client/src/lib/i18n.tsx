@@ -164,7 +164,6 @@ const translations: Translations = {
   'menu.restaurantClosed': { fr: "Restaurant fermé", en: "Restaurant closed", ar: "المطعم مغلق" },
   'menu.restaurantClosed.desc': { fr: "Le restaurant sera ouvert de", en: "The restaurant will be open from", ar: "سيكون المطعم مفتوحاً من" },
   'menu.restaurantClosed.now': { fr: "Le restaurant est actuellement fermé.", en: "The restaurant is currently closed.", ar: "المطعم مغلق حالياً." },
-  'menu.title': { fr: "Menu", en: "Menu", ar: "القائمة" },
   'menu.noProducts.category': { fr: "Aucun produit dans la catégorie", en: "No products in category", ar: "لا توجد منتجات في الفئة" },
   'menu.noProducts.restaurant': { fr: "Aucun produit disponible pour ce restaurant", en: "No products available for this restaurant", ar: "لا توجد منتجات متاحة لهذا المطعم" },
   'menu.noProducts.tryCategory': { fr: "Essayez une autre catégorie", en: "Try another category", ar: "جرب فئة أخرى" },

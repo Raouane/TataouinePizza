@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { getAdminOrders, updateOrderStatus, getAdminDrivers, assignOrderToDriver, getAdminRestaurants, createRestaurant, updateRestaurant, deleteRestaurant, createDriver, updateDriver, deleteDriver, getAdminPizzas, createPizza, updatePizza, deletePizza, seedTestRestaurants } from "@/lib/api";
+import { getAdminOrders, updateOrderStatus, getAdminDrivers, assignOrderToDriver, getAdminRestaurants, createRestaurant, updateRestaurant, deleteRestaurant, createDriver, updateDriver, deleteDriver, getAdminPizzas, createPizza, updatePizza, deletePizza, seedTestRestaurants, enrichAllRestaurants } from "@/lib/api";
 import type { Order, Driver, Restaurant, Pizza } from "@/lib/api";
 import { LogOut, RefreshCw, AlertCircle, Plus, Store, Bike, Pizza as PizzaIcon, ShoppingCart, Edit, Trash2, MapPin, Phone, User, Calendar, Package } from "lucide-react";
 import { toast } from "sonner";
@@ -754,6 +754,26 @@ export default function AdminDashboard() {
                 >
                   <Package className="w-4 h-4 mr-2" />
                   Créer Restaurants de Test
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    if (!token) return;
+                    try {
+                      toast.info("Enrichissement en cours...");
+                      const result = await enrichAllRestaurants(token);
+                      toast.success(
+                        `✅ ${result.restaurantsProcessed} restaurant(s) traité(s), ${result.imagesUpdated} image(s) ajoutée(s), ${result.productsAdded} produit(s) ajouté(s)`
+                      );
+                      await fetchRestaurants();
+                      await fetchPizzas();
+                    } catch (err: any) {
+                      toast.error(err.message || "Erreur lors de l'enrichissement des restaurants");
+                    }
+                  }}
+                >
+                  <Store className="w-4 h-4 mr-2" />
+                  Enrichir Tous les Restaurants
                 </Button>
                 <Dialog open={showRestaurantDialog} onOpenChange={setShowRestaurantDialog}>
                   <DialogTrigger asChild>
