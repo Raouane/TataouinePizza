@@ -52,9 +52,20 @@ export default function Home() {
 
   const fetchRestaurants = async () => {
     try {
+      console.log('[Home] Début du chargement des restaurants...');
       const res = await fetch("/api/restaurants");
+      console.log('[Home] Réponse API:', res.status, res.statusText);
+      
       if (res.ok) {
         const data = await res.json();
+        console.log('[Home] Restaurants reçus:', data.length);
+        console.log('[Home] Détails des restaurants:', data.map((r: Restaurant) => ({
+          name: r.name,
+          isOpen: r.isOpen,
+          hasImage: !!(r.imageUrl && r.imageUrl.trim() !== ''),
+          categories: r.categories?.length || 0
+        })));
+        
         // Debug: vérifier les images
         const carrefour = data.find((r: Restaurant) => r.name.toLowerCase().includes('carrefour'));
         if (carrefour) {
@@ -65,11 +76,14 @@ export default function Home() {
           });
         }
         setRestaurants(data);
+      } else {
+        console.error('[Home] Erreur API:', res.status, await res.text());
       }
     } catch (err) {
-      console.error("Failed to fetch restaurants:", err);
+      console.error("[Home] Erreur lors du chargement des restaurants:", err);
     } finally {
       setLoading(false);
+      console.log('[Home] Chargement terminé');
     }
   };
 
@@ -117,6 +131,18 @@ export default function Home() {
 
   const openRestaurants = filteredRestaurants.filter(r => r.isOpen !== false);
   const closedRestaurants = filteredRestaurants.filter(r => r.isOpen === false);
+  
+  // Debug: logs pour comprendre le filtrage
+  useEffect(() => {
+    if (!loading) {
+      console.log('[Home] État du filtrage:');
+      console.log('  - Total restaurants:', restaurants.length);
+      console.log('  - Recherche active:', showSearchResults);
+      console.log('  - Restaurants filtrés:', filteredRestaurants.length);
+      console.log('  - Restaurants ouverts:', openRestaurants.length);
+      console.log('  - Restaurants fermés:', closedRestaurants.length);
+    }
+  }, [loading, restaurants, showSearchResults, filteredRestaurants, openRestaurants, closedRestaurants]);
 
   const getCategoryLabel = (cat: string) => {
     const labels: Record<string, string> = {

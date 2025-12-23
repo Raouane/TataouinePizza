@@ -20,6 +20,8 @@
     "add-products-bab-el-hara": "tsx script/add-products-bab-el-hara.ts",
     "add-test-restaurants": "tsx script/add-test-restaurants.ts",
     "add-restaurant-images": "tsx script/add-restaurant-images.ts",
+    "sync-to-production": "tsx script/sync-to-production.ts",
+    "check-production-data": "tsx script/check-production-data.ts",
     "create-test-orders": "tsx script/create-test-orders.ts",
     "create-admin": "tsx script/create-admin.ts",
     "test": "vitest",
