@@ -55,6 +55,15 @@ export default function Home() {
       const res = await fetch("/api/restaurants");
       if (res.ok) {
         const data = await res.json();
+        // Debug: vérifier les images
+        const carrefour = data.find((r: Restaurant) => r.name.toLowerCase().includes('carrefour'));
+        if (carrefour) {
+          console.log('[Home] Carrefour trouvé:', {
+            name: carrefour.name,
+            imageUrl: carrefour.imageUrl,
+            hasImage: !!(carrefour.imageUrl && carrefour.imageUrl.trim() !== '')
+          });
+        }
         setRestaurants(data);
       }
     } catch (err) {
