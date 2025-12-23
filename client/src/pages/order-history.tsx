@@ -1,76 +1,41 @@
 import { useState, useEffect } from "react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useLanguage } from "@/lib/i18n";
-import { getOrdersByPhone, sendOtp, verifyOtp } from "@/lib/api";
+import { getOrdersByPhone } from "@/lib/api";
+import { getOnboarding } from "@/pages/onboarding";
 import type { Order } from "@/lib/api";
-import { Clock, MapPin, Phone, RefreshCw, Lock } from "lucide-react";
+import { Clock, MapPin, Phone, RefreshCw, ArrowLeft } from "lucide-react";
 
 export default function OrderHistory() {
-  const [phone, setPhone] = useState("");
-  const [otpCode, setOtpCode] = useState("");
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [otpLoading, setOtpLoading] = useState(false);
-  const [verifyLoading, setVerifyLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [verified, setVerified] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
   const { t, language } = useLanguage();
-  const isRtl = language === "ar";
+  
+  // Récupérer le téléphone depuis l'onboarding
+  const onboardingData = getOnboarding();
+  const phone = onboardingData?.phone || "";
 
-  const handleSendOtp = async () => {
-    if (phone.length < 8) {
-      alert(t("cart.error.phone"));
-      return;
+  // Charger automatiquement les commandes au montage du composant
+  useEffect(() => {
+    if (phone && phone.length >= 8) {
+      loadOrders();
+    } else {
+      setLoading(false);
     }
+  }, [phone]);
+
+  const loadOrders = async () => {
+    if (!phone || phone.length < 8) return;
     
-    setOtpLoading(true);
-    try {
-      await sendOtp(phone);
-      setOtpSent(true);
-      alert("Code OTP envoyé par SMS");
-    } catch (error) {
-      alert("Erreur lors de l'envoi du code OTP");
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (otpCode.length !== 4) {
-      alert("Veuillez entrer un code de 4 chiffres");
-      return;
-    }
-    
-    setVerifyLoading(true);
-    try {
-      const result = await verifyOtp(phone, otpCode);
-      if (result.verified) {
-        setVerified(true);
-        setOtpSent(false);
-        setOtpCode("");
-        alert("Téléphone vérifié avec succès !");
-      } else {
-        alert("Code OTP invalide");
-      }
-    } catch (error) {
-      alert("Erreur lors de la vérification du code");
-    } finally {
-      setVerifyLoading(false);
-    }
-  };
-
-  const handleSearch = async () => {
     setLoading(true);
     try {
       const result = await getOrdersByPhone(phone);
       setOrders(result);
-      setSearched(true);
     } catch (error) {
-      alert("Erreur lors de la récupération des commandes");
+      console.error("Erreur lors de la récupération des commandes:", error);
     } finally {
       setLoading(false);
     }
@@ -78,7 +43,7 @@ export default function OrderHistory() {
 
   // Auto-refresh orders every 5 seconds to update statuses
   useEffect(() => {
-    if (!searched || phone.length < 8) return;
+    if (!phone || phone.length < 8) return;
 
     const interval = setInterval(async () => {
       try {
@@ -93,7 +58,7 @@ export default function OrderHistory() {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [searched, phone]);
+  }, [phone]);
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -123,191 +88,142 @@ export default function OrderHistory() {
     return labels[status] || status;
   };
 
+  // Si pas de données d'onboarding, afficher un message
+  if (!onboardingData || !phone || phone.length < 8) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6 pb-20">
+        <div className="flex items-center gap-4 mb-6">
+          <Link href="/">
+            <Button variant="ghost" size="icon" className="md:hidden">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-serif font-bold mb-2">{t('history.title')}</h1>
+            <p className="text-muted-foreground">{t('history.subtitle')}</p>
+          </div>
+        </div>
+
+        <Card className="p-6 text-center">
+          <p className="text-muted-foreground mb-4">{t('history.noOnboarding')}</p>
+          <Link href="/onboarding">
+            <Button>{t('history.completeOnboarding')}</Button>
+          </Link>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-20">
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-serif font-bold mb-2">{t('history.title')}</h1>
-          <p className="text-muted-foreground">{t('history.subtitle')}</p>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link href="/">
+            <Button variant="ghost" size="icon" className="md:hidden">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-serif font-bold mb-2">{t('history.title')}</h1>
+            <p className="text-muted-foreground">{t('history.subtitle')}</p>
+          </div>
         </div>
         {refreshing && (
           <RefreshCw className="w-5 h-5 animate-spin text-primary" />
         )}
       </div>
 
-      {!verified ? (
-        <Card className="p-6 space-y-4 border-blue-200 bg-blue-50">
-          <div className="flex items-center gap-2 mb-4">
-            <Lock className="w-5 h-5 text-blue-600" />
-            <h2 className="font-semibold text-blue-900">{t('history.security')}</h2>
-          </div>
-          
+      {/* Info Card avec téléphone */}
+      <Card className="p-4 border-blue-200 bg-blue-50">
+        <div className="flex items-center gap-2">
+          <Phone className="w-5 h-5 text-blue-600" />
           <div>
-            <label className="block text-sm font-medium mb-2">{t('history.phone')}</label>
-            <div className="flex gap-2">
-              <Input
-                type="tel"
-                placeholder={t('history.phone.placeholder')}
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                disabled={otpSent}
-                className="flex-1"
-                data-testid="input-phone-verify"
-              />
-              <Button
-                onClick={handleSendOtp}
-                disabled={otpLoading || otpSent}
-                variant={otpSent ? "outline" : "default"}
-                data-testid="button-send-otp"
-              >
-                {otpLoading ? t('history.sending') : otpSent ? t('history.sent') : t('history.sendOtp')}
-              </Button>
-            </div>
+            <p className="text-sm font-medium text-blue-900">{t('history.phone')}</p>
+            <p className="text-sm text-blue-700">{phone}</p>
           </div>
+        </div>
+      </Card>
 
-          {otpSent && (
-            <div>
-              <label className="block text-sm font-medium mb-2">{t('history.code')}</label>
-              <div className="flex gap-2">
-                <Input
-                  type="text"
-                  placeholder={t('history.code.placeholder')}
-                  maxLength={4}
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  className="flex-1"
-                  data-testid="input-otp-verify"
-                />
-                <Button
-                  onClick={handleVerifyOtp}
-                  disabled={verifyLoading}
-                  data-testid="button-verify-otp"
-                >
-                  {verifyLoading ? t('history.verifying') : t('history.verify')}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                {t('history.demoCode')}
-              </p>
-            </div>
-          )}
-        </Card>
+      {/* Liste des commandes */}
+      {loading ? (
+        <div className="text-center py-12">
+          <RefreshCw className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">{t('history.loading')}</p>
+        </div>
+      ) : orders.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground text-lg">{t('history.noOrders')}</p>
+        </div>
       ) : (
-        <Card className="p-6 space-y-4 border-green-200 bg-green-50">
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-sm text-green-600">✓ {t('history.verified')}</p>
-              <p className="font-semibold">{phone}</p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setVerified(false);
-                setPhone("");
-                setOtpCode("");
-                setOtpSent(false);
-                setSearched(false);
-                setOrders([]);
-              }}
-              data-testid="button-change-phone"
-            >
-              {t('history.change')}
-            </Button>
-          </div>
-        </Card>
-      )}
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {orders.length} {t('history.ordersFound')}
+          </p>
+          {orders.map((order) => (
+            <Card key={order.id} className="p-4 space-y-3">
+              <div className="flex justify-between items-start gap-4">
+                <div className="flex-1">
+                  <p className="font-semibold text-sm text-muted-foreground">
+                    Commande {order.id.slice(0, 8)}
+                  </p>
+                  <p className="text-lg font-bold text-foreground">{order.customerName}</p>
+                </div>
+                <span
+                  className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
+                    order.status
+                  )}`}
+                >
+                  {getStatusLabel(order.status)}
+                </span>
+              </div>
 
-      {verified && (
-        <Card className="p-6 space-y-4">
-          <label className="block text-sm font-medium">{t('history.title')}</label>
-          <Button
-            onClick={handleSearch}
-            disabled={loading}
-            className="w-full"
-            data-testid="button-search-orders"
-          >
-            {loading ? t('history.searching') : t('history.view')}
-          </Button>
-        </Card>
-      )}
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Phone className="w-4 h-4" />
+                  <span>{order.phone}</span>
+                </div>
+                <div className="text-right font-bold text-primary">
+                  {Number(order.totalPrice).toFixed(2)} TND
+                </div>
+              </div>
 
-      {searched && (
-        <>
-          {orders.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground text-lg">{t('history.noOrders')}</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">{orders.length} {t('history.ordersFound')}</p>
-              {orders.map((order) => (
-                <Card key={order.id} className="p-4 space-y-3" data-testid={`order-card-${order.id}`}>
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="flex-1">
-                      <p className="font-semibold text-sm text-muted-foreground">
-                        Commande {order.id.slice(0, 8)}
-                      </p>
-                      <p className="text-lg font-bold text-foreground">{order.customerName}</p>
-                    </div>
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
-                        order.status
-                      )}`}
-                      data-testid={`status-${order.status}`}
-                    >
-                      {getStatusLabel(order.status)}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Phone className="w-4 h-4" />
-                      <span>{order.phone}</span>
-                    </div>
-                    <div className="text-right font-bold text-primary">
-                      {Number(order.totalPrice).toFixed(2)} TND
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-2 text-sm">
-                    <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">{order.address}</p>
-                      {order.addressDetails && (
-                        <p className="text-muted-foreground">{order.addressDetails}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {order.items && order.items.length > 0 && (
-                    <div className="pt-2 border-t">
-                      <p className="text-xs font-semibold text-muted-foreground mb-2">Articles:</p>
-                      <ul className="text-sm space-y-1">
-                        {order.items.map((item: any, idx: number) => (
-                          <li key={idx} className="text-muted-foreground">
-                            • Pizza {item.pizzaId} - {item.size} x{item.quantity}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+              <div className="flex items-start gap-2 text-sm">
+                <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">{order.address}</p>
+                  {order.addressDetails && (
+                    <p className="text-muted-foreground">{order.addressDetails}</p>
                   )}
+                </div>
+              </div>
 
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
-                    <Clock className="w-3 h-3" />
-                    {order.createdAt ? new Date(order.createdAt).toLocaleDateString("fr-FR", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    }) : "Date indisponible"}
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </>
+              {order.items && order.items.length > 0 && (
+                <div className="pt-2 border-t">
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">Articles:</p>
+                  <ul className="text-sm space-y-1">
+                    {order.items.map((item: any, idx: number) => (
+                      <li key={idx} className="text-muted-foreground">
+                        • Pizza {item.pizzaId} - {item.size} x{item.quantity}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
+                <Clock className="w-3 h-3" />
+                {order.createdAt ? new Date(order.createdAt).toLocaleDateString("fr-FR", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }) : "Date indisponible"}
+              </div>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );

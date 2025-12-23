@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { playAddToCartSound } from '@/lib/sounds';
 
 export type Pizza = {
   id: string;
@@ -16,119 +17,260 @@ type CartItem = Pizza & {
   size: 'small' | 'medium' | 'large';
 };
 
-type CartContextType = {
-  items: CartItem[];
-  restaurantId: string | null;
+export type RestaurantCart = {
+  restaurantId: string;
   restaurantName: string | null;
-  addItem: (pizza: Pizza, size?: 'small' | 'medium' | 'large') => boolean;
-  removeItem: (id: string) => void;
-  updateQuantity: (id: string, delta: number) => void;
+  items: CartItem[];
+  subtotal: number;
+  deliveryFee: number;
+};
+
+type PendingItem = {
+  pizza: Pizza;
+  size: 'small' | 'medium' | 'large';
+  restaurantName?: string;
+};
+
+type CartContextType = {
+  restaurants: RestaurantCart[];
+  addItem: (pizza: Pizza, size?: 'small' | 'medium' | 'large', restaurantName?: string) => boolean;
+  removeItem: (restaurantId: string, itemId: string) => void;
+  updateQuantity: (restaurantId: string, itemId: string, delta: number) => void;
   clearCart: () => void;
+  clearRestaurant: (restaurantId: string) => void;
   total: number;
   count: number;
+  getRestaurantCart: (restaurantId: string) => RestaurantCart | undefined;
+  // Pour le dialog de confirmation
+  pendingItem: PendingItem | null;
+  isConfirmDialogOpen: boolean;
+  setIsConfirmDialogOpen: (open: boolean) => void;
+  confirmAddNewRestaurant: () => void;
 };
+
+const DELIVERY_FEE = 2.00; // Prix de livraison fixe en TND
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
-  const [restaurantName, setRestaurantName] = useState<string | null>(null);
+  const [restaurants, setRestaurants] = useState<RestaurantCart[]>([]);
+  const [pendingItem, setPendingItem] = useState<PendingItem | null>(null);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  const addItem = (pizza: Pizza, size: 'small' | 'medium' | 'large' = 'medium'): boolean => {
-    // Check if cart is from a different restaurant
-    if (restaurantId && restaurantId !== pizza.restaurantId) {
-      // Delay toast to avoid render issue
-      setTimeout(() => {
-        toast({
-          title: "Panier d'un autre restaurant",
-          description: "Videz votre panier pour commander dans un autre restaurant.",
-          variant: "destructive"
-        });
-      }, 0);
-      return false;
-    }
+  const calculateSubtotal = (items: CartItem[]): number => {
+    return items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  };
 
-    // Set restaurant if first item
-    if (!restaurantId) {
-      setRestaurantId(pizza.restaurantId);
-    }
-
+  const addItemToRestaurant = (
+    restaurantCart: RestaurantCart,
+    pizza: Pizza,
+    size: 'small' | 'medium' | 'large'
+  ): RestaurantCart => {
     const itemKey = `${pizza.id}-${size}`;
-    let toastMessage: { title: string; description: string } | null = null;
+    const existing = restaurantCart.items.find((item) => `${item.id}-${item.size}` === itemKey);
+    
+    let newItems: CartItem[];
+    if (existing) {
+      newItems = restaurantCart.items.map((item) =>
+        `${item.id}-${item.size}` === itemKey
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
+      );
+    } else {
+      newItems = [...restaurantCart.items, { ...pizza, quantity: 1, size }];
+    }
+    
+    return {
+      ...restaurantCart,
+      items: newItems,
+      subtotal: calculateSubtotal(newItems),
+    };
+  };
 
-    setItems((current) => {
-      const existing = current.find((item) => `${item.id}-${item.size}` === itemKey);
-      if (existing) {
-        toastMessage = {
-          title: "Quantité mise à jour",
-          description: `Une autre ${pizza.name} (${size}) a été ajoutée.`,
-        };
-        return current.map((item) =>
-          `${item.id}-${item.size}` === itemKey
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
+  const addItem = (
+    pizza: Pizza,
+    size: 'small' | 'medium' | 'large' = 'medium',
+    restaurantName?: string
+  ): boolean => {
+    // Vérifier si le restaurant existe déjà dans le panier
+    const existingRestaurant = restaurants.find(r => r.restaurantId === pizza.restaurantId);
+    
+    if (existingRestaurant) {
+      // Restaurant déjà dans le panier → ajouter directement
+      setRestaurants((current) => {
+        const updated = current.map((r) =>
+          r.restaurantId === pizza.restaurantId
+            ? addItemToRestaurant(r, pizza, size)
+            : r
         );
-      }
-      toastMessage = {
+        return updated;
+      });
+
+      const existing = existingRestaurant.items.find((item) => `${item.id}-${item.size}` === `${pizza.id}-${size}`);
+      const toastMessage = existing
+        ? { title: "Quantité mise à jour", description: `Une autre ${pizza.name} (${size}) a été ajoutée.` }
+        : { title: "Ajouté au panier", description: `${pizza.name} (${size}) a été ajoutée.` };
+
+      setTimeout(() => {
+        toast(toastMessage);
+      }, 0);
+
+      playAddToCartSound();
+      return true;
+    }
+    
+    // Nouveau restaurant → demander confirmation si panier non vide
+    if (restaurants.length > 0) {
+      setPendingItem({ pizza, size, restaurantName });
+      setIsConfirmDialogOpen(true);
+      return false; // Temporaire, sera confirmé via le dialog
+    }
+    
+    // Premier restaurant → ajouter directement
+    const newRestaurantCart: RestaurantCart = {
+      restaurantId: pizza.restaurantId,
+      restaurantName: restaurantName || null,
+      items: [{ ...pizza, quantity: 1, size }],
+      subtotal: pizza.price,
+      deliveryFee: DELIVERY_FEE,
+    };
+
+    setRestaurants([newRestaurantCart]);
+
+    setTimeout(() => {
+      toast({
         title: "Ajouté au panier",
         description: `${pizza.name} (${size}) a été ajoutée.`,
-      };
-      return [...current, { ...pizza, quantity: 1, size }];
-    });
+      });
+    }, 0);
 
-    // Show toast after state update
-    if (toastMessage) {
-      setTimeout(() => {
-        toast(toastMessage!);
-      }, 0);
-    }
-
+    playAddToCartSound();
     return true;
   };
 
-  const removeItem = (id: string) => {
-    setItems((current) => {
-      const newItems = current.filter((item) => item.id !== id);
-      if (newItems.length === 0) {
-        setRestaurantId(null);
-        setRestaurantName(null);
-      }
-      return newItems;
+  const confirmAddNewRestaurant = () => {
+    if (!pendingItem) return;
+
+    const newRestaurantCart: RestaurantCart = {
+      restaurantId: pendingItem.pizza.restaurantId,
+      restaurantName: pendingItem.restaurantName || null,
+      items: [{ ...pendingItem.pizza, quantity: 1, size: pendingItem.size }],
+      subtotal: pendingItem.pizza.price,
+      deliveryFee: DELIVERY_FEE,
+    };
+
+    setRestaurants((current) => [...current, newRestaurantCart]);
+    setIsConfirmDialogOpen(false);
+    setPendingItem(null);
+
+    setTimeout(() => {
+      toast({
+        title: "Restaurant ajouté au panier",
+        description: `${pendingItem.pizza.name} (${pendingItem.size}) a été ajoutée.`,
+      });
+    }, 0);
+
+    playAddToCartSound();
+  };
+
+  const removeItem = (restaurantId: string, itemKey: string) => {
+    // itemKey peut être soit item.id seul (pour compatibilité) soit `${item.id}-${item.size}`
+    setRestaurants((current) => {
+      const updated = current.map((r) => {
+        if (r.restaurantId === restaurantId) {
+          const newItems = r.items.filter((item) => {
+            // Supprimer si l'ID correspond ou si la clé complète correspond
+            return item.id !== itemKey && `${item.id}-${item.size}` !== itemKey;
+          });
+          if (newItems.length === 0) {
+            return null; // Marquer pour suppression
+          }
+          return {
+            ...r,
+            items: newItems,
+            subtotal: calculateSubtotal(newItems),
+          };
+        }
+        return r;
+      }).filter((r): r is RestaurantCart => r !== null);
+      
+      return updated;
     });
   };
 
-  const updateQuantity = (id: string, delta: number) => {
-    setItems((current) => {
-      const newItems = current.map((item) => {
-        if (item.id === id) {
-          const newQuantity = Math.max(0, item.quantity + delta);
-          return { ...item, quantity: newQuantity };
+  const updateQuantity = (restaurantId: string, itemId: string, delta: number) => {
+    setRestaurants((current) => {
+      const updated = current.map((r) => {
+        if (r.restaurantId === restaurantId) {
+          const newItems = r.items
+            .map((item) => {
+              if (item.id === itemId) {
+                const newQuantity = Math.max(0, item.quantity + delta);
+                return { ...item, quantity: newQuantity };
+              }
+              return item;
+            })
+            .filter((item) => item.quantity > 0);
+          
+          if (newItems.length === 0) {
+            return null; // Marquer pour suppression
+          }
+          
+          return {
+            ...r,
+            items: newItems,
+            subtotal: calculateSubtotal(newItems),
+          };
         }
-        return item;
-      }).filter((item) => item.quantity > 0);
+        return r;
+      }).filter((r): r is RestaurantCart => r !== null);
       
-      if (newItems.length === 0) {
-        setRestaurantId(null);
-        setRestaurantName(null);
-      }
-      return newItems;
+      return updated;
     });
   };
 
   const clearCart = () => {
-    setItems([]);
-    setRestaurantId(null);
-    setRestaurantName(null);
+    setRestaurants([]);
+    setPendingItem(null);
+    setIsConfirmDialogOpen(false);
   };
 
-  const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const count = items.reduce((sum, item) => sum + item.quantity, 0);
+  const clearRestaurant = (restaurantId: string) => {
+    setRestaurants((current) => current.filter((r) => r.restaurantId !== restaurantId));
+  };
+
+  const getRestaurantCart = (restaurantId: string): RestaurantCart | undefined => {
+    return restaurants.find((r) => r.restaurantId === restaurantId);
+  };
+
+  const total = restaurants.reduce(
+    (sum, r) => sum + r.subtotal + r.deliveryFee,
+    0
+  );
+  
+  const count = restaurants.reduce(
+    (sum, r) => sum + r.items.reduce((itemSum, item) => itemSum + item.quantity, 0),
+    0
+  );
 
   return (
     <CartContext.Provider
-      value={{ items, restaurantId, restaurantName, addItem, removeItem, updateQuantity, clearCart, total, count }}
+      value={{
+        restaurants,
+        addItem,
+        removeItem,
+        updateQuantity,
+        clearCart,
+        clearRestaurant,
+        total,
+        count,
+        getRestaurantCart,
+        pendingItem,
+        isConfirmDialogOpen,
+        setIsConfirmDialogOpen,
+        confirmAddNewRestaurant,
+      }}
     >
       {children}
     </CartContext.Provider>

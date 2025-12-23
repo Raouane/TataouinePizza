@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { getAdminOrders, updateOrderStatus, getAdminDrivers, assignOrderToDriver, getAdminRestaurants, createRestaurant, updateRestaurant, deleteRestaurant, createDriver, updateDriver, deleteDriver, getAdminPizzas, createPizza, updatePizza, deletePizza } from "@/lib/api";
 import type { Order, Driver, Restaurant, Pizza } from "@/lib/api";
-import { LogOut, RefreshCw, AlertCircle, Plus, Store, Truck, Pizza as PizzaIcon, ShoppingCart, Edit, Trash2, MapPin, Phone, User, Calendar, Package } from "lucide-react";
+import { LogOut, RefreshCw, AlertCircle, Plus, Store, Bike, Pizza as PizzaIcon, ShoppingCart, Edit, Trash2, MapPin, Phone, User, Calendar, Package } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminDashboard() {
@@ -529,7 +529,7 @@ export default function AdminDashboard() {
               <span className="hidden sm:inline">Restaurants</span>
             </TabsTrigger>
             <TabsTrigger value="drivers" className="flex items-center gap-2">
-              <Truck className="w-4 h-4" />
+              <Bike className="w-4 h-4" />
               <span className="hidden sm:inline">Livreurs</span>
             </TabsTrigger>
             <TabsTrigger value="pizzas" className="flex items-center gap-2">
@@ -668,7 +668,7 @@ export default function AdminDashboard() {
                                 drivers.map((driver) => (
                                   <SelectItem key={driver.id} value={driver.id}>
                                     <div className="flex items-center gap-2">
-                                      <Truck className="w-4 h-4" />
+                                      <Bike className="w-4 h-4" />
                                       <span>{driver.name}</span>
                                       <Badge variant="outline" className="ml-2 text-xs">
                                         {driver.status}

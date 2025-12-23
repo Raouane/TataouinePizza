@@ -10,6 +10,16 @@ type Translations = {
   };
 };
 
+/**
+ * ⚠️ RÈGLE DE DÉVELOPPEMENT IMPORTANTE ⚠️
+ * 
+ * TOUTE nouvelle fonctionnalité DOIT être traduite dans les 3 langues (FR, EN, AR).
+ * 
+ * ❌ NE PAS utiliser de texte hardcodé en français dans les composants
+ * ✅ TOUJOURS utiliser t('ma.clé') avec useLanguage()
+ * 
+ * Voir docs/TRANSLATION_GUIDE.md pour plus de détails.
+ */
 const translations: Translations = {
   // Navigation
   'nav.home': { fr: 'Accueil', en: 'Home', ar: 'الرئيسية' },
@@ -139,12 +149,115 @@ const translations: Translations = {
   'history.statusDelivery': { fr: "En livraison", en: "Delivery", ar: "قيد التوصيل" },
   'history.statusDelivered': { fr: "Livrée", en: "Delivered", ar: "تم التوصيل" },
   'history.statusRejected': { fr: "Rejetée", en: "Rejected", ar: "مرفوضة" },
+  'history.loading': { fr: "Chargement des commandes...", en: "Loading orders...", ar: "جاري تحميل الطلبات..." },
+  'history.noOnboarding': { fr: "Vous devez compléter l'onboarding pour voir vos commandes.", en: "You must complete onboarding to view your orders.", ar: "يجب إكمال الإعداد لعرض طلباتك." },
+  'history.completeOnboarding': { fr: "Compléter l'onboarding", en: "Complete onboarding", ar: "إكمال الإعداد" },
+
+  // Menu page
+  'menu.loading': { fr: "Chargement...", en: "Loading...", ar: "جاري التحميل..." },
+  'menu.restaurantNotFound': { fr: "Restaurant non trouvé", en: "Restaurant not found", ar: "المطعم غير موجود" },
+  'menu.backHome': { fr: "Retour à l'accueil", en: "Back to home", ar: "العودة للرئيسية" },
+  'menu.status.open': { fr: "Ouvert", en: "Open", ar: "مفتوح" },
+  'menu.status.closed': { fr: "Fermé", en: "Closed", ar: "مغلق" },
+  'menu.deliveryFee': { fr: "livraison", en: "delivery", ar: "توصيل" },
+  'menu.reviews': { fr: "avis", en: "reviews", ar: "تقييم" },
+  'menu.restaurantClosed': { fr: "Restaurant fermé", en: "Restaurant closed", ar: "المطعم مغلق" },
+  'menu.restaurantClosed.desc': { fr: "Le restaurant sera ouvert de", en: "The restaurant will be open from", ar: "سيكون المطعم مفتوحاً من" },
+  'menu.restaurantClosed.now': { fr: "Le restaurant est actuellement fermé.", en: "The restaurant is currently closed.", ar: "المطعم مغلق حالياً." },
+  'menu.title': { fr: "Menu", en: "Menu", ar: "القائمة" },
+  'menu.noProducts.category': { fr: "Aucun produit dans la catégorie", en: "No products in category", ar: "لا توجد منتجات في الفئة" },
+  'menu.noProducts.restaurant': { fr: "Aucun produit disponible pour ce restaurant", en: "No products available for this restaurant", ar: "لا توجد منتجات متاحة لهذا المطعم" },
+  'menu.noProducts.tryCategory': { fr: "Essayez une autre catégorie", en: "Try another category", ar: "جرب فئة أخرى" },
+  'menu.noProducts.create': { fr: "Créez des produits pour ce restaurant depuis l'espace admin", en: "Create products for this restaurant from the admin panel", ar: "أنشئ منتجات لهذا المطعم من لوحة الإدارة" },
+  'menu.add': { fr: "Ajouter", en: "Add", ar: "إضافة" },
+  'menu.category.all': { fr: "Tout", en: "All", ar: "الكل" },
+  'menu.category.pizza': { fr: "Pizza", en: "Pizza", ar: "بيتزا" },
+  'menu.category.burger': { fr: "Burger", en: "Burger", ar: "برجر" },
+  'menu.category.salade': { fr: "Salade", en: "Salad", ar: "سلطة" },
+  'menu.category.grill': { fr: "Grillades", en: "Grilled", ar: "مشويات" },
+  'menu.category.drink': { fr: "Boisson", en: "Drink", ar: "مشروب" },
+  'menu.category.dessert': { fr: "Dessert", en: "Dessert", ar: "حلوى" },
+
+  // Common
+  'common.loading': { fr: "Chargement...", en: "Loading...", ar: "جاري التحميل..." },
+  'common.currency': { fr: "DT", en: "TND", ar: "د.ت" },
+  'common.min': { fr: "min", en: "min", ar: "دقيقة" },
+  
+  // Menu product
+  'menu.product.defaultDescription': { fr: "Délicieux plat préparé avec soin", en: "Delicious dish prepared with care", ar: "طبق لذيذ محضر بعناية" },
+
+  // Home page
+  'home.location': { fr: "Tataouine, Tunisie", en: "Tataouine, Tunisia", ar: "تطاوين، تونس" },
+  'home.hero.title.part1': { fr: "Vos plats préférés,", en: "Your favorite dishes,", ar: "أطباقك المفضلة،" },
+  'home.hero.title.part2': { fr: "livrés", en: "delivered", ar: "مُوصلة" },
+  'home.hero.description': { fr: "Commandez auprès des meilleurs restaurants de Tataouine et recevez votre repas en quelques minutes.", en: "Order from the best restaurants in Tataouine and receive your meal in minutes.", ar: "اطلب من أفضل المطاعم في تطاوين واحصل على وجبتك في دقائق." },
+  'home.features.fastDelivery': { fr: "Livraison rapide", en: "Fast delivery", ar: "توصيل سريع" },
+  'home.features.cashPayment': { fr: "Paiement espèces", en: "Cash payment", ar: "دفع نقدي" },
+  'home.search.placeholder': { fr: "Rechercher un restaurant ou un plat...", en: "Search for a restaurant or dish...", ar: "ابحث عن مطعم أو طبق..." },
+  'home.search.loading': { fr: "Recherche en cours...", en: "Searching...", ar: "جاري البحث..." },
+  'home.search.results': { fr: "{count} plat trouvé", en: "{count} dish found", ar: "تم العثور على {count} طبق" },
+  'home.search.results.plural': { fr: "{count} plats trouvés", en: "{count} dishes found", ar: "تم العثور على {count} أطباق" },
+  'home.search.noResults': { fr: "Aucun plat trouvé", en: "No dish found", ar: "لم يتم العثور على أطباق" },
+  'home.search.tryOther': { fr: "Essayez avec d'autres mots-clés", en: "Try with other keywords", ar: "جرب كلمات مفتاحية أخرى" },
+  'home.search.noRestaurants': { fr: "Aucun résultat trouvé", en: "No results found", ar: "لم يتم العثور على نتائج" },
+  'home.restaurant.default': { fr: "Restaurant", en: "Restaurant", ar: "مطعم" },
+  'home.restaurants.open': { fr: "Restaurants ouverts", en: "Open restaurants", ar: "المطاعم المفتوحة" },
+  'home.restaurants.available': { fr: "{count} disponible", en: "{count} available", ar: "{count} متاح" },
+  'home.restaurants.available.plural': { fr: "{count} disponibles", en: "{count} available", ar: "{count} متاحة" },
+  'home.restaurants.closed': { fr: "Fermés actuellement", en: "Currently closed", ar: "مغلقة حالياً" },
+
+  // Size Selection
+  'menu.sizeSelection.description': { fr: "Choisissez la taille de votre produit", en: "Choose your product size", ar: "اختر حجم منتجك" },
+  'menu.sizeSelection.required': { fr: "Veuillez sélectionner une taille", en: "Please select a size", ar: "الرجاء اختيار حجم" },
+  'menu.sizeSelection.invalid': { fr: "Taille invalide", en: "Invalid size", ar: "حجم غير صالح" },
+  'menu.sizeSelection.available': { fr: "Plusieurs tailles", en: "Multiple sizes", ar: "أحجام متعددة" },
+  'menu.size.small': { fr: "Petite", en: "Small", ar: "صغيرة" },
+  'menu.size.medium': { fr: "Moyenne", en: "Medium", ar: "متوسطة" },
+  'menu.size.large': { fr: "Grande", en: "Large", ar: "كبيرة" },
+  'menu.addToCart.error': { fr: "Impossible d'ajouter au panier", en: "Unable to add to cart", ar: "تعذر الإضافة إلى السلة" },
+  'common.cancel': { fr: "Annuler", en: "Cancel", ar: "إلغاء" },
+
+  // Multi-restaurant cart
+  'cart.multiRestaurant.title': { fr: "Ajouter un autre restaurant ?", en: "Add another restaurant?", ar: "إضافة مطعم آخر؟" },
+  'cart.multiRestaurant.description': { fr: "Votre panier contient déjà des articles d'un autre restaurant.", en: "Your cart already contains items from another restaurant.", ar: "سلة التسوق تحتوي بالفعل على عناصر من مطعم آخر." },
+  'cart.multiRestaurant.current': { fr: "Restaurant(s) actuel(s) :", en: "Current restaurant(s):", ar: "المطعم(ات) الحالي(ة):" },
+  'cart.multiRestaurant.new': { fr: "Nouveau restaurant :", en: "New restaurant:", ar: "مطعم جديد:" },
+  'cart.multiRestaurant.willAdd': { fr: "sera ajouté", en: "will be added", ar: "سيتم إضافته" },
+  'cart.multiRestaurant.note': { fr: "Note : Chaque restaurant aura sa propre commande et frais de livraison.", en: "Note: Each restaurant will have its own order and delivery fee.", ar: "ملاحظة: كل مطعم سيكون له طلبه ورسوم التوصيل الخاصة به." },
+  'cart.multiRestaurant.confirm': { fr: "Ajouter quand même", en: "Add anyway", ar: "إضافة على أي حال" },
+  'cart.multiRestaurant.item': { fr: "article", en: "item", ar: "عنصر" },
+  'cart.multiRestaurant.items': { fr: "articles", en: "items", ar: "عناصر" },
+  'cart.multiRestaurant.unknown': { fr: "Restaurant", en: "Restaurant", ar: "مطعم" },
+  'cart.subtotal': { fr: "Sous-total", en: "Subtotal", ar: "المجموع الفرعي" },
+  'cart.deliveryFee': { fr: "Frais de livraison", en: "Delivery fee", ar: "رسوم التوصيل" },
+  'cart.restaurantTotal': { fr: "Total restaurant", en: "Restaurant total", ar: "إجمالي المطعم" },
+  'cart.error.order': { fr: "Erreur lors de la commande", en: "Order error", ar: "خطأ في الطلب" },
+  'cart.error.orderDescription': { fr: "Certaines commandes n'ont pas pu être créées. Veuillez réessayer.", en: "Some orders could not be created. Please try again.", ar: "تعذر إنشاء بعض الطلبات. يرجى المحاولة مرة أخرى." },
+  'cart.multiRestaurant.totalNote': { fr: "Total incluant les frais de livraison de tous les restaurants", en: "Total including delivery fees from all restaurants", ar: "الإجمالي يشمل رسوم التوصيل من جميع المطاعم" },
+
+  // Profile
+  'nav.profile': { fr: "Profil", en: "Profile", ar: "الملف الشخصي" },
+  'profile.title': { fr: "Mon Profil", en: "My Profile", ar: "ملفي الشخصي" },
+  'profile.subtitle': { fr: "Informations personnelles", en: "Personal information", ar: "المعلومات الشخصية" },
+  'profile.phone': { fr: "Téléphone", en: "Phone", ar: "الهاتف" },
+  'profile.address': { fr: "Adresse", en: "Address", ar: "العنوان" },
+  'profile.location': { fr: "Position", en: "Location", ar: "الموقع" },
+  'profile.actions.history': { fr: "Historique des commandes", en: "Order History", ar: "سجل الطلبات" },
+  'profile.actions.history.desc': { fr: "Voir toutes vos commandes", en: "View all your orders", ar: "عرض جميع طلباتك" },
+  'profile.actions.language': { fr: "Langue", en: "Language", ar: "اللغة" },
+  'profile.actions.language.desc': { fr: "Changer la langue de l'application", en: "Change application language", ar: "تغيير لغة التطبيق" },
+  'profile.edit.title': { fr: "Modifier le profil", en: "Edit Profile", ar: "تعديل الملف الشخصي" },
+  'profile.edit.desc': { fr: "Mettre à jour vos informations personnelles", en: "Update your personal information", ar: "تحديث معلوماتك الشخصية" },
+  'profile.edit.button': { fr: "Modifier", en: "Edit", ar: "تعديل" },
+  'profile.notFound.title': { fr: "Profil non trouvé", en: "Profile not found", ar: "الملف الشخصي غير موجود" },
+  'profile.notFound.desc': { fr: "Vous devez compléter l'onboarding pour accéder à votre profil.", en: "You must complete onboarding to access your profile.", ar: "يجب إكمال الإعداد للوصول إلى ملفك الشخصي." },
+  'profile.notFound.action': { fr: "Compléter l'onboarding", en: "Complete onboarding", ar: "إكمال الإعداد" },
 };
 
 type LanguageContextType = {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: string) => string;
+  t: (key: string, params?: { [key: string]: string | number }) => string;
   dir: 'ltr' | 'rtl';
 };
 
@@ -158,8 +271,29 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.lang = language;
   }, [language]);
 
-  const t = (key: string) => {
-    return translations[key]?.[language] || key;
+  const t = (key: string, params?: { [key: string]: string | number }) => {
+    // Gérer le pluriel pour certaines clés
+    let finalKey = key;
+    if (params?.count !== undefined && params.count > 1) {
+      const pluralKey = `${key}.plural`;
+      if (translations[pluralKey]) {
+        finalKey = pluralKey;
+      }
+    }
+    
+    let translation = translations[finalKey]?.[language];
+    
+    // Remplacer les paramètres dans la traduction
+    if (translation && params) {
+      Object.entries(params).forEach(([paramKey, paramValue]) => {
+        translation = translation.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
+      });
+    }
+    
+    if (!translation && process.env.NODE_ENV === 'development') {
+      console.warn(`[i18n] Traduction manquante pour la clé "${finalKey}" en ${language}`);
+    }
+    return translation || key;
   };
 
   const dir = language === 'ar' ? 'rtl' : 'ltr';

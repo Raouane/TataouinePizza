@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Truck, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock, Store, Banknote, Navigation, Power, ExternalLink, User } from "lucide-react";
+import { Bike, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock, Store, Banknote, Navigation, Power, ExternalLink, User } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
@@ -586,7 +586,7 @@ export default function DriverDashboard() {
           <div className="flex justify-between items-center gap-2">
             <div className="flex items-center gap-2 md:gap-3 min-w-0">
               <div className="bg-primary text-primary-foreground p-2 rounded-full flex-shrink-0">
-                <Truck className="w-5 h-5 md:w-6 md:h-6" />
+                <Bike className="w-5 h-5 md:w-6 md:h-6" />
               </div>
               <div className="min-w-0">
                 <h1 className="font-serif font-bold text-base md:text-lg truncate">Espace Livreur</h1>
@@ -795,7 +795,7 @@ export default function DriverDashboard() {
           <TabsContent value="active" className="mt-4">
             {activeDeliveryOrders.length === 0 ? (
               <Card className="p-12 text-center">
-                <Truck className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <Bike className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">Aucune livraison en cours</h3>
                 <p className="text-muted-foreground">Acceptez une commande disponible pour commencer</p>
               </Card>

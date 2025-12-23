@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { sendOtp } from "@/lib/api";
-import { Truck, AlertCircle, ArrowLeft, Phone, KeyRound } from "lucide-react";
+import { Bike, AlertCircle, ArrowLeft, Phone, KeyRound } from "lucide-react";
 
 export default function DriverLogin() {
   const [, setLocation] = useLocation();
@@ -67,7 +67,7 @@ export default function DriverLogin() {
         <div className="text-center mb-8">
           <a href="/" className="inline-block">
             <div className="bg-primary text-primary-foreground p-3 rounded-full mb-4 inline-block">
-              <Truck className="w-8 h-8" />
+              <Bike className="w-8 h-8" />
             </div>
             <h1 className="text-3xl font-serif font-bold">Espace Livreur</h1>
           </a>

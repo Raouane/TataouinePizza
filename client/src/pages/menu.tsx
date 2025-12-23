@@ -4,6 +4,8 @@ import { ArrowLeft, Star, Clock, MapPin, Plus } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useCart } from "@/lib/cart";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 interface Pizza {
   id: string;
@@ -37,7 +39,11 @@ export default function Menu() {
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [loading, setLoading] = useState(true);
   const [isRestaurantOpen, setIsRestaurantOpen] = useState(true);
+  const [selectedPizza, setSelectedPizza] = useState<Pizza | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [isSizeDialogOpen, setIsSizeDialogOpen] = useState(false);
   const { addItem } = useCart();
+  const { t } = useLanguage();
   
   const restaurantId = params.restaurantId;
 
@@ -99,12 +105,24 @@ export default function Menu() {
   console.log(`[Menu] Catégories disponibles:`, categories);
   console.log(`[Menu] Produits:`, pizzas.map(p => ({ name: p.name, category: p.category, prices: p.prices?.length || 0 })));
 
-  const handleAddToCart = (pizza: Pizza) => {
-    // Prendre le prix medium par défaut, sinon le premier disponible
-    const defaultPrice = pizza.prices?.find(p => p.size === "medium") || pizza.prices?.[0];
-    const price = parseFloat(defaultPrice?.price || "15");
+  const handleAddToCart = (pizza: Pizza, e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     
-    addItem({
+    // Si le produit a plusieurs tailles, ouvrir le modal
+    if (pizza.prices && pizza.prices.length > 1) {
+      setSelectedPizza(pizza);
+      setSelectedSize(null); // Réinitialiser la sélection
+      setIsSizeDialogOpen(true);
+      return;
+    }
+    
+    // Si une seule taille, ajouter directement
+    const defaultPrice = pizza.prices?.[0];
+    const price = parseFloat(defaultPrice?.price || "15");
+    const size = (defaultPrice?.size || "medium") as 'small' | 'medium' | 'large';
+    
+    const success = addItem({
       id: pizza.id,
       name: pizza.name,
       description: pizza.description || "",
@@ -112,17 +130,72 @@ export default function Menu() {
       image: pizza.imageUrl || "",
       category: pizza.category as 'classic' | 'special' | 'vegetarian',
       restaurantId: pizza.restaurantId,
-    });
+    }, size, restaurant?.name);
+    
+    if (!success) {
+      toast.error(t('menu.addToCart.error'));
+    }
+  };
+
+  // Nouvelle fonction pour confirmer l'ajout avec la taille sélectionnée
+  const handleConfirmAddToCart = () => {
+    if (!selectedPizza || !selectedSize) {
+      toast.error(t('menu.sizeSelection.required'));
+      return;
+    }
+    
+    const selectedPrice = selectedPizza.prices?.find(p => p.size === selectedSize);
+    if (!selectedPrice) {
+      toast.error(t('menu.sizeSelection.invalid'));
+      return;
+    }
+    
+    const price = parseFloat(selectedPrice.price);
+    const size = selectedSize as 'small' | 'medium' | 'large';
+    
+    const success = addItem({
+      id: selectedPizza.id,
+      name: selectedPizza.name,
+      description: selectedPizza.description || "",
+      price: price,
+      image: selectedPizza.imageUrl || "",
+      category: selectedPizza.category as 'classic' | 'special' | 'vegetarian',
+      restaurantId: selectedPizza.restaurantId,
+    }, size, restaurant?.name);
+    
+    if (success) {
+      setIsSizeDialogOpen(false);
+      setSelectedPizza(null);
+      setSelectedSize(null);
+    } else {
+      toast.error(t('menu.addToCart.error'));
+    }
+  };
+
+  // Fonction pour obtenir le label de la taille
+  const getSizeLabel = (size: string) => {
+    const labels: Record<string, string> = {
+      small: t('menu.size.small'),
+      medium: t('menu.size.medium'),
+      large: t('menu.size.large'),
+    };
+    return labels[size.toLowerCase()] || size;
   };
 
   const getCategoryLabel = (cat: string) => {
     const labels: Record<string, string> = {
-      classic: "Classique",
-      special: "Spéciale",
-      speciale: "Spéciale",
-      vegetarian: "Végétarienne",
-      vegetarien: "Végétarienne",
-      all: "Tout",
+      classic: t('cat.classic'),
+      special: t('cat.special'),
+      speciale: t('cat.special'),
+      vegetarian: t('cat.vegetarian'),
+      vegetarien: t('cat.vegetarian'),
+      all: t('menu.category.all'),
+      pizza: t('menu.category.pizza'),
+      burger: t('menu.category.burger'),
+      salade: t('menu.category.salade'),
+      grill: t('menu.category.grill'),
+      drink: t('menu.category.drink'),
+      dessert: t('menu.category.dessert'),
     };
     return labels[cat] || cat.charAt(0).toUpperCase() + cat.slice(1);
   };
@@ -132,7 +205,7 @@ export default function Menu() {
       <div className="flex justify-center items-center min-h-[60vh]">
         <div className="text-center">
           <div className="text-4xl mb-4">🍕</div>
-          <p className="text-muted-foreground">Chargement...</p>
+          <p className="text-muted-foreground">{t('menu.loading')}</p>
         </div>
       </div>
     );
@@ -141,9 +214,9 @@ export default function Menu() {
   if (!restaurant) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Restaurant non trouvé</p>
+        <p className="text-muted-foreground">{t('menu.restaurantNotFound')}</p>
         <Button onClick={() => setLocation("/")} className="mt-4">
-          Retour à l'accueil
+          {t('menu.backHome')}
         </Button>
       </div>
     );
@@ -184,7 +257,7 @@ export default function Menu() {
               ? "bg-green-500 text-white" 
               : "bg-gray-500 text-white"
           }`}>
-            {isRestaurantOpen ? "Ouvert" : "Fermé"}
+            {isRestaurantOpen ? t('menu.status.open') : t('menu.status.closed')}
           </span>
         </div>
       </div>
@@ -204,20 +277,20 @@ export default function Menu() {
                 {restaurant.rating || "4.8"}
               </span>
               <span className="text-xs md:text-sm text-gray-500 ml-1">
-                ({Math.floor(Math.random() * 200) + 50} avis)
+                ({Math.floor(Math.random() * 200) + 50} {t('menu.reviews')})
               </span>
             </div>
             
             <div className="flex items-center gap-1 text-gray-700">
               <Clock className="w-4 h-4 md:w-5 md:h-5" />
               <span className="text-xs md:text-sm">
-                {restaurant.deliveryTime || 30}-{restaurant.deliveryTime ? restaurant.deliveryTime + 10 : 40} min
+                {restaurant.deliveryTime || 30}-{restaurant.deliveryTime ? restaurant.deliveryTime + 10 : 40} {t('common.min')}
               </span>
             </div>
             
             <div className="flex items-center gap-1 text-gray-700">
               <MapPin className="w-4 h-4 md:w-5 md:h-5" />
-              <span className="text-xs md:text-sm">2.5 DT livraison</span>
+              <span className="text-xs md:text-sm">2.5 {t('common.currency')} {t('menu.deliveryFee')}</span>
             </div>
           </div>
 
@@ -243,11 +316,11 @@ export default function Menu() {
           {/* Alert if closed */}
           {!isRestaurantOpen && (
             <div className="mt-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
-              <p className="font-semibold text-red-800">Restaurant fermé</p>
+              <p className="font-semibold text-red-800">{t('menu.restaurantClosed')}</p>
               <p className="text-sm text-red-600 mt-1">
                 {restaurant.openingHours 
-                  ? `Le restaurant sera ouvert de ${restaurant.openingHours}`
-                  : "Le restaurant est actuellement fermé."}
+                  ? `${t('menu.restaurantClosed.desc')} ${restaurant.openingHours}`
+                  : t('menu.restaurantClosed.now')}
               </p>
             </div>
           )}
@@ -256,7 +329,7 @@ export default function Menu() {
 
       {/* Menu Section */}
       <div className="px-4 mt-6 md:mt-8 max-w-4xl mx-auto">
-        <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 md:mb-6">Menu</h2>
+        <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 md:mb-6">{t('menu.title')}</h2>
 
         {/* Category Tabs */}
         <div className="flex gap-2 overflow-x-auto pb-2 mb-4 md:mb-6 scrollbar-hide">
@@ -268,7 +341,7 @@ export default function Menu() {
                 : "bg-gray-100 text-gray-700"
             }`}
           >
-            Tout
+            {t('menu.category.all')}
           </button>
           {categories.map((cat) => (
             <button
@@ -291,17 +364,17 @@ export default function Menu() {
             <div className="text-4xl mb-4">🍕</div>
             <p className="text-gray-600 font-medium mb-2">
               {category !== "all" 
-                ? `Aucun produit dans la catégorie "${getCategoryLabel(category)}"`
-                : "Aucun produit disponible pour ce restaurant"}
+                ? `${t('menu.noProducts.category')} "${getCategoryLabel(category)}"`
+                : t('menu.noProducts.restaurant')}
             </p>
             <p className="text-sm text-gray-500">
               {category !== "all" 
-                ? "Essayez une autre catégorie"
-                : "Créez des produits pour ce restaurant depuis l'espace admin"}
+                ? t('menu.noProducts.tryCategory')
+                : t('menu.noProducts.create')}
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-6 md:space-y-8">
             {filteredPizzas.map((pizza) => {
               // Vérifier que le produit a des prix
               if (!pizza.prices || pizza.prices.length === 0) {
@@ -314,68 +387,60 @@ export default function Menu() {
               return (
                 <div
                   key={pizza.id}
-                  className="bg-white rounded-2xl shadow-sm overflow-hidden"
+                  className="bg-white rounded-2xl shadow-md hover:shadow-lg transition-shadow overflow-hidden"
                 >
-                  <div className="flex flex-col sm:flex-row gap-3 md:gap-4 p-3 md:p-4">
-                    {/* Product Image */}
-                    <div className="w-full sm:w-20 md:w-24 h-20 sm:h-20 md:h-24 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100">
-                      {pizza.imageUrl && pizza.imageUrl.trim() !== "" ? (
-                        <img
-                          src={pizza.imageUrl}
-                          alt={pizza.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-2xl md:text-3xl">🍕</span>
-                        </div>
-                      )}
-                    </div>
+                  {/* Image en haut - plus grande et attirante */}
+                  <div className="w-full h-48 md:h-56 lg:h-64 relative overflow-hidden bg-gradient-to-br from-orange-100 to-red-100">
+                    {pizza.imageUrl && pizza.imageUrl.trim() !== "" ? (
+                      <img
+                        src={pizza.imageUrl}
+                        alt={pizza.name}
+                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-6xl md:text-7xl">🍕</span>
+                      </div>
+                    )}
+                    {/* Overlay subtil pour améliorer la lisibilité */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 hover:opacity-100 transition-opacity" />
+                  </div>
 
-                    {/* Product Info */}
-                    <div className="flex-1 flex flex-col justify-between min-w-0">
-                      <div className="flex-1">
-                        <h3 className="font-bold text-base md:text-lg text-gray-900 mb-1">
+                  {/* Contenu en dessous */}
+                  <div className="p-4 md:p-5">
+                    <div className="flex flex-col gap-3">
+                      {/* Nom et description */}
+                      <div>
+                        <h3 className="font-bold text-lg md:text-xl text-gray-900 mb-1">
                           {pizza.name}
                         </h3>
-                        <p className="text-xs md:text-sm text-gray-600 line-clamp-2 mb-2">
-                          {pizza.description || "Délicieux plat préparé avec soin"}
+                        <p className="text-sm md:text-base text-gray-600 line-clamp-2">
+                          {pizza.description || t('menu.product.defaultDescription')}
                         </p>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-3 sm:mb-0">
-                          <span className="text-orange-500 font-bold text-base md:text-lg">
-                            {price.toFixed(2)} DT
+                      </div>
+
+                      {/* Prix et bouton sur la même ligne */}
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <span className="text-orange-500 font-bold text-xl md:text-2xl">
+                            {price.toFixed(2)} {t('common.currency')}
                           </span>
                           {pizza.prices.length > 1 && (
-                            <span className="text-xs text-gray-500 hidden sm:inline">
-                              ({pizza.prices.map(p => `${p.size}: ${p.price} DT`).join(", ")})
-                            </span>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {t('menu.sizeSelection.available')}
+                            </p>
                           )}
                         </div>
-                        {/* Prix par taille sur mobile */}
-                        {pizza.prices.length > 1 && (
-                          <div className="sm:hidden mb-3">
-                            <div className="flex flex-wrap gap-2">
-                              {pizza.prices.map((p) => (
-                                <span key={p.size} className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-md">
-                                  {p.size}: {p.price} DT
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                        
+                        <Button
+                          onClick={(e) => handleAddToCart(pizza, e)}
+                          disabled={!isRestaurantOpen}
+                          className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-6 md:px-8 py-2.5 md:py-3 h-auto flex items-center justify-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                        >
+                          <Plus className="w-5 h-5 md:w-6 md:h-6" />
+                          <span className="font-medium text-sm md:text-base">{t('menu.add')}</span>
+                        </Button>
                       </div>
-                    </div>
-
-                    {/* Add Button */}
-                    <div className="flex items-center sm:items-start">
-                      <Button
-                        onClick={() => handleAddToCart(pizza)}
-                        disabled={!isRestaurantOpen}
-                        className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 text-white rounded-full px-4 md:px-6 py-2.5 md:py-3 h-auto flex items-center justify-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Plus className="w-4 h-4 md:w-5 md:h-5" />
-                        <span className="font-medium text-sm md:text-base">Ajouter</span>
-                      </Button>
                     </div>
                   </div>
                 </div>
@@ -384,6 +449,69 @@ export default function Menu() {
           </div>
         )}
       </div>
+
+      {/* Size Selection Dialog */}
+      <Dialog open={isSizeDialogOpen} onOpenChange={setIsSizeDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{selectedPizza?.name}</DialogTitle>
+            <DialogDescription>
+              {t('menu.sizeSelection.description')}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {selectedPizza?.prices?.map((priceOption) => (
+              <button
+                key={priceOption.size}
+                onClick={() => setSelectedSize(priceOption.size)}
+                className={`w-full p-4 rounded-lg border-2 transition-all ${
+                  selectedSize === priceOption.size
+                    ? 'border-orange-500 bg-orange-50'
+                    : 'border-gray-200 hover:border-orange-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="text-left">
+                    <p className="font-semibold text-lg">
+                      {getSizeLabel(priceOption.size)}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {selectedPizza.description || t('menu.product.defaultDescription')}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xl font-bold text-orange-500">
+                      {parseFloat(priceOption.price).toFixed(2)} {t('common.currency')}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+          
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsSizeDialogOpen(false);
+                setSelectedPizza(null);
+                setSelectedSize(null);
+              }}
+              className="flex-1"
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              onClick={handleConfirmAddToCart}
+              disabled={!selectedSize}
+              className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50"
+            >
+              {t('menu.add')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

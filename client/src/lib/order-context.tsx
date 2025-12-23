@@ -23,7 +23,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
   const startOrder = () => {
     setActiveOrder(true);
     setStepIndex(0);
-    setEta(45);
+    setEta(35); // ETA initial de 35 minutes
   };
 
   const cancelOrder = () => {
@@ -35,12 +35,13 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!activeOrder) return;
 
+    // Durées en millisecondes pour une livraison de ~35 minutes
     const intervals = [
-      5000, // received -> prep
-      8000, // prep -> bake
-      10000, // bake -> ready
-      8000, // ready -> delivery
-      15000 // delivery -> delivered
+      3 * 60 * 1000,  // received -> prep: 3 minutes (préparation)
+      8 * 60 * 1000,  // prep -> bake: 8 minutes (cuisson)
+      2 * 60 * 1000,  // bake -> ready: 2 minutes (vérification)
+      5 * 60 * 1000,  // ready -> delivery: 5 minutes (attente livreur)
+      17 * 60 * 1000  // delivery -> delivered: 17 minutes (livraison)
     ];
 
     let timeout: NodeJS.Timeout;
@@ -50,18 +51,18 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
             if (current < steps.length - 1) {
                 const next = current + 1;
                 
-                // Update ETA based on step
-                if (next === 1) setEta(40);
-                if (next === 2) setEta(30);
-                if (next === 3) setEta(15);
-                if (next === 4) setEta(10);
-                if (next === 5) setEta(0);
+                // Update ETA based on step (en minutes)
+                if (next === 1) setEta(32);  // Après préparation: 32 min restantes
+                if (next === 2) setEta(24);  // Après cuisson: 24 min restantes
+                if (next === 3) setEta(22);  // Après vérification: 22 min restantes
+                if (next === 4) setEta(17);  // Livreur en route: 17 min restantes
+                if (next === 5) setEta(0);   // Livré
 
                 if (next < intervals.length) {
                     timeout = setTimeout(advanceStep, intervals[next]);
                 } else if (next === steps.length - 1) {
-                    // Auto clear after delivery for demo purposes after a delay
-                    setTimeout(cancelOrder, 30000);
+                    // Auto clear after delivery after 2 minutes
+                    setTimeout(cancelOrder, 2 * 60 * 1000);
                 }
                 return next;
             }

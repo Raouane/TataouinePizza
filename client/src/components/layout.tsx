@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { ShoppingBag, Home, Pizza, Menu as MenuIcon, Globe, History } from "lucide-react";
+import { ShoppingBag, Home, Pizza, Menu as MenuIcon, Globe, User } from "lucide-react";
 import { useCart } from "@/lib/cart";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
@@ -14,7 +14,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { href: "/", icon: Home, label: t('nav.home') },
-    { href: "/history", icon: History, label: "Historique" },
+    { href: "/profile", icon: User, label: t('nav.profile') },
     { href: "/cart", icon: ShoppingBag, label: t('nav.cart'), badge: count },
   ];
 
@@ -38,6 +38,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <Link 
                   key={item.href} 
                   href={item.href}
+                  data-cart-icon={item.href === "/cart" ? "true" : undefined}
                   className={cn(
                     "text-sm font-medium transition-colors hover:text-primary flex items-center gap-2",
                     location === item.href
@@ -47,7 +48,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 >
                   {item.label}
                   {item.badge ? (
-                    <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center">
+                    <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center animate-in zoom-in">
                       {item.badge}
                     </span>
                   ) : null}
@@ -103,6 +104,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <div className="relative">
                   <item.icon
                     className={cn("h-5 w-5", isActive && "fill-current/20")}
+                    data-cart-icon={item.href === "/cart" ? "true" : undefined}
                   />
                   {item.badge && item.badge > 0 ? (
                     <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[8px] font-bold h-3 w-3 flex items-center justify-center rounded-full animate-in zoom-in">

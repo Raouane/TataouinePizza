@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Search, MapPin, Star, Clock, Truck, Zap, Coins } from "lucide-react";
+import { Search, MapPin, Star, Clock, Bike, Zap, Coins } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useCart } from "@/lib/cart";
 import { getOnboarding } from "@/pages/onboarding";
@@ -29,7 +29,7 @@ interface Pizza {
 }
 
 export default function Home() {
-  const { language } = useLanguage();
+  const { t } = useLanguage();
   const { count } = useCart();
   const [searchQuery, setSearchQuery] = useState("");
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -111,12 +111,12 @@ export default function Home() {
 
   const getCategoryLabel = (cat: string) => {
     const labels: Record<string, string> = {
-      pizza: "Pizza",
-      burger: "Burger",
-      salade: "Salade",
-      grill: "Grillades",
-      drink: "Boisson",
-      dessert: "Dessert",
+      pizza: t('menu.category.pizza'),
+      burger: t('menu.category.burger'),
+      salade: t('menu.category.salade'),
+      grill: t('menu.category.grill'),
+      drink: t('menu.category.drink'),
+      dessert: t('menu.category.dessert'),
     };
     return labels[cat] || cat;
   };
@@ -133,7 +133,7 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-700">
             <MapPin className="w-4 h-4" />
-            <span>Tataouine, Tunisie</span>
+            <span>{t('home.location')}</span>
           </div>
           <Link href="/cart" className="relative">
             <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
@@ -148,22 +148,22 @@ export default function Home() {
         <div className="relative z-10 px-4 pt-8 pb-12 md:pt-12 md:pb-16">
           <div className="max-w-4xl mx-auto">
             <h1 className="text-4xl md:text-5xl font-bold mb-2">
-              Vos plats préférés,{" "}
-              <span className="text-orange-400 text-5xl md:text-6xl">livrés</span>
+              {t('home.hero.title.part1')}{" "}
+              <span className="text-orange-400 text-5xl md:text-6xl">{t('home.hero.title.part2')}</span>
             </h1>
             <p className="text-white/90 text-base md:text-lg mb-8 max-w-2xl">
-              Commandez auprès des meilleurs restaurants de Tataouine et recevez votre repas en quelques minutes.
+              {t('home.hero.description')}
             </p>
             
             {/* Feature Buttons */}
             <div className="flex gap-3 flex-wrap">
               <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-2">
                 <Zap className="w-4 h-4 text-orange-300" />
-                <span className="text-sm font-medium">Livraison rapide</span>
+                <span className="text-sm font-medium">{t('home.features.fastDelivery')}</span>
               </div>
               <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-2">
                 <Coins className="w-4 h-4 text-orange-300" />
-                <span className="text-sm font-medium">Paiement espèces</span>
+                <span className="text-sm font-medium">{t('home.features.cashPayment')}</span>
               </div>
             </div>
           </div>
@@ -183,7 +183,7 @@ export default function Home() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Rechercher un restaurant ou un plat..."
+              placeholder={t('home.search.placeholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-12 pr-4 py-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-800"
@@ -197,10 +197,10 @@ export default function Home() {
         <section className="px-4 mt-8 max-w-4xl mx-auto">
           <h2 className="text-xl font-bold text-gray-900 mb-4">
             {loadingPizzas 
-              ? "Recherche en cours..."
+              ? t('home.search.loading')
               : filteredPizzas.length > 0 
-                ? `${filteredPizzas.length} plat${filteredPizzas.length > 1 ? 's' : ''} trouvé${filteredPizzas.length > 1 ? 's' : ''}`
-                : "Aucun plat trouvé"}
+                ? t('home.search.results', { count: filteredPizzas.length })
+                : t('home.search.noResults')}
           </h2>
           
           {loadingPizzas ? (
@@ -242,11 +242,11 @@ export default function Home() {
                               {pizza.name}
                             </h3>
                             <p className="text-sm text-gray-600 line-clamp-2 mb-2">
-                              {pizza.description || "Délicieux plat préparé avec soin"}
+                              {pizza.description || t('menu.product.defaultDescription')}
                             </p>
                             <div className="flex items-center gap-2 mb-2">
                               <span className="text-orange-500 font-bold text-lg">
-                                {price.toFixed(2)} DT
+                                {price.toFixed(2)} {t('common.currency')}
                               </span>
                               {pizza.category && (
                                 <span className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-md">
@@ -256,7 +256,7 @@ export default function Home() {
                             </div>
                             <div className="flex items-center gap-2 text-sm text-gray-500">
                               <MapPin className="w-4 h-4" />
-                              <span>{restaurant?.name || "Restaurant"}</span>
+                              <span>{restaurant?.name || t('home.restaurant.default')}</span>
                             </div>
                           </div>
                         </div>
@@ -269,8 +269,8 @@ export default function Home() {
           ) : (
             <div className="text-center py-12 bg-white rounded-2xl">
               <div className="text-4xl mb-3">🔍</div>
-              <p className="text-gray-600 font-medium">Aucun plat trouvé</p>
-              <p className="text-sm text-gray-500 mt-2">Essayez avec d'autres mots-clés</p>
+              <p className="text-gray-600 font-medium">{t('home.search.noResults')}</p>
+              <p className="text-sm text-gray-500 mt-2">{t('home.search.tryOther')}</p>
             </div>
           )}
         </section>
@@ -278,9 +278,9 @@ export default function Home() {
 
       {/* Restaurants Section - Affiché seulement si pas de recherche */}
       {!showSearchResults && (
-      <section className="px-4 mt-8 max-w-4xl mx-auto">
+      <section className="px-4 md:px-6 mt-8 md:mt-12 max-w-4xl mx-auto">
         {loading ? (
-          <div className="space-y-4">
+          <div className="space-y-6 md:space-y-8">
             {[1, 2, 3].map((i) => (
               <div key={i} className="bg-gray-200 rounded-2xl h-48 animate-pulse" />
             ))}
@@ -289,23 +289,35 @@ export default function Home() {
           <>
             {/* Open Restaurants */}
             {openRestaurants.length > 0 && (
-              <div className="mb-8">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">Restaurants ouverts</h2>
-                  <span className="text-sm text-gray-500">{openRestaurants.length} disponibles</span>
+              <div className="mb-10 md:mb-12">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold text-gray-900">{t('home.restaurants.open')}</h2>
+                  <span className="text-sm text-gray-500">{t('home.restaurants.available', { count: openRestaurants.length })}</span>
                 </div>
-                <div className="space-y-4">
+                <div className="flex flex-col gap-10 md:gap-12">
                   {openRestaurants.map((restaurant) => (
-                    <Link key={restaurant.id} href={`/menu/${restaurant.id}`}>
-                      <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                    <Link key={restaurant.id} href={`/menu/${restaurant.id}`} className="block">
+                      <div className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 hover:border-orange-200">
                         <div className="relative">
                           {/* Restaurant Image */}
                           <div className="w-full h-48 bg-gradient-to-br from-orange-200 to-red-200 relative overflow-hidden">
-                            {restaurant.imageUrl ? (
+                            {restaurant.imageUrl && restaurant.imageUrl.trim() !== "" ? (
                               <img
                                 src={restaurant.imageUrl}
                                 alt={restaurant.name}
                                 className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  // Si l'image ne charge pas, afficher le fallback
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent) {
+                                    const fallback = document.createElement('div');
+                                    fallback.className = 'w-full h-full flex items-center justify-center';
+                                    fallback.innerHTML = '<span class="text-6xl">🍕</span>';
+                                    parent.appendChild(fallback);
+                                  }
+                                }}
                               />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
@@ -315,20 +327,20 @@ export default function Home() {
                             {/* Status Badge */}
                             <div className="absolute top-3 left-3">
                               <span className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold">
-                                Ouvert
+                                {t('menu.status.open')}
                               </span>
                             </div>
                             {/* Delivery Time */}
                             <div className="absolute top-3 right-3">
                               <span className="bg-white/90 backdrop-blur-sm text-gray-700 px-3 py-1 rounded-full text-xs font-medium">
-                                {restaurant.deliveryTime || 30}-{restaurant.deliveryTime ? restaurant.deliveryTime + 10 : 40} min
+                                {restaurant.deliveryTime || 30}-{restaurant.deliveryTime ? restaurant.deliveryTime + 10 : 40} {t('common.min')}
                               </span>
                             </div>
                           </div>
                         </div>
                         
                         {/* Restaurant Info */}
-                        <div className="p-4">
+                        <div className="p-5 md:p-6">
                           <h3 className="font-bold text-lg text-gray-900 mb-1">{restaurant.name}</h3>
                           <div className="flex items-center gap-2 mb-2">
                             <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
@@ -336,7 +348,7 @@ export default function Home() {
                               {restaurant.rating || "4.5"}
                             </span>
                             <span className="text-xs text-gray-500">
-                              ({Math.floor(Math.random() * 200) + 50} avis)
+                              ({Math.floor(Math.random() * 200) + 50} {t('menu.reviews')})
                             </span>
                           </div>
                           <p className="text-sm text-gray-600 mb-3 line-clamp-2">
@@ -359,8 +371,8 @@ export default function Home() {
                           
                           {/* Delivery Price */}
                           <div className="flex items-center gap-2 text-sm text-gray-700">
-                            <Truck className="w-4 h-4" />
-                            <span className="font-medium">2.5 DT</span>
+                            <Bike className="w-4 h-4" />
+                            <span className="font-medium">2.5 {t('common.currency')}</span>
                           </div>
                         </div>
                       </div>
@@ -373,15 +385,15 @@ export default function Home() {
             {/* Closed Restaurants */}
             {closedRestaurants.length > 0 && (
               <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Fermés actuellement</h2>
-                <div className="space-y-4">
+                <h2 className="text-xl font-bold text-gray-900 mb-6">{t('home.restaurants.closed')}</h2>
+                <div className="flex flex-col gap-10 md:gap-12">
                   {closedRestaurants.map((restaurant) => (
-                    <Link key={restaurant.id} href={`/menu/${restaurant.id}`}>
-                      <div className="bg-white rounded-2xl overflow-hidden shadow-sm opacity-75">
+                    <Link key={restaurant.id} href={`/menu/${restaurant.id}`} className="block">
+                      <div className="bg-white rounded-2xl overflow-hidden shadow-md opacity-75 border border-gray-200">
                         <div className="relative">
                           {/* Restaurant Image */}
                           <div className="w-full h-48 bg-gradient-to-br from-gray-200 to-gray-300 relative overflow-hidden">
-                            {restaurant.imageUrl ? (
+                            {restaurant.imageUrl && restaurant.imageUrl.trim() !== "" ? (
                               <img
                                 src={restaurant.imageUrl}
                                 alt={restaurant.name}
@@ -395,20 +407,20 @@ export default function Home() {
                             {/* Status Badge */}
                             <div className="absolute top-3 left-3">
                               <span className="bg-gray-500 text-white px-3 py-1 rounded-full text-xs font-semibold">
-                                Fermé
+                                {t('menu.status.closed')}
                               </span>
                             </div>
                             {/* Delivery Time */}
                             <div className="absolute top-3 right-3">
                               <span className="bg-white/90 backdrop-blur-sm text-gray-700 px-3 py-1 rounded-full text-xs font-medium">
-                                {restaurant.deliveryTime || 30}-{restaurant.deliveryTime ? restaurant.deliveryTime + 10 : 40} min
+                                {restaurant.deliveryTime || 30}-{restaurant.deliveryTime ? restaurant.deliveryTime + 10 : 40} {t('common.min')}
                               </span>
                             </div>
                           </div>
                         </div>
                         
                         {/* Restaurant Info */}
-                        <div className="p-4">
+                        <div className="p-5 md:p-6">
                           <h3 className="font-bold text-lg text-gray-900 mb-1">{restaurant.name}</h3>
                           <div className="flex items-center gap-2 mb-2">
                             <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
@@ -416,7 +428,7 @@ export default function Home() {
                               {restaurant.rating || "4.5"}
                             </span>
                             <span className="text-xs text-gray-500">
-                              ({Math.floor(Math.random() * 200) + 50} avis)
+                              ({Math.floor(Math.random() * 200) + 50} {t('menu.reviews')})
                             </span>
                           </div>
                           <p className="text-sm text-gray-600 mb-3 line-clamp-2">
@@ -439,8 +451,8 @@ export default function Home() {
                           
                           {/* Delivery Price */}
                           <div className="flex items-center gap-2 text-sm text-gray-700">
-                            <Truck className="w-4 h-4" />
-                            <span className="font-medium">2.5 DT</span>
+                            <Bike className="w-4 h-4" />
+                            <span className="font-medium">2.5 {t('common.currency')}</span>
                           </div>
                         </div>
                       </div>
@@ -454,7 +466,7 @@ export default function Home() {
             {filteredRestaurants.length === 0 && !loading && (
               <div className="text-center py-12 bg-white rounded-2xl">
                 <div className="text-4xl mb-3">🔍</div>
-                <p className="text-gray-600 font-medium">Aucun résultat trouvé</p>
+                <p className="text-gray-600 font-medium">{t('home.search.noRestaurants')}</p>
               </div>
             )}
           </>
