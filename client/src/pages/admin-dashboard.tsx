@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { getAdminOrders, updateOrderStatus, getAdminDrivers, assignOrderToDriver, getAdminRestaurants, createRestaurant, updateRestaurant, deleteRestaurant, createDriver, updateDriver, deleteDriver, getAdminPizzas, createPizza, updatePizza, deletePizza } from "@/lib/api";
+import { getAdminOrders, updateOrderStatus, getAdminDrivers, assignOrderToDriver, getAdminRestaurants, createRestaurant, updateRestaurant, deleteRestaurant, createDriver, updateDriver, deleteDriver, getAdminPizzas, createPizza, updatePizza, deletePizza, seedTestRestaurants } from "@/lib/api";
 import type { Order, Driver, Restaurant, Pizza } from "@/lib/api";
 import { LogOut, RefreshCw, AlertCircle, Plus, Store, Bike, Pizza as PizzaIcon, ShoppingCart, Edit, Trash2, MapPin, Phone, User, Calendar, Package } from "lucide-react";
 import { toast } from "sonner";
@@ -733,15 +733,35 @@ export default function AdminDashboard() {
 
           {/* RESTAURANTS TAB */}
           <TabsContent value="restaurants" className="space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center flex-wrap gap-2">
               <h2 className="text-xl font-bold">Restaurants</h2>
-              <Dialog open={showRestaurantDialog} onOpenChange={setShowRestaurantDialog}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Nouveau Restaurant
-                  </Button>
-                </DialogTrigger>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    if (!token) return;
+                    try {
+                      const result = await seedTestRestaurants(token);
+                      toast.success(
+                        `✅ ${result.restaurantsCreated} restaurant(s) créé(s), ${result.restaurantsSkipped} ignoré(s), ${result.productsCreated} produit(s) ajouté(s)`
+                      );
+                      await fetchRestaurants();
+                      await fetchPizzas();
+                    } catch (err: any) {
+                      toast.error(err.message || "Erreur lors de la création des restaurants de test");
+                    }
+                  }}
+                >
+                  <Package className="w-4 h-4 mr-2" />
+                  Créer Restaurants de Test
+                </Button>
+                <Dialog open={showRestaurantDialog} onOpenChange={setShowRestaurantDialog}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Nouveau Restaurant
+                    </Button>
+                  </DialogTrigger>
                 <DialogContent className="max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Créer un restaurant</DialogTitle>

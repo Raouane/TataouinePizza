@@ -253,6 +253,27 @@ export async function updateRestaurant(
   return res.json();
 }
 
+export async function seedTestRestaurants(token: string): Promise<{ success: boolean; message: string; restaurantsCreated: number; restaurantsSkipped: number; productsCreated: number }> {
+  if (!token) {
+    throw new Error("Token manquant. Veuillez vous reconnecter.");
+  }
+  
+  const res = await fetch(`${API_BASE}/admin/restaurants/seed-test-data`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ error: "Failed to seed test restaurants" }));
+    throw new Error(errorData.error || "Failed to seed test restaurants");
+  }
+  
+  return res.json();
+}
+
 export async function deleteRestaurant(id: string, token: string): Promise<void> {
   const res = await fetch(`${API_BASE}/admin/restaurants/${id}`, {
     method: "DELETE",
