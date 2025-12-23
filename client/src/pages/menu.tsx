@@ -150,9 +150,9 @@ export default function Menu() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className="min-h-screen bg-gray-50 pb-20 md:pb-24">
       {/* Hero Image Section */}
-      <div className="relative h-64 md:h-80 overflow-hidden">
+      <div className="relative h-48 sm:h-64 md:h-80 overflow-hidden">
         {restaurant.imageUrl && restaurant.imageUrl.trim() !== "" ? (
           <img
             src={restaurant.imageUrl}
@@ -178,8 +178,8 @@ export default function Menu() {
         </div>
 
         {/* Status Badge */}
-        <div className="absolute top-4 right-4">
-          <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
+        <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
+          <span className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-semibold ${
             isRestaurantOpen 
               ? "bg-green-500 text-white" 
               : "bg-gray-500 text-white"
@@ -190,34 +190,34 @@ export default function Menu() {
       </div>
 
       {/* Restaurant Info Card */}
-      <div className="relative -mt-20 z-10 px-4">
-        <div className="bg-white rounded-3xl shadow-lg p-6 max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{restaurant.name}</h1>
-          <p className="text-gray-600 text-base mb-4">
+      <div className="relative -mt-16 sm:-mt-20 z-10 px-4">
+        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-lg p-4 md:p-6 max-w-4xl mx-auto">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">{restaurant.name}</h1>
+          <p className="text-gray-600 text-sm md:text-base mb-4">
             {restaurant.description || restaurant.address}
           </p>
           
-          <div className="flex flex-wrap items-center gap-4 mb-4">
+          <div className="flex flex-wrap items-center gap-3 md:gap-4 mb-4">
             <div className="flex items-center gap-1">
-              <Star className="w-5 h-5 fill-amber-400 text-amber-400" />
-              <span className="font-semibold text-gray-900">
+              <Star className="w-4 h-4 md:w-5 md:h-5 fill-amber-400 text-amber-400" />
+              <span className="font-semibold text-sm md:text-base text-gray-900">
                 {restaurant.rating || "4.8"}
               </span>
-              <span className="text-sm text-gray-500 ml-1">
+              <span className="text-xs md:text-sm text-gray-500 ml-1">
                 ({Math.floor(Math.random() * 200) + 50} avis)
               </span>
             </div>
             
             <div className="flex items-center gap-1 text-gray-700">
-              <Clock className="w-5 h-5" />
-              <span className="text-sm">
+              <Clock className="w-4 h-4 md:w-5 md:h-5" />
+              <span className="text-xs md:text-sm">
                 {restaurant.deliveryTime || 30}-{restaurant.deliveryTime ? restaurant.deliveryTime + 10 : 40} min
               </span>
             </div>
             
             <div className="flex items-center gap-1 text-gray-700">
-              <MapPin className="w-5 h-5" />
-              <span className="text-sm">2.5 DT livraison</span>
+              <MapPin className="w-4 h-4 md:w-5 md:h-5" />
+              <span className="text-xs md:text-sm">2.5 DT livraison</span>
             </div>
           </div>
 
@@ -255,14 +255,14 @@ export default function Menu() {
       </div>
 
       {/* Menu Section */}
-      <div className="px-4 mt-8 max-w-4xl mx-auto">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Menu</h2>
+      <div className="px-4 mt-6 md:mt-8 max-w-4xl mx-auto">
+        <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 md:mb-6">Menu</h2>
 
         {/* Category Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 no-scrollbar">
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-4 md:mb-6 scrollbar-hide">
           <button
             onClick={() => setCategory("all")}
-            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+            className={`px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
               category === "all"
                 ? "bg-orange-500 text-white"
                 : "bg-gray-100 text-gray-700"
@@ -274,7 +274,7 @@ export default function Menu() {
             <button
               key={cat}
               onClick={() => setCategory(cat)}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+              className={`px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
                 category === cat
                   ? "bg-orange-500 text-white"
                   : "bg-gray-100 text-gray-700"
@@ -316,9 +316,9 @@ export default function Menu() {
                   key={pizza.id}
                   className="bg-white rounded-2xl shadow-sm overflow-hidden"
                 >
-                  <div className="flex gap-4 p-4">
+                  <div className="flex flex-col sm:flex-row gap-3 md:gap-4 p-3 md:p-4">
                     {/* Product Image */}
-                    <div className="w-24 h-24 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100">
+                    <div className="w-full sm:w-20 md:w-24 h-20 sm:h-20 md:h-24 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100">
                       {pizza.imageUrl && pizza.imageUrl.trim() !== "" ? (
                         <img
                           src={pizza.imageUrl}
@@ -327,42 +327,54 @@ export default function Menu() {
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-3xl">🍕</span>
+                          <span className="text-2xl md:text-3xl">🍕</span>
                         </div>
                       )}
                     </div>
 
                     {/* Product Info */}
                     <div className="flex-1 flex flex-col justify-between min-w-0">
-                      <div>
-                        <h3 className="font-bold text-lg text-gray-900 mb-1">
+                      <div className="flex-1">
+                        <h3 className="font-bold text-base md:text-lg text-gray-900 mb-1">
                           {pizza.name}
                         </h3>
-                        <p className="text-sm text-gray-600 line-clamp-2 mb-2">
+                        <p className="text-xs md:text-sm text-gray-600 line-clamp-2 mb-2">
                           {pizza.description || "Délicieux plat préparé avec soin"}
                         </p>
-                        <div className="flex items-center gap-4">
-                          <span className="text-orange-500 font-bold text-lg">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-3 sm:mb-0">
+                          <span className="text-orange-500 font-bold text-base md:text-lg">
                             {price.toFixed(2)} DT
                           </span>
                           {pizza.prices.length > 1 && (
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-gray-500 hidden sm:inline">
                               ({pizza.prices.map(p => `${p.size}: ${p.price} DT`).join(", ")})
                             </span>
                           )}
                         </div>
+                        {/* Prix par taille sur mobile */}
+                        {pizza.prices.length > 1 && (
+                          <div className="sm:hidden mb-3">
+                            <div className="flex flex-wrap gap-2">
+                              {pizza.prices.map((p) => (
+                                <span key={p.size} className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-md">
+                                  {p.size}: {p.price} DT
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Add Button */}
-                    <div className="flex items-center">
+                    <div className="flex items-center sm:items-start">
                       <Button
                         onClick={() => handleAddToCart(pizza)}
                         disabled={!isRestaurantOpen}
-                        className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-6 py-3 h-auto flex items-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 text-white rounded-full px-4 md:px-6 py-2.5 md:py-3 h-auto flex items-center justify-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <Plus className="w-5 h-5" />
-                        <span className="font-medium">Ajouter</span>
+                        <Plus className="w-4 h-4 md:w-5 md:h-5" />
+                        <span className="font-medium text-sm md:text-base">Ajouter</span>
                       </Button>
                     </div>
                   </div>
