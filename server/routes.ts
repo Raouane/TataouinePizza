@@ -309,11 +309,28 @@ export async function registerRoutes(
       const deliveryFee = 2.0;
       totalPrice += deliveryFee;
       
-      // Create order with status "accepted" if restaurant is open
+      // Feature flag: Force order to READY status for testing
+      const FORCE_RESTAURANT_READY = process.env.FORCE_RESTAURANT_READY === 'true';
+      const isProduction = process.env.NODE_ENV === 'production';
+      
+      if (FORCE_RESTAURANT_READY && isProduction) {
+        console.error("[ORDER] ⚠️ ATTENTION: FORCE_RESTAURANT_READY activé en PRODUCTION !");
+        // Optionnel: désactiver automatiquement en prod pour sécurité
+        // FORCE_RESTAURANT_READY = false;
+      }
+      
+      const initialStatus = FORCE_RESTAURANT_READY ? "ready" : "accepted";
+      
+      if (FORCE_RESTAURANT_READY) {
+        console.log("[ORDER] ⚠️ FORCE_RESTAURANT_READY activé - Commande forcée à READY");
+      }
+      
+      // Create order with status "accepted" if restaurant is open (or "ready" if flag is active)
       console.log("[ORDER] Création commande avec coordonnées GPS:", {
         customerLat: data.customerLat,
         customerLng: data.customerLng,
         address: data.address,
+        status: initialStatus,
       });
       
       const order = await storage.createOrder({
@@ -325,7 +342,7 @@ export async function registerRoutes(
         customerLat: data.customerLat?.toString(),
         customerLng: data.customerLng?.toString(),
         totalPrice: totalPrice.toString(),
-        status: "accepted", // Auto-accept if restaurant is open
+        status: initialStatus, // "ready" si flag activé, sinon "accepted"
       });
       
       console.log("[ORDER] Commande créée:", {
