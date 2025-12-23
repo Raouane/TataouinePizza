@@ -168,22 +168,22 @@ export default function CartPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto px-4 pb-20 md:pb-8">
       {/* Progress Header */}
-      <div className="flex items-center justify-between mb-8 px-2">
+      <div className="flex items-center justify-between mb-4 md:mb-8 px-2">
         {step !== "cart" && (
-            <Button variant="ghost" size="icon" onClick={handleBack} className={isRtl ? "-mr-2" : "-ml-2"}>
+            <Button variant="ghost" size="icon" onClick={handleBack} className={`${isRtl ? "-mr-2" : "-ml-2"} flex-shrink-0`}>
                 <ChevronLeft className={`h-5 w-5 ${isRtl ? 'rotate-180' : ''}`} />
             </Button>
         )}
-        <h1 className={`text-2xl font-serif font-bold flex-1 text-center md:text-left ${isRtl ? 'md:pr-4' : 'md:pl-4'}`}>
+        <h1 className={`text-lg md:text-2xl font-serif font-bold flex-1 text-center md:text-left ${isRtl ? 'md:pr-4' : 'md:pl-4'}`}>
           {step === "cart" && t('cart.step.1')}
           {step === "phone" && t('cart.step.2')}
           {!hasPhoneFromOnboarding && step === "verify" && t('cart.step.3')}
           {step === "address" && (hasPhoneFromOnboarding ? t('cart.step.3') : t('cart.step.4'))}
           {step === "summary" && (language === 'ar' ? "ملخص الطلب" : language === 'en' ? "Order Summary" : "Récapitulatif")}
         </h1>
-        <div className="text-sm font-medium text-muted-foreground">
+        <div className="text-xs md:text-sm font-medium text-muted-foreground flex-shrink-0">
           {step === "cart" && (hasPhoneFromOnboarding ? "1/3" : "1/5")}
           {step === "phone" && (hasPhoneFromOnboarding ? "2/3" : "2/5")}
           {!hasPhoneFromOnboarding && step === "verify" && "3/5"}
@@ -192,7 +192,7 @@ export default function CartPage() {
         </div>
       </div>
 
-      <div className="bg-card border rounded-2xl shadow-sm overflow-hidden relative min-h-[400px] mb-32">
+      <div className="bg-card border rounded-2xl shadow-sm overflow-hidden relative min-h-[400px] flex flex-col">
         <AnimatePresence mode="wait">
             
             {/* STEP 1: CART ITEMS */}
@@ -204,38 +204,38 @@ export default function CartPage() {
                     exit={{ opacity: 0, x: isRtl ? 20 : -20 }}
                     className="flex flex-col h-full"
                 >
-                    <div className="p-6 space-y-6">
+                    <div className="p-4 md:p-6 space-y-4 md:space-y-6 overflow-y-auto flex-1">
                         {items.map((item) => (
-                        <div key={item.id} className="flex gap-4 animate-in slide-in-from-bottom-2">
-                            <div className="h-20 w-20 rounded-lg overflow-hidden shrink-0">
+                        <div key={item.id} className="flex gap-3 md:gap-4 animate-in slide-in-from-bottom-2">
+                            <div className="h-16 w-16 md:h-20 md:w-20 rounded-lg overflow-hidden shrink-0">
                                 {item.image && item.image.trim() !== "" ? (
                                     <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                                 ) : (
                                     <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                                        <span className="text-2xl">🍕</span>
+                                        <span className="text-xl md:text-2xl">🍕</span>
                                     </div>
                                 )}
                             </div>
-                            <div className="flex-1 flex flex-col justify-between">
-                                <div className="flex justify-between items-start">
-                                    <h3 className="font-bold font-serif">{item.name}</h3>
-                                    <p className="font-medium text-primary">{item.price.toFixed(2)} TND</p>
+                            <div className="flex-1 flex flex-col justify-between min-w-0">
+                                <div className="flex justify-between items-start gap-2">
+                                    <h3 className="font-bold font-serif text-sm md:text-base truncate">{item.name}</h3>
+                                    <p className="font-medium text-primary text-sm md:text-base flex-shrink-0">{item.price.toFixed(2)} TND</p>
                                 </div>
-                                <div className="flex items-center justify-between mt-2">
-                                    <div className="flex items-center gap-3 bg-muted/50 rounded-full p-1">
+                                <div className="flex items-center justify-between mt-2 gap-2">
+                                    <div className="flex items-center gap-2 md:gap-3 bg-muted/50 rounded-full p-1">
                                         <Button 
                                             variant="ghost" 
                                             size="icon" 
-                                            className="h-6 w-6 rounded-full hover:bg-white shadow-sm"
+                                            className="h-6 w-6 md:h-7 md:w-7 rounded-full hover:bg-white shadow-sm"
                                             onClick={() => updateQuantity(item.id, -1)}
                                         >
                                             <Minus className="h-3 w-3" />
                                         </Button>
-                                        <span className="text-sm font-medium w-4 text-center">{item.quantity}</span>
+                                        <span className="text-xs md:text-sm font-medium w-4 text-center">{item.quantity}</span>
                                         <Button 
                                             variant="ghost" 
                                             size="icon" 
-                                            className="h-6 w-6 rounded-full hover:bg-white shadow-sm"
+                                            className="h-6 w-6 md:h-7 md:w-7 rounded-full hover:bg-white shadow-sm"
                                             onClick={() => updateQuantity(item.id, 1)}
                                         >
                                             <Plus className="h-3 w-3" />
@@ -244,7 +244,7 @@ export default function CartPage() {
                                     <Button 
                                         variant="ghost" 
                                         size="icon" 
-                                        className="text-muted-foreground hover:text-destructive"
+                                        className="text-muted-foreground hover:text-destructive flex-shrink-0 h-8 w-8"
                                         onClick={() => removeItem(item.id)}
                                     >
                                         <Trash2 className="h-4 w-4" />
@@ -264,23 +264,23 @@ export default function CartPage() {
                     initial={{ opacity: 0, x: isRtl ? -20 : 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: isRtl ? 20 : -20 }}
-                    className="p-6 md:p-10 flex flex-col items-center justify-center text-center h-full min-h-[300px]"
+                    className="p-4 md:p-6 lg:p-10 flex flex-col items-center justify-center text-center h-full min-h-[300px] overflow-y-auto flex-1"
                 >
-                    <div className="bg-primary/10 p-4 rounded-full mb-6 text-primary">
-                        <Phone className="h-8 w-8" />
+                    <div className="bg-primary/10 p-3 md:p-4 rounded-full mb-4 md:mb-6 text-primary">
+                        <Phone className="h-6 w-6 md:h-8 md:w-8" />
                     </div>
-                    <h3 className="text-xl font-bold mb-2">{t('cart.phone.title')}</h3>
-                    <p className="text-muted-foreground mb-6">{t('cart.phone.desc')}</p>
+                    <h3 className="text-lg md:text-xl font-bold mb-2">{t('cart.phone.title')}</h3>
+                    <p className="text-sm md:text-base text-muted-foreground mb-4 md:mb-6 px-4">{t('cart.phone.desc')}</p>
                     
-                    <div className="w-full max-w-xs space-y-4">
+                    <div className="w-full max-w-xs space-y-3 md:space-y-4 px-4">
                         <div className="flex gap-2">
-                            <div className="flex items-center justify-center bg-muted px-3 rounded-md border text-sm font-medium text-muted-foreground">
+                            <div className="flex items-center justify-center bg-muted px-2 md:px-3 rounded-md border text-xs md:text-sm font-medium text-muted-foreground">
                                 +216
                             </div>
                             <Input 
                                 type="tel" 
                                 placeholder="XX XXX XXX" 
-                                className="text-lg tracking-wider"
+                                className="text-base md:text-lg tracking-wider"
                                 value={phone}
                                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 8))}
                                 autoFocus
@@ -291,7 +291,7 @@ export default function CartPage() {
                           <User className={`absolute top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4 ${isRtl ? 'right-3' : 'left-3'}`} />
                           <Input 
                               placeholder={t('cart.name.placeholder')}
-                              className={isRtl ? 'pr-9' : 'pl-9'}
+                              className={`text-sm md:text-base ${isRtl ? 'pr-9' : 'pl-9'}`}
                               value={name}
                               onChange={(e) => setName(e.target.value)}
                           />
@@ -307,25 +307,25 @@ export default function CartPage() {
                     initial={{ opacity: 0, x: isRtl ? -20 : 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: isRtl ? 20 : -20 }}
-                    className="p-6 md:p-10 flex flex-col items-center justify-center text-center h-full min-h-[300px]"
+                    className="p-4 md:p-6 lg:p-10 flex flex-col items-center justify-center text-center h-full min-h-[300px] overflow-y-auto flex-1"
                 >
-                     <div className="bg-primary/10 p-4 rounded-full mb-6 text-primary">
-                        <CheckCircle2 className="h-8 w-8" />
+                     <div className="bg-primary/10 p-3 md:p-4 rounded-full mb-4 md:mb-6 text-primary">
+                        <CheckCircle2 className="h-6 w-6 md:h-8 md:w-8" />
                     </div>
-                    <h3 className="text-xl font-bold mb-2">{t('cart.verify.title')}</h3>
-                    <p className="text-muted-foreground mb-6">{t('cart.verify.desc')} +216 {phone}. (Code: 1234)</p>
+                    <h3 className="text-lg md:text-xl font-bold mb-2">{t('cart.verify.title')}</h3>
+                    <p className="text-xs md:text-sm text-muted-foreground mb-4 md:mb-6 px-4">{t('cart.verify.desc')} +216 {phone}. (Code: 1234)</p>
                     
                     <Input 
                         type="text" 
                         placeholder="XXXX" 
-                        className="text-2xl tracking-[1em] text-center font-mono w-40 uppercase"
+                        className="text-xl md:text-2xl tracking-[0.8em] md:tracking-[1em] text-center font-mono w-32 md:w-40 uppercase"
                         value={code}
                         maxLength={4}
                         onChange={(e) => setCode(e.target.value)}
                         autoFocus
                     />
                     
-                    <button className="mt-6 text-sm text-primary hover:underline">
+                    <button className="mt-4 md:mt-6 text-xs md:text-sm text-primary hover:underline">
                         {t('cart.resend')}
                     </button>
                 </motion.div>
@@ -338,31 +338,35 @@ export default function CartPage() {
                     initial={{ opacity: 0, x: isRtl ? -20 : 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: isRtl ? 20 : -20 }}
-                    className="p-6 md:p-10 h-full"
+                    className="p-4 md:p-6 lg:p-10 h-full overflow-y-auto flex-1"
                 >
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="bg-primary/10 p-3 rounded-full text-primary">
-                            <MapPin className="h-6 w-6" />
+                    <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
+                        <div className="bg-primary/10 p-2 md:p-3 rounded-full text-primary">
+                            <MapPin className="h-5 w-5 md:h-6 md:w-6" />
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold">{t('cart.address.title')}</h3>
-                            <p className="text-sm text-muted-foreground">{t('cart.address.subtitle')}</p>
+                            <h3 className="text-base md:text-lg font-bold">{t('cart.address.title')}</h3>
+                            <p className="text-xs md:text-sm text-muted-foreground">{t('cart.address.subtitle')}</p>
                         </div>
                     </div>
                     
-                    <div className="space-y-4">
+                    <div className="space-y-3 md:space-y-4">
                         <div className="space-y-2">
-                            <Label>{t('cart.address.street')}</Label>
+                            <Label className="text-sm md:text-base">{t('cart.address.street')}</Label>
                             <Input 
                                 placeholder={t('cart.address.street.ph')}
                                 value={address}
                                 onChange={(e) => setAddress(e.target.value)}
                                 autoFocus
+                                className="text-sm md:text-base"
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>{t('cart.address.details')}</Label>
-                            <Input placeholder={t('cart.address.details.ph')} />
+                            <Label className="text-sm md:text-base">{t('cart.address.details')}</Label>
+                            <Input 
+                                placeholder={t('cart.address.details.ph')} 
+                                className="text-sm md:text-base"
+                            />
                         </div>
                     </div>
                 </motion.div>
@@ -375,59 +379,59 @@ export default function CartPage() {
                     initial={{ opacity: 0, x: isRtl ? -20 : 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: isRtl ? 20 : -20 }}
-                    className="p-6 md:p-10 h-full space-y-6"
+                    className="p-4 md:p-6 lg:p-10 h-full space-y-4 md:space-y-6 overflow-y-auto flex-1"
                 >
-                    <div className="text-center mb-6">
-                        <h3 className="text-xl font-bold mb-2">
+                    <div className="text-center mb-4 md:mb-6">
+                        <h3 className="text-lg md:text-xl font-bold mb-2">
                             {language === 'ar' ? "ملخص الطلب" : language === 'en' ? "Order Summary" : "Récapitulatif de commande"}
                         </h3>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-xs md:text-sm text-muted-foreground">
                             {language === 'ar' ? "تحقق من معلوماتك قبل التأكيد" : language === 'en' ? "Review your information before confirming" : "Vérifiez vos informations avant de confirmer"}
                         </p>
                     </div>
 
                     {/* Informations client */}
-                    <div className="bg-muted/50 rounded-xl p-4 space-y-3">
-                        <h4 className="font-semibold text-sm text-muted-foreground uppercase">
+                    <div className="bg-muted/50 rounded-xl p-3 md:p-4 space-y-2 md:space-y-3">
+                        <h4 className="font-semibold text-xs md:text-sm text-muted-foreground uppercase">
                             {language === 'ar' ? "معلومات العميل" : language === 'en' ? "Customer Information" : "Informations client"}
                         </h4>
                         <div className="space-y-2">
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">
+                            <div className="flex justify-between items-start gap-2">
+                                <span className="text-xs md:text-sm text-muted-foreground flex-shrink-0">
                                     {language === 'ar' ? "الاسم" : language === 'en' ? "Name" : "Nom"}
                                 </span>
-                                <span className="font-medium">{name}</span>
+                                <span className="font-medium text-xs md:text-sm text-right break-words">{name}</span>
                             </div>
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">
+                            <div className="flex justify-between items-center gap-2">
+                                <span className="text-xs md:text-sm text-muted-foreground flex-shrink-0">
                                     {language === 'ar' ? "الهاتف" : language === 'en' ? "Phone" : "Téléphone"}
                                 </span>
-                                <span className="font-medium">+216 {phone}</span>
+                                <span className="font-medium text-xs md:text-sm">+216 {phone}</span>
                             </div>
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">
+                            <div className="flex justify-between items-start gap-2">
+                                <span className="text-xs md:text-sm text-muted-foreground flex-shrink-0">
                                     {language === 'ar' ? "العنوان" : language === 'en' ? "Address" : "Adresse"}
                                 </span>
-                                <span className="font-medium text-right max-w-[60%]">{address}</span>
+                                <span className="font-medium text-xs md:text-sm text-right break-words max-w-[60%]">{address}</span>
                             </div>
                         </div>
                     </div>
 
                     {/* Détails de la commande */}
-                    <div className="bg-muted/50 rounded-xl p-4 space-y-3">
-                        <h4 className="font-semibold text-sm text-muted-foreground uppercase">
+                    <div className="bg-muted/50 rounded-xl p-3 md:p-4 space-y-2 md:space-y-3">
+                        <h4 className="font-semibold text-xs md:text-sm text-muted-foreground uppercase">
                             {language === 'ar' ? "تفاصيل الطلب" : language === 'en' ? "Order Details" : "Détails de la commande"}
                         </h4>
-                        <div className="space-y-3">
+                        <div className="space-y-2 md:space-y-3">
                             {items.map((item) => (
-                                <div key={`${item.id}-${item.size}`} className="flex justify-between items-center">
-                                    <div className="flex-1">
-                                        <p className="font-medium">{item.name}</p>
-                                        <p className="text-sm text-muted-foreground">
+                                <div key={`${item.id}-${item.size}`} className="flex justify-between items-start gap-2">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-sm md:text-base truncate">{item.name}</p>
+                                        <p className="text-xs md:text-sm text-muted-foreground">
                                             {item.size} × {item.quantity}
                                         </p>
                                     </div>
-                                    <p className="font-semibold">
+                                    <p className="font-semibold text-sm md:text-base flex-shrink-0">
                                         {(item.price * item.quantity).toFixed(2)} TND
                                     </p>
                                 </div>
@@ -436,24 +440,24 @@ export default function CartPage() {
                     </div>
 
                     {/* Total */}
-                    <div className="border-t pt-4 space-y-2">
-                        <div className="flex justify-between items-center text-sm">
+                    <div className="border-t pt-3 md:pt-4 space-y-2">
+                        <div className="flex justify-between items-center text-xs md:text-sm">
                             <span className="text-muted-foreground">
                                 {language === 'ar' ? "المجموع الفرعي" : language === 'en' ? "Subtotal" : "Sous-total"}
                             </span>
                             <span className="font-medium">{total.toFixed(2)} TND</span>
                         </div>
-                        <div className="flex justify-between items-center text-sm">
+                        <div className="flex justify-between items-center text-xs md:text-sm">
                             <span className="text-muted-foreground">
                                 {language === 'ar' ? "رسوم التوصيل" : language === 'en' ? "Delivery fee" : "Frais de livraison"}
                             </span>
                             <span className="font-medium">{DELIVERY_FEE.toFixed(2)} TND</span>
                         </div>
                         <div className="flex justify-between items-center pt-2 border-t">
-                            <span className="text-lg font-semibold">
+                            <span className="text-base md:text-lg font-semibold">
                                 {language === 'ar' ? "المجموع الكلي" : language === 'en' ? "Total" : "Total"}
                             </span>
-                            <span className="text-2xl font-bold text-primary">{totalWithDelivery.toFixed(2)} TND</span>
+                            <span className="text-xl md:text-2xl font-bold text-primary">{totalWithDelivery.toFixed(2)} TND</span>
                         </div>
                     </div>
                 </motion.div>
@@ -461,47 +465,49 @@ export default function CartPage() {
         
         </AnimatePresence>
 
-        {/* Footer Actions */}
-        <div className="bg-muted/30 p-6 border-t mt-auto">
-            {step !== "summary" && (
-                <>
-                    <div className="flex justify-between items-center mb-4">
-                        <span className="text-muted-foreground">{t('cart.total')}</span>
-                        <span className="text-2xl font-bold font-serif">{total.toFixed(2)} TND</span>
-                    </div>
-                    <Button 
-                        className="w-full h-12 text-lg rounded-xl shadow-lg shadow-primary/20" 
-                        onClick={handleNext}
-                    >
-                        {step === "address" ? t('cart.confirm') : t('cart.continue')}
-                        <ArrowRight className={`w-5 h-5 ${isRtl ? 'mr-2 rotate-180' : 'ml-2'}`} />
-                    </Button>
-                </>
-            )}
-            {step === "summary" && (
-                <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">{t('cart.total')}</span>
-                        <span className="text-2xl font-bold font-serif">{totalWithDelivery.toFixed(2)} TND</span>
-                    </div>
-                    <div className="flex gap-3">
+        {/* Footer Actions - Sticky/Fixed */}
+        <div className="sticky md:sticky bottom-0 left-0 right-0 bg-muted/95 backdrop-blur-md border-t mt-auto z-20 shadow-lg">
+            <div className="p-4 md:p-6">
+                {step !== "summary" && (
+                    <>
+                        <div className="flex justify-between items-center mb-3 md:mb-4">
+                            <span className="text-sm md:text-base text-muted-foreground">{t('cart.total')}</span>
+                            <span className="text-xl md:text-2xl font-bold font-serif">{total.toFixed(2)} TND</span>
+                        </div>
                         <Button 
-                            variant="outline"
-                            className="flex-1 h-12 text-lg rounded-xl" 
-                            onClick={handleBack}
+                            className="w-full h-11 md:h-12 text-base md:text-lg rounded-xl shadow-lg shadow-primary/20" 
+                            onClick={handleNext}
                         >
-                            {language === 'ar' ? "تعديل" : language === 'en' ? "Modify" : "Modifier"}
+                            {step === "address" ? t('cart.confirm') : t('cart.continue')}
+                            <ArrowRight className={`w-4 h-4 md:w-5 md:h-5 ${isRtl ? 'mr-2 rotate-180' : 'ml-2'}`} />
                         </Button>
-                        <Button 
-                            className="flex-1 h-12 text-lg rounded-xl shadow-lg shadow-primary/20" 
-                            onClick={handleConfirmOrder}
-                        >
-                            {language === 'ar' ? "تأكيد الطلب" : language === 'en' ? "Confirm Order" : "Confirmer la commande"}
-                            <ArrowRight className={`w-5 h-5 ${isRtl ? 'mr-2 rotate-180' : 'ml-2'}`} />
-                        </Button>
+                    </>
+                )}
+                {step === "summary" && (
+                    <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm md:text-base text-muted-foreground">{t('cart.total')}</span>
+                            <span className="text-xl md:text-2xl font-bold font-serif">{totalWithDelivery.toFixed(2)} TND</span>
+                        </div>
+                        <div className="flex flex-col gap-2 md:gap-3">
+                            <Button 
+                                variant="outline"
+                                className="w-full h-11 md:h-12 text-sm md:text-base rounded-xl" 
+                                onClick={handleBack}
+                            >
+                                {language === 'ar' ? "تعديل" : language === 'en' ? "Modify" : "Modifier"}
+                            </Button>
+                            <Button 
+                                className="w-full h-11 md:h-12 text-sm md:text-base rounded-xl shadow-lg shadow-primary/20" 
+                                onClick={handleConfirmOrder}
+                            >
+                                {language === 'ar' ? "تأكيد الطلب" : language === 'en' ? "Confirm Order" : "Confirmer la commande"}
+                                <ArrowRight className={`w-4 h-4 md:w-5 md:h-5 ${isRtl ? 'mr-2 rotate-180' : 'ml-2'}`} />
+                            </Button>
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </div>
       </div>
     </div>
