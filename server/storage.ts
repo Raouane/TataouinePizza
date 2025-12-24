@@ -99,6 +99,7 @@ export class DatabaseStorage implements IStorage {
   // ============ RESTAURANTS ============
   async getAllRestaurants(): Promise<Restaurant[]> {
     try {
+      console.log("[DB] getAllRestaurants - Début");
       // Use raw SQL with text cast to bypass Neon HTTP boolean parsing bug
       const rawResult = await db.execute(sql`
         SELECT id, name, phone, address, description, image_url, categories, 
@@ -107,11 +108,13 @@ export class DatabaseStorage implements IStorage {
         FROM restaurants ORDER BY name
       `);
       
+      console.log("[DB] getAllRestaurants - Nombre de restaurants:", rawResult.rows?.length || 0);
+      
       if (!rawResult.rows || rawResult.rows.length === 0) {
         return [];
       }
       
-      return rawResult.rows.map((row: any) => {
+      const restaurants = rawResult.rows.map((row: any) => {
         // Parse categories safely
         let categories: string[] = [];
         try {
@@ -144,7 +147,7 @@ export class DatabaseStorage implements IStorage {
           isOpen = true; // Par défaut, considérer ouvert
         }
 
-        return {
+        const restaurant = {
           id: row.id,
           name: row.name,
           phone: row.phone,
@@ -160,7 +163,13 @@ export class DatabaseStorage implements IStorage {
           createdAt: row.created_at,
           updatedAt: row.updated_at,
         } as Restaurant;
+        
+        console.log(`[DB] Restaurant ${restaurant.name} - isOpen: ${restaurant.isOpen} (raw: ${row.is_open_text})`);
+        return restaurant;
       });
+      
+      console.log("[DB] getAllRestaurants - Restaurants retournés:", restaurants.map(r => ({ name: r.name, isOpen: r.isOpen })));
+      return restaurants;
     } catch (e) {
       console.error("[DB] getAllRestaurants error:", e);
       return [];
@@ -169,6 +178,7 @@ export class DatabaseStorage implements IStorage {
 
   async getRestaurantById(id: string): Promise<Restaurant | undefined> {
     try {
+      console.log("[DB] getRestaurantById - ID:", id);
       const rawResult = await db.execute(sql`
         SELECT id, name, phone, address, description, image_url, categories, 
                is_open::text as is_open_text, opening_hours, delivery_time, 
@@ -177,10 +187,31 @@ export class DatabaseStorage implements IStorage {
       `);
       
       if (!rawResult.rows || rawResult.rows.length === 0) {
+        console.log("[DB] getRestaurantById - Aucun restaurant trouvé");
         return undefined;
       }
       
       const row = rawResult.rows[0] as any;
+      console.log("[DB] getRestaurantById - is_open_text brut:", row.is_open_text, "type:", typeof row.is_open_text);
+      
+      // Parser isOpen de manière plus robuste (comme dans getAllRestaurants)
+      let isOpen = false;
+      try {
+        if (row.is_open_text === 'true' || row.is_open_text === 't' || row.is_open_text === true) {
+          isOpen = true;
+        } else if (row.is_open_text === 'false' || row.is_open_text === 'f' || row.is_open_text === false) {
+          isOpen = false;
+        } else {
+          console.warn(`[DB] Valeur is_open_text inattendue pour ${row.name}: "${row.is_open_text}", défaut à true`);
+          isOpen = true;
+        }
+      } catch (e) {
+        console.error(`[DB] Erreur parsing is_open pour ${row.name}:`, e);
+        isOpen = true; // Par défaut, considérer ouvert
+      }
+      
+      console.log("[DB] getRestaurantById - isOpen parsé:", isOpen);
+      
       return {
         id: row.id,
         name: row.name,
@@ -189,7 +220,7 @@ export class DatabaseStorage implements IStorage {
         description: row.description,
         imageUrl: row.image_url,
         categories: row.categories ? (typeof row.categories === 'string' ? JSON.parse(row.categories) : row.categories) : [],
-        isOpen: row.is_open_text === 'true',
+        isOpen,
         openingHours: row.opening_hours,
         deliveryTime: row.delivery_time,
         minOrder: row.min_order,
@@ -255,12 +286,79 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateRestaurant(id: string, data: Partial<Restaurant>): Promise<Restaurant> {
-    await db.update(restaurants).set({ ...data, updatedAt: new Date() }).where(eq(restaurants.id, id));
-    // Use getRestaurantById which has proper boolean parsing
+    console.log("[DB] updateRestaurant - ID:", id);
+    console.log("[DB] updateRestaurant - Données à mettre à jour:", data);
+    console.log("[DB] updateRestaurant - isOpen dans data:", data.isOpen, "type:", typeof data.isOpen);
+    
+    // Préparer les données pour la mise à jour
+    const updateData: any = {
+      updatedAt: new Date()
+    };
+    
+    // Traiter isOpen séparément avec SQL brut car Drizzle a des problèmes avec les booléens
+    let isOpenValue: boolean | undefined = undefined;
+    if (data.isOpen !== undefined) {
+      isOpenValue = Boolean(data.isOpen);
+      console.log("[DB] updateRestaurant - isOpen à mettre à jour:", isOpenValue, "type:", typeof isOpenValue);
+      // Ne pas inclure isOpen dans updateData pour éviter les conflits
+    }
+    
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.phone !== undefined) updateData.phone = data.phone;
+    if (data.address !== undefined) updateData.address = data.address;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
+    if (data.categories !== undefined) {
+      updateData.categories = Array.isArray(data.categories) ? JSON.stringify(data.categories) : data.categories;
+    }
+    if (data.openingHours !== undefined) updateData.openingHours = data.openingHours;
+    if (data.deliveryTime !== undefined) updateData.deliveryTime = data.deliveryTime;
+    if (data.minOrder !== undefined) updateData.minOrder = data.minOrder;
+    if (data.rating !== undefined) updateData.rating = data.rating;
+    
+    console.log("[DB] updateRestaurant - Données préparées pour Drizzle (sans isOpen):", updateData);
+    
+    // Mettre à jour isOpen AVANT la mise à jour Drizzle pour éviter les conflits
+    if (isOpenValue !== undefined) {
+      console.log("[DB] updateRestaurant - Exécution SQL brut pour isOpen EN PREMIER:", isOpenValue);
+      try {
+        const sqlResult = await db.execute(sql`
+          UPDATE restaurants 
+          SET is_open = ${isOpenValue}::boolean, updated_at = NOW()
+          WHERE id = ${id}
+        `);
+        console.log("[DB] updateRestaurant - SQL brut exécuté, lignes affectées:", sqlResult.rowCount);
+        
+        // Vérifier directement dans la DB que la valeur a été mise à jour
+        const verifyResult = await db.execute(sql`
+          SELECT is_open::text as is_open_text FROM restaurants WHERE id = ${id}
+        `);
+        if (verifyResult.rows && verifyResult.rows.length > 0) {
+          const row = verifyResult.rows[0] as any;
+          console.log("[DB] updateRestaurant - Vérification DB immédiate - is_open_text:", row.is_open_text);
+        }
+      } catch (sqlError) {
+        console.error("[DB] updateRestaurant - Erreur SQL brut pour isOpen:", sqlError);
+        throw sqlError;
+      }
+    }
+    
+    // Utiliser Drizzle pour la mise à jour des autres champs (sans isOpen)
+    if (Object.keys(updateData).length > 1) { // Plus que juste updatedAt
+      await db.update(restaurants)
+        .set(updateData)
+        .where(eq(restaurants.id, id));
+      console.log("[DB] updateRestaurant - Mise à jour Drizzle effectuée");
+    }
+    
+    // Récupérer le restaurant mis à jour
+    console.log("[DB] updateRestaurant - Récupération du restaurant mis à jour...");
     const result = await this.getRestaurantById(id);
     if (!result) {
       throw new Error("Failed to retrieve updated restaurant");
     }
+    
+    console.log("[DB] updateRestaurant - Restaurant récupéré - isOpen:", result.isOpen, "type:", typeof result.isOpen);
     return result;
   }
 

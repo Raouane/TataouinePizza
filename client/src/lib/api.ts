@@ -234,9 +234,10 @@ export async function createRestaurant(
 
 export async function updateRestaurant(
   id: string,
-  data: { name?: string; phone?: string; address?: string; description?: string; imageUrl?: string; categories?: string[] },
+  data: { name?: string; phone?: string; address?: string; description?: string; imageUrl?: string; categories?: string[]; isOpen?: boolean },
   token: string
 ): Promise<Restaurant> {
+  console.log("[API] updateRestaurant appelé avec:", { id, data });
   const res = await fetch(`${API_BASE}/admin/restaurants/${id}`, {
     method: "PATCH",
     headers: {
@@ -246,11 +247,17 @@ export async function updateRestaurant(
     body: JSON.stringify(data),
   });
   
+  console.log("[API] Réponse updateRestaurant:", res.status, res.statusText);
+  
   if (!res.ok) {
     const error = await res.json();
+    console.error("[API] Erreur updateRestaurant:", error);
     throw new Error(error.error || "Failed to update restaurant");
   }
-  return res.json();
+  const result = await res.json();
+  console.log("[API] Restaurant mis à jour retourné:", result);
+  console.log("[API] isOpen dans la réponse:", result.isOpen, "type:", typeof result.isOpen);
+  return result;
 }
 
 export async function seedTestRestaurants(token: string): Promise<{ success: boolean; message: string; restaurantsCreated: number; restaurantsSkipped: number; productsCreated: number }> {

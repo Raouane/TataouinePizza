@@ -213,13 +213,27 @@ export function registerAdminCrudRoutes(app: Express): void {
   
   app.patch("/api/admin/restaurants/:id", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
-      const { name, phone, address, description, imageUrl, categories } = req.body;
+      const { name, phone, address, description, imageUrl, categories, isOpen } = req.body;
       const restaurantId = req.params.id;
+      
+      console.log("[API] PATCH /api/admin/restaurants/:id - Restaurant ID:", restaurantId);
+      console.log("[API] Données reçues:", { name, phone, address, description, imageUrl, categories, isOpen });
+      console.log("[API] isOpen reçu:", isOpen, "type:", typeof isOpen);
       
       const restaurant = await storage.getRestaurantById(restaurantId);
       if (!restaurant) throw errorHandler.notFound("Restaurant non trouvé");
       
+      console.log("[API] Restaurant actuel - isOpen:", restaurant.isOpen, "type:", typeof restaurant.isOpen);
+      
       const updateData: any = {};
+      // Traiter isOpen séparément car il sera mis à jour avec SQL brut dans storage.ts
+      let isOpenToUpdate: boolean | undefined = undefined;
+      if (isOpen !== undefined) {
+        isOpenToUpdate = Boolean(isOpen);
+        console.log("[API] isOpen à mettre à jour (séparément):", isOpenToUpdate, "type:", typeof isOpenToUpdate);
+        // Ne pas inclure isOpen dans updateData, il sera traité séparément
+      }
+      
       if (name !== undefined) updateData.name = name;
       if (phone !== undefined) {
         // Vérifier que le nouveau numéro n'est pas déjà utilisé par un autre restaurant
@@ -239,15 +253,26 @@ export function registerAdminCrudRoutes(app: Express): void {
         updateData.categories = JSON.stringify(categories);
       }
       
+      console.log("[API] Données à mettre à jour (sans isOpen):", updateData);
+      
+      // Ajouter isOpen séparément si présent
+      if (isOpenToUpdate !== undefined) {
+        updateData.isOpen = isOpenToUpdate;
+        console.log("[API] Ajout de isOpen aux données:", isOpenToUpdate);
+      }
+      
       const updated = await storage.updateRestaurant(restaurantId, updateData);
+      console.log("[API] Restaurant mis à jour - isOpen:", updated.isOpen, "type:", typeof updated.isOpen);
       
       const restaurantResponse = {
         ...updated,
         categories: typeof updated.categories === 'string' ? JSON.parse(updated.categories) : (updated.categories || []),
       };
       
+      console.log("[API] Réponse envoyée - isOpen:", restaurantResponse.isOpen);
       res.json(restaurantResponse);
     } catch (error) {
+      console.error("[API] Erreur dans PATCH /api/admin/restaurants/:id:", error);
       errorHandler.sendError(res, error);
     }
   });

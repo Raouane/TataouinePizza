@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { getAdminOrders, updateOrderStatus, getAdminDrivers, assignOrderToDriver, getAdminRestaurants, createRestaurant, updateRestaurant, deleteRestaurant, createDriver, updateDriver, deleteDriver, getAdminPizzas, createPizza, updatePizza, deletePizza } from "@/lib/api";
 import type { Order, Driver, Restaurant, Pizza } from "@/lib/api";
-import { LogOut, RefreshCw, AlertCircle, Plus, Store, Bike, Pizza as PizzaIcon, ShoppingCart, Edit, Trash2, MapPin, Phone, User, Calendar, Package, Menu, BarChart3, Settings } from "lucide-react";
+import { LogOut, RefreshCw, AlertCircle, Plus, Store, Bike, Pizza as PizzaIcon, ShoppingCart, Edit, Trash2, MapPin, Phone, User, Calendar, Package, Menu, BarChart3, Settings, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { getStatusColor, getCardHeaderColor, getStatusLabel } from "@/lib/order-status-helpers";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -85,10 +85,18 @@ export default function AdminDashboard() {
         setLocation("/admin/login");
         return;
       }
+      console.log("[ADMIN] Récupération des restaurants...");
       const data = await getAdminRestaurants(token);
+      console.log("[ADMIN] Restaurants reçus:", data.length);
+      console.log("[ADMIN] Détails des restaurants:", data.map(r => ({
+        id: r.id,
+        name: r.name,
+        isOpen: r.isOpen,
+        isOpenType: typeof r.isOpen
+      })));
       setRestaurants(data);
     } catch (err: any) {
-      console.error("Failed to fetch restaurants:", err);
+      console.error("[ADMIN] Failed to fetch restaurants:", err);
       if (err.message?.includes("401") || err.message?.includes("token") || err.message?.includes("Invalid")) {
         localStorage.removeItem("adminToken");
         setLocation("/admin/login");
@@ -894,6 +902,54 @@ export default function AdminDashboard() {
                   <div className="flex justify-between items-start mb-2 gap-2">
                     <h3 className="font-bold text-base sm:text-lg break-words flex-1">{restaurant.name}</h3>
                     <div className="flex gap-1 sm:gap-2 flex-shrink-0">
+                      {/* Bouton toggle visibilité */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            console.log("[ADMIN] Toggle visibilité - Restaurant:", restaurant.name, "isOpen actuel:", restaurant.isOpen);
+                            if (!token) {
+                              toast.error("Non authentifié");
+                              return;
+                            }
+                            const newIsOpen = !restaurant.isOpen;
+                            console.log("[ADMIN] Nouvelle valeur isOpen:", newIsOpen);
+                            console.log("[ADMIN] Appel API updateRestaurant avec:", { id: restaurant.id, isOpen: newIsOpen });
+                            
+                            const updated = await updateRestaurant(restaurant.id, { 
+                              isOpen: newIsOpen 
+                            }, token);
+                            
+                            console.log("[ADMIN] Restaurant mis à jour:", updated);
+                            console.log("[ADMIN] isOpen retourné par l'API:", updated.isOpen);
+                            
+                            toast.success(newIsOpen ? "Restaurant affiché" : "Restaurant masqué");
+                            
+                            console.log("[ADMIN] Rechargement de la liste des restaurants...");
+                            await fetchRestaurants();
+                            console.log("[ADMIN] Liste des restaurants rechargée");
+                          } catch (err: any) {
+                            console.error("[ADMIN] Erreur lors du changement de visibilité:", err);
+                            toast.error(err.message || "Erreur lors du changement");
+                          }
+                        }}
+                        className={`h-8 w-8 p-0 ${
+                          restaurant.isOpen 
+                            ? 'text-green-600 hover:text-green-700 hover:bg-green-50' 
+                            : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+                        }`}
+                        title={restaurant.isOpen ? "Masquer le restaurant" : "Afficher le restaurant"}
+                      >
+                        {(() => {
+                          console.log(`[ADMIN] Rendu icône pour ${restaurant.name} - isOpen:`, restaurant.isOpen, "type:", typeof restaurant.isOpen);
+                          return restaurant.isOpen ? (
+                            <Eye className="w-4 h-4" />
+                          ) : (
+                            <EyeOff className="w-4 h-4" />
+                          );
+                        })()}
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"

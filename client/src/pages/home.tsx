@@ -67,19 +67,16 @@ export default function Home() {
         console.log('[Home] Détails des restaurants:', data.map((r: Restaurant) => ({
           name: r.name,
           isOpen: r.isOpen,
+          isOpenType: typeof r.isOpen,
           hasImage: !!(r.imageUrl && r.imageUrl.trim() !== ''),
           categories: r.categories?.length || 0
         })));
         
-        // Debug: vérifier les images
-        const carrefour = data.find((r: Restaurant) => r.name.toLowerCase().includes('carrefour'));
-        if (carrefour) {
-          console.log('[Home] Carrefour trouvé:', {
-            name: carrefour.name,
-            imageUrl: carrefour.imageUrl,
-            hasImage: !!(carrefour.imageUrl && carrefour.imageUrl.trim() !== '')
-          });
-        }
+        // Compter les restaurants ouverts/fermés
+        const openCount = data.filter((r: Restaurant) => r.isOpen !== false).length;
+        const closedCount = data.filter((r: Restaurant) => r.isOpen === false).length;
+        console.log('[Home] Restaurants ouverts:', openCount, 'Restaurants fermés:', closedCount);
+        
         setRestaurants(data);
       } else {
         console.error('[Home] Erreur API:', res.status, await res.text());
@@ -134,8 +131,30 @@ export default function Home() {
     return matchesSearch;
   });
 
-  const openRestaurants = filteredRestaurants.filter(r => r.isOpen !== false);
-  const closedRestaurants = filteredRestaurants.filter(r => r.isOpen === false);
+  // Trier : restaurants ouverts en premier, fermés en dernier
+  const sortedRestaurants = [...filteredRestaurants].sort((a, b) => {
+    // Si les deux sont ouverts ou fermés, garder l'ordre original
+    if (a.isOpen === b.isOpen) return 0;
+    // Si a est ouvert et b fermé, a vient en premier
+    if (a.isOpen && !b.isOpen) return -1;
+    // Si a est fermé et b ouvert, b vient en premier
+    return 1;
+  });
+
+  const openRestaurants = sortedRestaurants.filter(r => r.isOpen !== false);
+  const closedRestaurants = sortedRestaurants.filter(r => r.isOpen === false);
+  
+  // Logs de débogage pour le filtrage
+  useEffect(() => {
+    if (!loading) {
+      console.log('[Home] Filtrage des restaurants:');
+      console.log('  - Total restaurants:', restaurants.length);
+      console.log('  - Restaurants filtrés:', filteredRestaurants.length);
+      console.log('  - Restaurants triés:', sortedRestaurants.length);
+      console.log('  - Restaurants ouverts:', openRestaurants.length, openRestaurants.map(r => r.name));
+      console.log('  - Restaurants fermés:', closedRestaurants.length, closedRestaurants.map(r => r.name));
+    }
+  }, [loading, restaurants, filteredRestaurants, sortedRestaurants, openRestaurants, closedRestaurants]);
   
   // Debug: logs pour comprendre le filtrage
   useEffect(() => {
