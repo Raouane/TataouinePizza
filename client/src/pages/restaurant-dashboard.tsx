@@ -10,6 +10,7 @@ import { getStatusColor, getStatusLabel } from "@/lib/order-status-helpers";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { OrderDetailsDialog } from "@/components/order-details-dialog";
+import { AudioPermissionBanner } from "@/components/audio-permission-banner";
 import { playOrderNotificationSound } from "@/lib/sound-utils";
 
 interface Order {
@@ -46,27 +47,12 @@ export default function RestaurantDashboard() {
       return;
     }
     
-    // Activer l'audio au premier clic/toucher (important pour mobile)
-    const activateAudio = () => {
-      import('@/lib/sound-utils').then(({ initAudioContext }) => {
-        initAudioContext();
-      });
-    };
-    
-    // Écouter plusieurs types d'événements pour mobile
-    document.addEventListener('click', activateAudio, { once: true });
-    document.addEventListener('touchstart', activateAudio, { once: true });
-    document.addEventListener('keydown', activateAudio, { once: true });
-    
     fetchOrders();
     fetchStatus();
     const interval = setInterval(fetchOrders, 5000);
     
     return () => {
       clearInterval(interval);
-      document.removeEventListener('click', activateAudio);
-      document.removeEventListener('touchstart', activateAudio);
-      document.removeEventListener('keydown', activateAudio);
     };
   }, [token, setLocation]);
 
@@ -537,6 +523,9 @@ export default function RestaurantDashboard() {
         onOpenChange={setShowOrderDetails}
         role="restaurant"
       />
+
+      {/* Bannière de permission audio */}
+      <AudioPermissionBanner />
     </div>
   );
 }

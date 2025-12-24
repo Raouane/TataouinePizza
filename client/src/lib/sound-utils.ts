@@ -5,6 +5,39 @@
 // Contexte audio global réutilisable
 let globalAudioContext: AudioContext | null = null;
 let audioInitialized = false;
+let audioPermissionGranted = false;
+
+// Charger la permission depuis localStorage au démarrage
+if (typeof window !== 'undefined') {
+  const stored = localStorage.getItem('audioPermissionGranted');
+  audioPermissionGranted = stored === 'true';
+}
+
+/**
+ * Vérifie si l'utilisateur a autorisé les notifications sonores
+ */
+export function hasAudioPermission(): boolean {
+  return audioPermissionGranted;
+}
+
+/**
+ * Active la permission audio (doit être appelé explicitement par l'utilisateur)
+ */
+export function grantAudioPermission() {
+  audioPermissionGranted = true;
+  localStorage.setItem('audioPermissionGranted', 'true');
+  initAudioContext();
+  console.log("[Sound] Permission audio accordée");
+}
+
+/**
+ * Révoque la permission audio
+ */
+export function revokeAudioPermission() {
+  audioPermissionGranted = false;
+  localStorage.setItem('audioPermissionGranted', 'false');
+  console.log("[Sound] Permission audio révoquée");
+}
 
 /**
  * Détecte si l'appareil est mobile
@@ -93,13 +126,18 @@ function triggerVisualNotification() {
  * Joue un bip sonore pour notifier d'une nouvelle commande
  * Utilise l'API Web Audio pour générer un son sans fichier externe
  * Volume augmenté et répétitif, avec notification visuelle sur mobile
+ * NE JOUERA LE SON QUE SI LA PERMISSION A ÉTÉ ACCORDÉE
  */
 export function playOrderNotificationSound() {
   const isMobile = isMobileDevice();
   
-  // Notification visuelle sur mobile (toujours)
-  if (isMobile) {
-    triggerVisualNotification();
+  // Notification visuelle (toujours active)
+  triggerVisualNotification();
+  
+  // Vérifier la permission AVANT de jouer le son
+  if (!hasAudioPermission()) {
+    console.log("[Sound] Permission audio non accordée, notification visuelle uniquement");
+    return;
   }
   
   try {
@@ -114,14 +152,12 @@ export function playOrderNotificationSound() {
     // Reprendre le contexte s'il est suspendu
     if (audioContext.state === 'suspended') {
       audioContext.resume().then(() => {
-        // Rejouer le son une fois le contexte activé
-        playOrderNotificationSound();
+        // Rejouer le son une fois le contexte activé (si permission accordée)
+        if (hasAudioPermission()) {
+          playOrderNotificationSound();
+        }
       }).catch(() => {
         console.warn("[Sound] Contexte audio suspendu");
-        // Sur mobile, on compte surtout sur la notification visuelle
-        if (!isMobile) {
-          triggerVisualNotification(); // Fallback visuel même sur desktop
-        }
       });
       return;
     }
