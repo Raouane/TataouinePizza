@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -26,8 +26,37 @@ import RestaurantLogin from "@/pages/restaurant-login";
 import RestaurantDashboard from "@/pages/restaurant-dashboard";
 import OnboardingPage, { getOnboarding } from "@/pages/onboarding";
 
-function isOnboarded() {
-  return !!getOnboarding();
+// Hook pour vérifier l'onboarding avec réactivité
+function useOnboarding() {
+  const [isOnboarded, setIsOnboarded] = useState(() => !!getOnboarding());
+
+  useEffect(() => {
+    // Vérifier l'onboarding au montage
+    setIsOnboarded(!!getOnboarding());
+
+    // Écouter les changements du localStorage
+    const handleStorageChange = () => {
+      setIsOnboarded(!!getOnboarding());
+    };
+
+    // Écouter les événements de storage (depuis d'autres onglets)
+    window.addEventListener("storage", handleStorageChange);
+
+    // Vérifier périodiquement (pour les changements dans le même onglet)
+    const interval = setInterval(() => {
+      const currentState = !!getOnboarding();
+      if (currentState !== isOnboarded) {
+        setIsOnboarded(currentState);
+      }
+    }, 500);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [isOnboarded]);
+
+  return isOnboarded;
 }
 
 function MenuRedirect() {
@@ -54,6 +83,8 @@ function AdminRedirect() {
 }
 
 function Router() {
+  const isOnboarded = useOnboarding();
+
   return (
     <Switch>
       <Route path="/onboarding" component={OnboardingPage} />
@@ -69,38 +100,38 @@ function Router() {
           <Switch>
             <Route
               path="/"
-              component={() => (isOnboarded() ? <Home /> : <OnboardingPage />)}
+              component={() => (isOnboarded ? <Home /> : <OnboardingPage />)}
             />
             <Route
               path="/menu"
-              component={() => (isOnboarded() ? <MenuRedirect /> : <OnboardingPage />)}
+              component={() => (isOnboarded ? <MenuRedirect /> : <OnboardingPage />)}
             />
             <Route
               path="/menu/:restaurantId"
-              component={() => (isOnboarded() ? <Menu /> : <OnboardingPage />)}
+              component={() => (isOnboarded ? <Menu /> : <OnboardingPage />)}
             />
             <Route
               path="/cart"
               component={() =>
-                isOnboarded() ? <CartPage /> : <OnboardingPage />
+                isOnboarded ? <CartPage /> : <OnboardingPage />
               }
             />
             <Route
               path="/success"
               component={() =>
-                isOnboarded() ? <OrderSuccess /> : <OnboardingPage />
+                isOnboarded ? <OrderSuccess /> : <OnboardingPage />
               }
             />
             <Route
               path="/history"
               component={() =>
-                isOnboarded() ? <OrderHistory /> : <OnboardingPage />
+                isOnboarded ? <OrderHistory /> : <OnboardingPage />
               }
             />
             <Route
               path="/profile"
               component={() =>
-                isOnboarded() ? <Profile /> : <OnboardingPage />
+                isOnboarded ? <Profile /> : <OnboardingPage />
               }
             />
             <Route component={NotFound} />

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vider le LocalStorage - TataouinePizza</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #ea580c;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #ea580c;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #c2410c;
+        }
+        .info {
+            background: #fef3c7;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            border-left: 4px solid #f59e0b;
+        }
+        .success {
+            background: #d1fae5;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            border-left: 4px solid #10b981;
+            display: none;
+        }
+        code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍕 Vider le LocalStorage</h1>
+        
+        <div class="info">
+            <strong>⚠️ Attention :</strong> Cette action va supprimer toutes les données stockées localement :
+            <ul>
+                <li>Données d'onboarding</li>
+                <li>Panier</li>
+                <li>Tokens d'authentification</li>
+                <li>Préférences utilisateur</li>
+            </ul>
+        </div>
+
+        <div>
+            <button onclick="clearAllStorage()">🗑️ Vider Tout le LocalStorage</button>
+            <button onclick="clearOnboardingOnly()">📝 Vider Seulement l'Onboarding</button>
+            <button onclick="showStorage()">👁️ Afficher le Contenu Actuel</button>
+        </div>
+
+        <div id="success" class="success">
+            ✅ Opération réussie !
+        </div>
+
+        <div id="storageContent" style="margin-top: 20px; display: none;">
+            <h3>Contenu actuel du LocalStorage :</h3>
+            <pre id="storageDisplay" style="background: #f3f4f6; padding: 15px; border-radius: 6px; overflow-x: auto;"></pre>
+        </div>
+    </div>
+
+    <script>
+        function clearAllStorage() {
+            if (confirm('Êtes-vous sûr de vouloir vider TOUT le localStorage ?')) {
+                localStorage.clear();
+                showSuccess();
+                console.log('✅ LocalStorage vidé complètement');
+            }
+        }
+
+        function clearOnboardingOnly() {
+            if (confirm('Vider seulement les données d\'onboarding ?')) {
+                localStorage.removeItem('tp_onboarding');
+                showSuccess();
+                console.log('✅ Données d\'onboarding supprimées');
+            }
+        }
+
+        function showStorage() {
+            const content = document.getElementById('storageContent');
+            const display = document.getElementById('storageDisplay');
+            
+            const storage = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                try {
+                    storage[key] = JSON.parse(localStorage.getItem(key) || '');
+                } catch {
+                    storage[key] = localStorage.getItem(key);
+                }
+            }
+            
+            display.textContent = JSON.stringify(storage, null, 2);
+            content.style.display = 'block';
+        }
+
+        function showSuccess() {
+            const success = document.getElementById('success');
+            success.style.display = 'block';
+            setTimeout(() => {
+                success.style.display = 'none';
+            }, 3000);
+        }
+
+        // Afficher le contenu au chargement
+        window.onload = function() {
+            if (localStorage.length > 0) {
+                showStorage();
+            }
+        };
+    </script>
+</body>
+</html>
+

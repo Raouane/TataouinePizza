@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-type OrderStatus = 'received' | 'prep' | 'bake' | 'ready' | 'delivery' | 'delivered';
+// MVP Workflow simplifié: received → accepted → ready → delivery → delivered
+type OrderStatus = 'received' | 'accepted' | 'ready' | 'delivery' | 'delivered';
 
 type OrderContextType = {
   activeOrder: boolean;
@@ -13,7 +14,8 @@ type OrderContextType = {
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
-const steps: OrderStatus[] = ['received', 'prep', 'bake', 'ready', 'delivery', 'delivered'];
+// MVP: Workflow simplifié sans prep et bake
+const steps: OrderStatus[] = ['received', 'accepted', 'ready', 'delivery', 'delivered'];
 
 export function OrderProvider({ children }: { children: React.ReactNode }) {
   const [activeOrder, setActiveOrder] = useState(false);
@@ -23,7 +25,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
   const startOrder = () => {
     setActiveOrder(true);
     setStepIndex(0);
-    setEta(35); // ETA initial de 35 minutes
+    setEta(30); // ETA initial de 30 minutes (MVP simplifié)
   };
 
   const cancelOrder = () => {
@@ -35,13 +37,12 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!activeOrder) return;
 
-    // Durées en millisecondes pour une livraison de ~35 minutes
+    // Durées en millisecondes pour une livraison de ~30 minutes (MVP simplifié)
     const intervals = [
-      3 * 60 * 1000,  // received -> prep: 3 minutes (préparation)
-      8 * 60 * 1000,  // prep -> bake: 8 minutes (cuisson)
-      2 * 60 * 1000,  // bake -> ready: 2 minutes (vérification)
+      2 * 60 * 1000,  // received -> accepted: 2 minutes (restaurant accepte)
+      8 * 60 * 1000,  // accepted -> ready: 8 minutes (préparation complète)
       5 * 60 * 1000,  // ready -> delivery: 5 minutes (attente livreur)
-      17 * 60 * 1000  // delivery -> delivered: 17 minutes (livraison)
+      15 * 60 * 1000  // delivery -> delivered: 15 minutes (livraison)
     ];
 
     let timeout: NodeJS.Timeout;
@@ -51,12 +52,11 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
             if (current < steps.length - 1) {
                 const next = current + 1;
                 
-                // Update ETA based on step (en minutes)
-                if (next === 1) setEta(32);  // Après préparation: 32 min restantes
-                if (next === 2) setEta(24);  // Après cuisson: 24 min restantes
-                if (next === 3) setEta(22);  // Après vérification: 22 min restantes
-                if (next === 4) setEta(17);  // Livreur en route: 17 min restantes
-                if (next === 5) setEta(0);   // Livré
+                // Update ETA based on step (en minutes) - MVP simplifié
+                if (next === 1) setEta(28);  // Après acceptation: 28 min restantes
+                if (next === 2) setEta(20);  // Après préparation: 20 min restantes
+                if (next === 3) setEta(15);  // Livreur en route: 15 min restantes
+                if (next === 4) setEta(0);   // Livré
 
                 if (next < intervals.length) {
                     timeout = setTimeout(advanceStep, intervals[next]);

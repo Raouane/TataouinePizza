@@ -4,9 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bike, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock, Store, Banknote, Navigation, Power, ExternalLink, User } from "lucide-react";
+import { Bike, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock, Store, Banknote, Navigation, Power, ExternalLink, User, Menu, BarChart3, Bell, Settings } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { getStatusColor, getDriverStatusLabel } from "@/lib/order-status-helpers";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface Order {
   id: string;
@@ -41,6 +44,8 @@ export default function DriverDashboard() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showCustomerDialog, setShowCustomerDialog] = useState(false);
   const [activeTab, setActiveTab] = useState("available"); // État pour contrôler l'onglet actif
+  const [showStatsDialog, setShowStatsDialog] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   
   // États pour la visibilité cyclique des commandes
@@ -551,36 +556,19 @@ export default function DriverDashboard() {
     setLocation("/driver/login");
   };
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      accepted: "bg-blue-100 text-blue-800",
-      preparing: "bg-purple-100 text-purple-800",
-      baking: "bg-orange-100 text-orange-800",
-      ready: "bg-green-100 text-green-800",
-      delivery: "bg-indigo-100 text-indigo-800",
-      delivered: "bg-emerald-100 text-emerald-800",
-    };
-    return colors[status] || "bg-gray-100 text-gray-800";
-  };
+  // Utiliser les helpers centralisés (déjà importés)
 
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, string> = {
-      accepted: "Acceptée",
-      preparing: "En préparation",
-      baking: "Au four",
-      ready: "Prête à récupérer",
-      delivery: "En livraison",
-      delivered: "Livrée",
-    };
-    return labels[status] || status;
-  };
-
-  // Fusionner "En attente" et "En livraison" en un seul onglet "Mes livraisons"
-  const activeDeliveryOrders = myOrders.filter(o => ["accepted", "preparing", "baking", "ready", "delivery"].includes(o.status));
+  // MVP: Workflow simplifié - fusionner "En attente" et "En livraison" en un seul onglet "Mes livraisons"
+  const activeDeliveryOrders = myOrders.filter(o => ["accepted", "ready", "delivery"].includes(o.status));
   const deliveredOrders = myOrders.filter(o => o.status === "delivered");
+
+  // Calculer les statistiques
+  const totalEarnings = deliveredOrders.reduce((sum, o) => sum + Number(o.totalPrice) * DRIVER_COMMISSION_RATE, 0);
+  const totalDeliveries = deliveredOrders.length;
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Header simplifié */}
       <div className="border-b bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-3 md:px-4 py-3 md:py-4">
           <div className="flex justify-between items-center gap-2">
@@ -593,85 +581,124 @@ export default function DriverDashboard() {
                 <p className="text-xs md:text-sm text-muted-foreground truncate">{driverName}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-              {/* Indicateur WebSocket */}
-              <div className={`flex items-center gap-1 px-2 py-1 rounded-full ${wsConnected ? 'bg-blue-100' : 'bg-gray-100'}`} title={wsConnected ? "Connecté aux notifications" : "Déconnecté"}>
-                <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`} />
-                <span className={`text-xs font-medium ${wsConnected ? 'text-blue-700' : 'text-gray-600'}`}>
-                  {wsConnected ? "WS" : "Off"}
-                </span>
-              </div>
-              <div 
-                className={`flex items-center gap-2 px-2 py-1 rounded-full cursor-pointer transition-colors ${isOnline ? 'bg-green-100' : 'bg-red-100'}`}
-                onClick={toggleStatus}
-              >
-                <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                <span className={`text-xs font-medium ${isOnline ? 'text-green-700' : 'text-red-700'}`}>
-                  {isOnline ? "En ligne" : "Hors ligne"}
-                </span>
-                <Switch checked={isOnline} onCheckedChange={toggleStatus} className="scale-75" />
-              </div>
-              <Button variant="outline" size="sm" onClick={() => setLocation("/")} data-testid="button-back-home" className="px-2 md:px-3">
-                <ArrowLeft className="w-4 h-4" />
-                <span className="hidden md:inline ml-2">Retour</span>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Button variant="outline" size="sm" onClick={fetchOrders} className="px-2 md:px-3">
+                <RefreshCw className="w-4 h-4" />
               </Button>
-              <Button variant="outline" size="sm" onClick={handleLogout} data-testid="button-driver-logout" className="px-2 md:px-3">
-                <LogOut className="w-4 h-4" />
-                <span className="hidden md:inline ml-2">Déconnexion</span>
-              </Button>
+              <Sheet open={showMenu} onOpenChange={setShowMenu}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="sm" className="px-2 md:px-3">
+                    <Menu className="w-4 h-4" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-80 sm:w-96">
+                  <SheetHeader>
+                    <SheetTitle className="flex items-center gap-2">
+                      <User className="w-5 h-5" />
+                      Menu
+                    </SheetTitle>
+                  </SheetHeader>
+                  <div className="mt-6 space-y-2">
+                    {/* Statistiques */}
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-3 h-auto py-3"
+                      onClick={() => {
+                        setShowStatsDialog(true);
+                        setShowMenu(false);
+                      }}
+                    >
+                      <div className="bg-emerald-100 p-2 rounded-lg">
+                        <BarChart3 className="w-5 h-5 text-emerald-600" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-medium">Statistiques</p>
+                        <p className="text-xs text-muted-foreground">Gains et livraisons</p>
+                      </div>
+                    </Button>
+
+                    {/* Statut */}
+                    <div className="border rounded-lg p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Power className={`w-5 h-5 ${isOnline ? 'text-green-600' : 'text-red-600'}`} />
+                          <span className="font-medium">Statut</span>
+                        </div>
+                        <Switch checked={isOnline} onCheckedChange={toggleStatus} />
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                        <span className={isOnline ? 'text-green-700' : 'text-red-700'}>
+                          {isOnline ? "En ligne" : "Hors ligne"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Notifications WebSocket */}
+                    <div className="border rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Bell className={`w-5 h-5 ${wsConnected ? 'text-blue-600' : 'text-gray-400'}`} />
+                          <span className="font-medium">Notifications</span>
+                        </div>
+                        <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {wsConnected ? "Connecté en temps réel" : "Déconnecté"}
+                      </p>
+                    </div>
+
+                    {/* Profil */}
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-3 h-auto py-3"
+                      onClick={() => {
+                        toast.info("Profil - Fonctionnalité à venir");
+                        setShowMenu(false);
+                      }}
+                    >
+                      <div className="bg-blue-100 p-2 rounded-lg">
+                        <User className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-medium">Profil</p>
+                        <p className="text-xs text-muted-foreground">{driverName}</p>
+                      </div>
+                    </Button>
+
+                    {/* Déconnexion */}
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-3 h-auto py-3 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => {
+                        handleLogout();
+                        setShowMenu(false);
+                      }}
+                    >
+                      <div className="bg-red-100 p-2 rounded-lg">
+                        <LogOut className="w-5 h-5 text-red-600" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-medium">Déconnexion</p>
+                        <p className="text-xs text-muted-foreground">Quitter l'application</p>
+                      </div>
+                    </Button>
+                  </div>
+                </SheetContent>
+              </Sheet>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      {/* Page principale - SEULEMENT les commandes */}
+      <div className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6">
         {error && (
-          <div className="flex gap-2 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="mb-4 flex gap-2 p-4 bg-red-50 border border-red-200 rounded-lg">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
             <p className="text-red-600">{error}</p>
           </div>
         )}
-
-        {/* Earnings Card */}
-        <Card className="p-3 sm:p-4 bg-gradient-to-r from-emerald-500 to-green-600 text-white">
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-emerald-100 text-xs sm:text-sm">Total gagné</p>
-              <p className="text-2xl sm:text-3xl font-bold truncate">
-                {(deliveredOrders.reduce((sum, o) => sum + Number(o.totalPrice) * DRIVER_COMMISSION_RATE, 0)).toFixed(2)} TND
-              </p>
-              <p className="text-emerald-100 text-[10px] sm:text-xs mt-1">
-                {deliveredOrders.length} livraison{deliveredOrders.length > 1 ? 's' : ''} effectuée{deliveredOrders.length > 1 ? 's' : ''}
-              </p>
-            </div>
-            <div className="bg-white/20 p-2 sm:p-3 rounded-full flex-shrink-0">
-              <Banknote className="w-6 h-6 sm:w-8 sm:h-8" />
-            </div>
-          </div>
-        </Card>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Card className="p-3 border-l-4 border-l-green-500">
-            <p className="text-xs text-muted-foreground">Disponibles</p>
-            <p className="text-2xl font-bold text-green-600">{availableOrders.length}</p>
-          </Card>
-          <Card className="p-3 border-l-4 border-l-indigo-500">
-            <p className="text-xs text-muted-foreground">Mes livraisons</p>
-            <p className="text-2xl font-bold text-indigo-600">{activeDeliveryOrders.length}</p>
-          </Card>
-          <Card className="p-3 border-l-4 border-l-emerald-500">
-            <p className="text-xs text-muted-foreground">Livrées</p>
-            <p className="text-2xl font-bold text-emerald-600">{deliveredOrders.length}</p>
-          </Card>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-serif font-bold">Commandes</h2>
-          <Button variant="outline" size="sm" onClick={fetchOrders}>
-            <RefreshCw className="w-4 h-4" />
-          </Button>
-        </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="w-full grid grid-cols-3 h-auto">
@@ -718,7 +745,7 @@ export default function DriverDashboard() {
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2">
                           <Badge className={getStatusColor(order.status)}>
-                            {getStatusLabel(order.status)}
+                            {getDriverStatusLabel(order.status)}
                           </Badge>
                           <span className="text-xs text-muted-foreground font-mono">
                             #{order.id.slice(0, 8)}
@@ -810,7 +837,7 @@ export default function DriverDashboard() {
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2">
                           <Badge className={getStatusColor(order.status)}>
-                            {getStatusLabel(order.status)}
+                            {getDriverStatusLabel(order.status)}
                           </Badge>
                           <span className="text-xs text-muted-foreground font-mono">
                             #{order.id.slice(0, 8)}
@@ -1043,6 +1070,74 @@ export default function DriverDashboard() {
           </Card>
         </div>
       )}
+
+      {/* Modal Statistiques */}
+      <Dialog open={showStatsDialog} onOpenChange={setShowStatsDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-emerald-600" />
+              Statistiques
+            </DialogTitle>
+            <DialogDescription>
+              Vos gains et performances de livraison
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            {/* Total gagné */}
+            <Card className="p-4 bg-gradient-to-r from-emerald-500 to-green-600 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-emerald-100 text-sm">Total gagné</p>
+                  <p className="text-3xl font-bold mt-1">
+                    {totalEarnings.toFixed(2)} TND
+                  </p>
+                </div>
+                <div className="bg-white/20 p-3 rounded-full">
+                  <Banknote className="w-8 h-8" />
+                </div>
+              </div>
+            </Card>
+
+            {/* Stats détaillées */}
+            <div className="grid grid-cols-3 gap-3">
+              <Card className="p-3 text-center border-l-4 border-l-green-500">
+                <p className="text-xs text-muted-foreground mb-1">Disponibles</p>
+                <p className="text-2xl font-bold text-green-600">{availableOrders.length}</p>
+              </Card>
+              <Card className="p-3 text-center border-l-4 border-l-indigo-500">
+                <p className="text-xs text-muted-foreground mb-1">En cours</p>
+                <p className="text-2xl font-bold text-indigo-600">{activeDeliveryOrders.length}</p>
+              </Card>
+              <Card className="p-3 text-center border-l-4 border-l-emerald-500">
+                <p className="text-xs text-muted-foreground mb-1">Livrées</p>
+                <p className="text-2xl font-bold text-emerald-600">{totalDeliveries}</p>
+              </Card>
+            </div>
+
+            {/* Détails livraisons */}
+            <Card className="p-4">
+              <h3 className="font-semibold mb-3">Détails des livraisons</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Livraisons complétées</span>
+                  <span className="font-medium">{totalDeliveries}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Commission par livraison</span>
+                  <span className="font-medium">15%</span>
+                </div>
+                <div className="flex justify-between text-sm pt-2 border-t">
+                  <span className="text-muted-foreground">Gain moyen</span>
+                  <span className="font-medium">
+                    {totalDeliveries > 0 ? (totalEarnings / totalDeliveries).toFixed(2) : "0.00"} TND
+                  </span>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

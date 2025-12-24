@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -21,10 +20,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { getAdminOrders, updateOrderStatus, getAdminDrivers, assignOrderToDriver, getAdminRestaurants, createRestaurant, updateRestaurant, deleteRestaurant, createDriver, updateDriver, deleteDriver, getAdminPizzas, createPizza, updatePizza, deletePizza, seedTestRestaurants, enrichAllRestaurants } from "@/lib/api";
+import { getAdminOrders, updateOrderStatus, getAdminDrivers, assignOrderToDriver, getAdminRestaurants, createRestaurant, updateRestaurant, deleteRestaurant, createDriver, updateDriver, deleteDriver, getAdminPizzas, createPizza, updatePizza, deletePizza } from "@/lib/api";
 import type { Order, Driver, Restaurant, Pizza } from "@/lib/api";
-import { LogOut, RefreshCw, AlertCircle, Plus, Store, Bike, Pizza as PizzaIcon, ShoppingCart, Edit, Trash2, MapPin, Phone, User, Calendar, Package } from "lucide-react";
+import { LogOut, RefreshCw, AlertCircle, Plus, Store, Bike, Pizza as PizzaIcon, ShoppingCart, Edit, Trash2, MapPin, Phone, User, Calendar, Package, Menu, BarChart3, Settings } from "lucide-react";
 import { toast } from "sonner";
+import { getStatusColor, getCardHeaderColor, getStatusLabel } from "@/lib/order-status-helpers";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
@@ -37,6 +38,8 @@ export default function AdminDashboard() {
   const [assigning, setAssigning] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("orders");
+  const [showStatsDialog, setShowStatsDialog] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const token = localStorage.getItem("adminToken");
 
   // Form states
@@ -444,68 +447,138 @@ export default function AdminDashboard() {
     setLocation("/admin/login");
   };
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: "bg-yellow-100 text-yellow-800",
-      accepted: "bg-blue-100 text-blue-800",
-      preparing: "bg-purple-100 text-purple-800",
-      baking: "bg-orange-100 text-orange-800",
-      ready: "bg-green-100 text-green-800",
-      delivery: "bg-indigo-100 text-indigo-800",
-      delivered: "bg-emerald-100 text-emerald-800",
-      rejected: "bg-red-100 text-red-800",
-    };
-    return colors[status] || "bg-gray-100 text-gray-800";
-  };
+  // MVP: Statuts simplifiés (preparing et baking supprimés)
+  const statuses = ["pending", "accepted", "ready", "delivery", "delivered", "rejected"] as const;
 
-  const getCardHeaderColor = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: "bg-gradient-to-r from-yellow-400 to-yellow-500",
-      accepted: "bg-gradient-to-r from-blue-400 to-blue-500",
-      preparing: "bg-gradient-to-r from-purple-400 to-purple-500",
-      baking: "bg-gradient-to-r from-orange-400 to-orange-500",
-      ready: "bg-gradient-to-r from-green-400 to-green-500",
-      delivery: "bg-gradient-to-r from-indigo-400 to-indigo-500",
-      delivered: "bg-gradient-to-r from-emerald-400 to-emerald-500",
-      rejected: "bg-gradient-to-r from-red-400 to-red-500",
-    };
-    return colors[status] || "bg-gradient-to-r from-gray-400 to-gray-500";
-  };
-
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, string> = {
-      pending: "En attente",
-      accepted: "Acceptée",
-      preparing: "En préparation",
-      baking: "Au four",
-      ready: "Prête",
-      delivery: "En livraison",
-      delivered: "Livrée",
-      rejected: "Refusée",
-    };
-    return labels[status] || status;
-  };
-
-  const statuses = ["pending", "accepted", "preparing", "baking", "ready", "delivery", "delivered", "rejected"] as const;
+  // Calculer les statistiques
+  const totalOrders = orders.length;
+  const pendingCount = orders.filter(o => o.status === "pending").length;
+  const readyCount = orders.filter(o => o.status === "ready").length;
+  const deliveredCount = orders.filter(o => o.status === "delivered").length;
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Header simplifié */}
       <div className="border-b bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-3 md:px-4 py-3 md:py-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-3 md:py-4">
           <div className="flex justify-between items-center gap-2">
             <div className="min-w-0">
               <h1 className="text-xl md:text-2xl font-serif font-bold truncate">Espace Admin</h1>
               <p className="text-xs md:text-sm text-muted-foreground truncate">Supervision générale</p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleLogout}
-              className="px-2 md:px-3 flex-shrink-0"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden md:inline ml-2">Déconnexion</span>
-            </Button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Button variant="outline" size="sm" onClick={fetchAll} className="px-2 md:px-3">
+                <RefreshCw className="w-4 h-4" />
+              </Button>
+              <Sheet open={showMenu} onOpenChange={setShowMenu}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="sm" className="px-2 md:px-3">
+                    <Menu className="w-4 h-4" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-80 sm:w-96">
+                  <SheetHeader>
+                    <SheetTitle className="flex items-center gap-2">
+                      <Settings className="w-5 h-5" />
+                      Menu Admin
+                    </SheetTitle>
+                  </SheetHeader>
+                  <div className="mt-6 space-y-2">
+                    {/* Statistiques */}
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-3 h-auto py-3"
+                      onClick={() => {
+                        setShowStatsDialog(true);
+                        setShowMenu(false);
+                      }}
+                    >
+                      <div className="bg-blue-100 p-2 rounded-lg">
+                        <BarChart3 className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-medium">Statistiques</p>
+                        <p className="text-xs text-muted-foreground">Vue d'ensemble</p>
+                      </div>
+                    </Button>
+
+                    {/* Gestion */}
+                    <div className="border rounded-lg p-3 space-y-2">
+                      <p className="font-medium text-sm mb-2">Gestion</p>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start gap-2 h-auto py-2"
+                        onClick={() => {
+                          setActiveTab("restaurants");
+                          setShowMenu(false);
+                        }}
+                      >
+                        <Store className="w-4 h-4" />
+                        <span>Restaurants</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start gap-2 h-auto py-2"
+                        onClick={() => {
+                          setActiveTab("drivers");
+                          setShowMenu(false);
+                        }}
+                      >
+                        <Bike className="w-4 h-4" />
+                        <span>Livreurs</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start gap-2 h-auto py-2"
+                        onClick={() => {
+                          setActiveTab("pizzas");
+                          setShowMenu(false);
+                        }}
+                      >
+                        <PizzaIcon className="w-4 h-4" />
+                        <span>Produits</span>
+                      </Button>
+                    </div>
+
+                    {/* Commandes */}
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-3 h-auto py-3"
+                      onClick={() => {
+                        setActiveTab("orders");
+                        setShowMenu(false);
+                      }}
+                    >
+                      <div className="bg-green-100 p-2 rounded-lg">
+                        <ShoppingCart className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-medium">Commandes</p>
+                        <p className="text-xs text-muted-foreground">{totalOrders} commande{totalOrders > 1 ? 's' : ''}</p>
+                      </div>
+                    </Button>
+
+                    {/* Déconnexion */}
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-3 h-auto py-3 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => {
+                        handleLogout();
+                        setShowMenu(false);
+                      }}
+                    >
+                      <div className="bg-red-100 p-2 rounded-lg">
+                        <LogOut className="w-5 h-5 text-red-600" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-medium">Déconnexion</p>
+                        <p className="text-xs text-muted-foreground">Quitter l'application</p>
+                      </div>
+                    </Button>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
           </div>
         </div>
       </div>
@@ -518,53 +591,11 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="orders" className="flex items-center gap-2">
-              <ShoppingCart className="w-4 h-4" />
-              <span className="hidden sm:inline">Commandes</span>
-            </TabsTrigger>
-            <TabsTrigger value="restaurants" className="flex items-center gap-2">
-              <Store className="w-4 h-4" />
-              <span className="hidden sm:inline">Restaurants</span>
-            </TabsTrigger>
-            <TabsTrigger value="drivers" className="flex items-center gap-2">
-              <Bike className="w-4 h-4" />
-              <span className="hidden sm:inline">Livreurs</span>
-            </TabsTrigger>
-            <TabsTrigger value="pizzas" className="flex items-center gap-2">
-              <PizzaIcon className="w-4 h-4" />
-              <span className="hidden sm:inline">Pizzas</span>
-            </TabsTrigger>
-          </TabsList>
-
+        {/* Contenu basé sur l'onglet actif */}
+        <div className="space-y-4">
           {/* ORDERS TAB */}
-          <TabsContent value="orders" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Card className="p-4">
-                <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-3xl font-bold">{orders.length}</p>
-              </Card>
-              <Card className="p-4">
-                <p className="text-sm text-muted-foreground">En attente</p>
-                <p className="text-3xl font-bold text-yellow-600">
-                  {orders.filter(o => o.status === "pending").length}
-                </p>
-              </Card>
-              <Card className="p-4">
-                <p className="text-sm text-muted-foreground">En préparation</p>
-                <p className="text-3xl font-bold text-orange-600">
-                  {orders.filter(o => ["preparing", "baking"].includes(o.status)).length}
-                </p>
-              </Card>
-              <Card className="p-4">
-                <p className="text-sm text-muted-foreground">Livrées</p>
-                <p className="text-3xl font-bold text-green-600">
-                  {orders.filter(o => o.status === "delivered").length}
-                </p>
-              </Card>
-            </div>
-
+          {activeTab === "orders" && (
+            <div className="space-y-4">
             {loading ? (
               <Card className="p-12 text-center">
                 <RefreshCw className="w-8 h-8 mx-auto text-muted-foreground mb-4 animate-spin" />
@@ -581,30 +612,40 @@ export default function AdminDashboard() {
                 {orders.map((order) => (
                   <Card key={order.id} className="p-0 hover:shadow-lg transition-shadow overflow-hidden">
                     {/* Header coloré */}
-                    <div className={`${getCardHeaderColor(order.status)} p-4 text-white`}>
-                      <div className="flex items-center justify-between flex-wrap gap-3">
-                        <div className="flex items-center gap-3">
-                          <Badge className="bg-white/20 text-white border-white/30 backdrop-blur-sm">
+                    <div className={`${getCardHeaderColor(order.status)} p-3 sm:p-4 text-white`}>
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                          <Badge className="bg-white/20 text-white border-white/30 backdrop-blur-sm text-xs">
                             {getStatusLabel(order.status)}
                           </Badge>
-                          <span className="text-sm font-mono text-white/90">
+                          <span className="text-xs sm:text-sm font-mono text-white/90">
                             #{order.id.slice(0, 8)}
                           </span>
                           {order.createdAt && (
                             <div className="flex items-center gap-1 text-xs text-white/80">
                               <Calendar className="w-3 h-3" />
-                              {new Date(order.createdAt).toLocaleDateString("fr-FR", {
-                                day: "2-digit",
-                                month: "short",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                              <span className="hidden sm:inline">
+                                {new Date(order.createdAt).toLocaleDateString("fr-FR", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                              <span className="sm:hidden">
+                                {new Date(order.createdAt).toLocaleDateString("fr-FR", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
                             </div>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <Package className="w-5 h-5 text-white" />
-                          <span className="text-2xl font-bold text-white">
+                          <Package className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                          <span className="text-lg sm:text-2xl font-bold text-white">
                             {Number(order.totalPrice).toFixed(2)} TND
                           </span>
                         </div>
@@ -612,12 +653,12 @@ export default function AdminDashboard() {
                     </div>
                     
                     {/* Contenu de la carte */}
-                    <div className="p-6">
-                      <div className="flex flex-col lg:flex-row gap-6">
+                    <div className="p-4 sm:p-6">
+                      <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
                         {/* Informations principales */}
-                        <div className="flex-1 space-y-4">
+                        <div className="flex-1 space-y-3 sm:space-y-4">
                           {/* Informations client */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <User className="w-4 h-4" />
@@ -648,7 +689,7 @@ export default function AdminDashboard() {
                       </div>
 
                       {/* Actions et contrôles */}
-                      <div className="lg:w-80 space-y-4 border-t lg:border-t-0 lg:border-l pt-4 lg:pt-0 lg:pl-6">
+                      <div className="lg:w-80 space-y-3 sm:space-y-4 border-t lg:border-t-0 lg:border-l pt-4 lg:pt-0 lg:pl-6">
                         {/* Assignation livreur */}
                         <div className="space-y-2">
                           <Label className="text-sm font-medium">Assigner un livreur</Label>
@@ -729,73 +770,21 @@ export default function AdminDashboard() {
                 </div>
               </Card>
             )}
-          </TabsContent>
+            </div>
+          )}
 
           {/* RESTAURANTS TAB */}
-          <TabsContent value="restaurants" className="space-y-4">
-            <div className="flex justify-between items-center flex-wrap gap-2">
+          {activeTab === "restaurants" && (
+            <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-2">
               <h2 className="text-xl font-bold">Restaurants</h2>
-              {!token && (
-                <p className="text-sm text-red-500">⚠️ Vous devez être connecté pour utiliser ces boutons</p>
-              )}
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  disabled={!token || loading}
-                  onClick={async () => {
-                    if (!token) {
-                      toast.error("Vous devez être connecté pour créer des restaurants");
-                      return;
-                    }
-                    try {
-                      toast.info("Création des restaurants de test...");
-                      const result = await seedTestRestaurants(token);
-                      toast.success(
-                        `✅ ${result.restaurantsCreated} restaurant(s) créé(s), ${result.restaurantsSkipped} ignoré(s), ${result.productsCreated} produit(s) ajouté(s)`
-                      );
-                      await fetchRestaurants();
-                      await fetchPizzas();
-                    } catch (err: any) {
-                      console.error("Erreur création restaurants:", err);
-                      toast.error(err.message || "Erreur lors de la création des restaurants de test");
-                    }
-                  }}
-                >
-                  <Package className="w-4 h-4 mr-2" />
-                  Créer Restaurants de Test
-                </Button>
-                <Button
-                  variant="outline"
-                  disabled={!token || loading}
-                  onClick={async () => {
-                    if (!token) {
-                      toast.error("Vous devez être connecté pour enrichir les restaurants");
-                      return;
-                    }
-                    try {
-                      toast.info("Enrichissement en cours...");
-                      const result = await enrichAllRestaurants(token);
-                      toast.success(
-                        `✅ ${result.restaurantsProcessed} restaurant(s) traité(s), ${result.imagesUpdated} image(s) ajoutée(s), ${result.productsAdded} produit(s) ajouté(s)`
-                      );
-                      await fetchRestaurants();
-                      await fetchPizzas();
-                    } catch (err: any) {
-                      console.error("Erreur enrichissement restaurants:", err);
-                      toast.error(err.message || "Erreur lors de l'enrichissement des restaurants");
-                    }
-                  }}
-                >
-                  <Store className="w-4 h-4 mr-2" />
-                  Enrichir Tous les Restaurants
-                </Button>
-                <Dialog open={showRestaurantDialog} onOpenChange={setShowRestaurantDialog}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Nouveau Restaurant
-                    </Button>
-                  </DialogTrigger>
+              <Dialog open={showRestaurantDialog} onOpenChange={setShowRestaurantDialog}>
+                <DialogTrigger asChild>
+                  <Button className="w-full sm:w-auto">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nouveau Restaurant
+                  </Button>
+                </DialogTrigger>
                 <DialogContent className="max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Créer un restaurant</DialogTitle>
@@ -898,14 +887,13 @@ export default function AdminDashboard() {
                   </div>
                 </DialogContent>
               </Dialog>
-              </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {restaurants.map((restaurant) => (
-                <Card key={restaurant.id} className="p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-bold text-lg">{restaurant.name}</h3>
-                    <div className="flex gap-2">
+                <Card key={restaurant.id} className="p-3 sm:p-4">
+                  <div className="flex justify-between items-start mb-2 gap-2">
+                    <h3 className="font-bold text-base sm:text-lg break-words flex-1">{restaurant.name}</h3>
+                    <div className="flex gap-1 sm:gap-2 flex-shrink-0">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1056,15 +1044,17 @@ export default function AdminDashboard() {
                 </div>
               </DialogContent>
             </Dialog>
-          </TabsContent>
+            </div>
+          )}
 
           {/* DRIVERS TAB */}
-          <TabsContent value="drivers" className="space-y-4">
-            <div className="flex justify-between items-center">
+          {activeTab === "drivers" && (
+            <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-2">
               <h2 className="text-xl font-bold">Livreurs</h2>
               <Dialog open={showDriverDialog} onOpenChange={setShowDriverDialog}>
                 <DialogTrigger asChild>
-                  <Button>
+                  <Button className="w-full sm:w-auto">
                     <Plus className="w-4 h-4 mr-2" />
                     Nouveau Livreur
                   </Button>
@@ -1109,12 +1099,12 @@ export default function AdminDashboard() {
                 </DialogContent>
               </Dialog>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {drivers.map((driver) => (
-                <Card key={driver.id} className="p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-bold text-lg">{driver.name}</h3>
-                    <div className="flex gap-2">
+                <Card key={driver.id} className="p-3 sm:p-4">
+                  <div className="flex justify-between items-start mb-2 gap-2">
+                    <h3 className="font-bold text-base sm:text-lg break-words flex-1">{driver.name}</h3>
+                    <div className="flex gap-1 sm:gap-2 flex-shrink-0">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1207,10 +1197,12 @@ export default function AdminDashboard() {
                 </div>
               </DialogContent>
             </Dialog>
-          </TabsContent>
+            </div>
+          )}
 
           {/* PIZZAS TAB */}
-          <TabsContent value="pizzas" className="space-y-4">
+          {activeTab === "pizzas" && (
+            <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-bold">Produits</h2>
               <Dialog open={showPizzaDialog} onOpenChange={setShowPizzaDialog}>
@@ -1347,19 +1339,19 @@ export default function AdminDashboard() {
                 </DialogContent>
               </Dialog>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {pizzas.map((pizza) => {
                 const restaurant = restaurants.find(r => r.id === pizza.restaurantId);
                 return (
                   <Card key={pizza.id} className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex-1">
-                        <h3 className="font-bold text-lg">{pizza.name}</h3>
-                        <p className="text-sm text-muted-foreground">
+                    <div className="flex justify-between items-start mb-2 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-base sm:text-lg break-words">{pizza.name}</h3>
+                        <p className="text-xs sm:text-sm text-muted-foreground truncate">
                           {restaurant?.name || "Restaurant inconnu"}
                         </p>
                       </div>
-                      <div className="flex gap-2 items-start">
+                      <div className="flex gap-1 sm:gap-2 items-start flex-shrink-0">
                         <span className={`text-xs px-2 py-1 rounded ${
                           pizza.available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}>
@@ -1577,9 +1569,65 @@ export default function AdminDashboard() {
                 </div>
               </DialogContent>
             </Dialog>
-          </TabsContent>
-        </Tabs>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Modal Statistiques */}
+      <Dialog open={showStatsDialog} onOpenChange={setShowStatsDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-blue-600" />
+              Statistiques
+            </DialogTitle>
+            <DialogDescription>
+              Vue d'ensemble des commandes
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            {/* Stats détaillées */}
+            <div className="grid grid-cols-2 gap-3">
+              <Card className="p-3 text-center border-l-4 border-l-blue-500">
+                <p className="text-xs text-muted-foreground mb-1">Total</p>
+                <p className="text-2xl font-bold text-blue-600">{totalOrders}</p>
+              </Card>
+              <Card className="p-3 text-center border-l-4 border-l-yellow-500">
+                <p className="text-xs text-muted-foreground mb-1">En attente</p>
+                <p className="text-2xl font-bold text-yellow-600">{pendingCount}</p>
+              </Card>
+              <Card className="p-3 text-center border-l-4 border-l-green-500">
+                <p className="text-xs text-muted-foreground mb-1">Prêtes</p>
+                <p className="text-2xl font-bold text-green-600">{readyCount}</p>
+              </Card>
+              <Card className="p-3 text-center border-l-4 border-l-emerald-500">
+                <p className="text-xs text-muted-foreground mb-1">Livrées</p>
+                <p className="text-2xl font-bold text-emerald-600">{deliveredCount}</p>
+              </Card>
+            </div>
+
+            {/* Détails */}
+            <Card className="p-4">
+              <h3 className="font-semibold mb-3">Répartition</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Restaurants</span>
+                  <span className="font-medium">{restaurants.length}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Livreurs</span>
+                  <span className="font-medium">{drivers.length}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Produits</span>
+                  <span className="font-medium">{pizzas.length}</span>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

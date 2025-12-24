@@ -19,8 +19,8 @@ export default function LoadingScreen() {
       });
     }
 
-    // Timeout de sécurité (max 3 secondes)
-    const safetyTimer = setTimeout(handleHide, 3000);
+    // Timeout de sécurité (max 5 secondes pour Render)
+    const safetyTimer = setTimeout(handleHide, 5000);
 
     return () => {
       clearTimeout(safetyTimer);

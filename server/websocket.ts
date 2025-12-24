@@ -240,20 +240,14 @@ async function handleDriverAcceptOrder(
   console.log(`[WebSocket] Livreur ${driverId} accepte commande ${orderId}`);
 
   try {
-    // Lock atomique: vérifier et assigner la commande en une seule transaction
+    // Utiliser le service centralisé pour l'acceptation
+    const { OrderAcceptanceService } = await import("./services/order-acceptance-service");
     const { storage } = await import("./storage");
-    const order = await storage.getOrderById(orderId);
+    
+    const acceptedOrder = await OrderAcceptanceService.acceptOrder(orderId, driverId);
 
-    if (!order) {
-      ws.send(JSON.stringify({
-        type: "error",
-        message: "Commande introuvable"
-      }));
-      return;
-    }
-
-    // Vérifier si la commande est déjà assignée
-    if (order.driverId && order.driverId !== driverId) {
+    if (!acceptedOrder) {
+      // La commande a été prise entre-temps par un autre livreur
       ws.send(JSON.stringify({
         type: "order_already_taken",
         message: "Cette commande a déjà été acceptée par un autre livreur"
@@ -272,8 +266,8 @@ async function handleDriverAcceptOrder(
       console.log(`[WebSocket] Timer expiré pour ${orderId}, mais commande pas encore assignée - acceptation autorisée`);
     }
 
-    // Assigner la commande au livreur
-    await storage.assignOrderToDriver(orderId, driverId);
+    // Récupérer les infos du livreur pour la notification
+    const driver = await storage.getDriverById(driverId);
 
     // Notifier le livreur du succès
     ws.send(JSON.stringify({
@@ -286,12 +280,26 @@ async function handleDriverAcceptOrder(
     notifyOtherDriversOrderTaken(orderId, driverId);
 
     console.log(`[WebSocket] Commande ${orderId} assignée à livreur ${driverId}`);
-  } catch (error) {
+  } catch (error: any) {
     console.error(`[WebSocket] Erreur acceptation commande:`, error);
-    ws.send(JSON.stringify({
-      type: "error",
-      message: "Erreur lors de l'acceptation de la commande"
-    }));
+    
+    // Gérer les erreurs spécifiques
+    if (error.statusCode === 404) {
+      ws.send(JSON.stringify({
+        type: "error",
+        message: "Commande introuvable"
+      }));
+    } else if (error.statusCode === 400) {
+      ws.send(JSON.stringify({
+        type: "order_already_taken",
+        message: error.message || "Cette commande a déjà été acceptée par un autre livreur"
+      }));
+    } else {
+      ws.send(JSON.stringify({
+        type: "error",
+        message: "Erreur lors de l'acceptation de la commande"
+      }));
+    }
   }
 }
 

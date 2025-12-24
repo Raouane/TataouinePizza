@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Check, ChefHat, Flame, Package, Bike, MapPin } from 'lucide-react';
+import { Check, Package, Bike, MapPin, Store } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { useOrder } from '@/lib/order-context';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 
-type OrderStatus = 'received' | 'prep' | 'bake' | 'ready' | 'delivery' | 'delivered';
+// MVP Workflow simplifié: received → accepted → ready → delivery → delivered
+type OrderStatus = 'received' | 'accepted' | 'ready' | 'delivery' | 'delivered';
 
 const steps: { id: OrderStatus; icon: any; labelKey: string }[] = [
   { id: 'received', icon: Check, labelKey: 'tracker.status.received' },
-  { id: 'prep', icon: ChefHat, labelKey: 'tracker.status.prep' },
-  { id: 'bake', icon: Flame, labelKey: 'tracker.status.bake' },
+  { id: 'accepted', icon: Store, labelKey: 'tracker.status.accepted' },
   { id: 'ready', icon: Package, labelKey: 'tracker.status.ready' },
   { id: 'delivery', icon: Bike, labelKey: 'tracker.status.delivery' },
   { id: 'delivered', icon: MapPin, labelKey: 'tracker.status.delivered' },
@@ -86,11 +86,10 @@ export function OrderTracker() {
                      {isActive && (
                         <p className="text-xs text-muted-foreground animate-in fade-in">
                             {index === 0 && "Nous avons bien reçu votre commande."}
-                            {index === 1 && "Nos chefs préparent les ingrédients."}
-                            {index === 2 && "Cuisson au feu de bois..."}
-                            {index === 3 && "Vérification qualité effectuée."}
-                            {index === 4 && "Le livreur est en route vers vous."}
-                            {index === 5 && "Bon appétit !"}
+                            {index === 1 && "Le restaurant a accepté votre commande."}
+                            {index === 2 && "Votre commande est prête pour récupération."}
+                            {index === 3 && "Le livreur est en route vers vous."}
+                            {index === 4 && "Bon appétit !"}
                         </p>
                      )}
                    </div>

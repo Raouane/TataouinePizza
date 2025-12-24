@@ -103,11 +103,13 @@ const translations: Translations = {
   // Tracker
   'tracker.title': { fr: "Suivi de commande", en: "Order Tracking", ar: "تتبع الطلب" },
   'tracker.status.received': { fr: "Commande reçue", en: "Order Received", ar: "تم استلام الطلب" },
-  'tracker.status.prep': { fr: "En cuisine", en: "Preparing", ar: "في التحضير" },
-  'tracker.status.bake': { fr: "Au four", en: "Baking", ar: "في الفرن" },
+  'tracker.status.accepted': { fr: "Acceptée", en: "Accepted", ar: "مقبولة" },
   'tracker.status.ready': { fr: "Prête", en: "Ready", ar: "جاهزة" },
   'tracker.status.delivery': { fr: "En route", en: "On the way", ar: "في الطريق" },
   'tracker.status.delivered': { fr: "Livrée", en: "Delivered", ar: "تم التوصيل" },
+  // Anciens statuts pour compatibilité (ne plus utilisés dans le workflow MVP)
+  'tracker.status.prep': { fr: "En cuisine", en: "Preparing", ar: "في التحضير" },
+  'tracker.status.bake': { fr: "Au four", en: "Baking", ar: "في الفرن" },
   'tracker.eta': { fr: "Arrivée estimée dans", en: "Estimated arrival in", ar: "الوصول المتوقع خلال" },
   'tracker.min': { fr: "min", en: "min", ar: "دقيقة" },
 

@@ -7,6 +7,7 @@ import { getOrdersByPhone } from "@/lib/api";
 import { getOnboarding } from "@/pages/onboarding";
 import type { Order } from "@/lib/api";
 import { Clock, MapPin, Phone, RefreshCw, ArrowLeft } from "lucide-react";
+import { getStatusColor, getStatusLabel } from "@/lib/order-status-helpers";
 
 export default function OrderHistory() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -60,32 +61,9 @@ export default function OrderHistory() {
     return () => clearInterval(interval);
   }, [phone]);
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: "bg-yellow-100 text-yellow-800",
-      accepted: "bg-blue-100 text-blue-800",
-      preparing: "bg-purple-100 text-purple-800",
-      baking: "bg-orange-100 text-orange-800",
-      ready: "bg-green-100 text-green-800",
-      delivery: "bg-indigo-100 text-indigo-800",
-      delivered: "bg-emerald-100 text-emerald-800",
-      rejected: "bg-red-100 text-red-800",
-    };
-    return colors[status] || "bg-gray-100 text-gray-800";
-  };
-
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, string> = {
-      pending: t('history.statusPending'),
-      accepted: t('history.statusAccepted'),
-      preparing: t('history.statusPreparing'),
-      baking: t('history.statusBaking'),
-      ready: t('history.statusReady'),
-      delivery: t('history.statusDelivery'),
-      delivered: t('history.statusDelivered'),
-      rejected: t('history.statusRejected'),
-    };
-    return labels[status] || status;
+  // Utiliser les helpers centralisés avec support i18n
+  const getStatusLabelWithI18n = (status: string) => {
+    return getStatusLabel(status, t);
   };
 
   // Si pas de données d'onboarding, afficher un message
@@ -174,7 +152,7 @@ export default function OrderHistory() {
                     order.status
                   )}`}
                 >
-                  {getStatusLabel(order.status)}
+                  {getStatusLabelWithI18n(order.status)}
                 </span>
               </div>
 
