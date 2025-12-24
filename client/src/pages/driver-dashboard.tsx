@@ -319,23 +319,22 @@ export default function DriverDashboard() {
     
     // Créer un nouvel intervalle qui répète le son toutes les SOUND_REPEAT_INTERVAL ms
     const soundInterval = setInterval(() => {
-      // Vérifier que la commande est toujours disponible et visible
+      // Vérifier UNIQUEMENT que la commande est toujours disponible (pas acceptée)
+      // Ne pas vérifier isVisible car la commande peut être masquée temporairement
       const orderStillAvailable = availableOrdersRef.current.some(
         o => o.id === orderId && !o.driverId
       );
-      const isVisible = visibleOrderIds.has(orderId);
       
       console.log(`[Sound] 🔁 Répétition son pour ${orderId}:`, {
         orderStillAvailable,
-        isVisible,
-        willPlay: orderStillAvailable && isVisible
+        willPlay: orderStillAvailable
       });
       
-      if (orderStillAvailable && isVisible) {
+      if (orderStillAvailable) {
         console.log(`[Sound] 🎵 Son répété pour commande ${orderId}`);
         playOrderNotificationSound();
       } else {
-        console.log(`[Sound] ⏹️ Arrêt répétition son pour ${orderId} - commande acceptée ou masquée`);
+        console.log(`[Sound] ⏹️ Arrêt répétition son pour ${orderId} - commande acceptée`);
         clearInterval(soundInterval);
         soundIntervalsRef.current.delete(orderId);
       }
@@ -389,8 +388,8 @@ export default function DriverDashboard() {
         return newSet;
       });
       
-      // Arrêter la répétition du son quand la commande est masquée
-      stopSoundRepetition(orderId);
+      // NE PAS arrêter le son quand la commande est masquée temporairement
+      // Le son continue tant que la commande n'est pas acceptée
       
       // Vérifier si la commande existe toujours dans availableOrders et n'a pas été acceptée
       // Utiliser la ref au lieu de setState pour éviter les boucles infinies
