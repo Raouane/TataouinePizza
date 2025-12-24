@@ -359,7 +359,20 @@ export async function registerRoutes(
         })
       );
       
-      res.json({ ...order, items: itemsWithDetails });
+      // Enrichir avec les informations du restaurant pour le livreur
+      let enrichedOrder = { ...order, items: itemsWithDetails };
+      if (order.restaurantId) {
+        const restaurant = await storage.getRestaurantById(order.restaurantId);
+        if (restaurant) {
+          enrichedOrder = {
+            ...enrichedOrder,
+            restaurantName: restaurant.name,
+            restaurantAddress: restaurant.address,
+          };
+        }
+      }
+      
+      res.json(enrichedOrder);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch order" });
     }

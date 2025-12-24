@@ -26,6 +26,7 @@ import { LogOut, RefreshCw, AlertCircle, Plus, Store, Bike, Pizza as PizzaIcon, 
 import { toast } from "sonner";
 import { getStatusColor, getCardHeaderColor, getStatusLabel } from "@/lib/order-status-helpers";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { OrderDetailsDialog } from "@/components/order-details-dialog";
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
@@ -40,6 +41,8 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("orders");
   const [showStatsDialog, setShowStatsDialog] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
   const token = localStorage.getItem("adminToken");
 
   // Form states
@@ -652,6 +655,19 @@ export default function AdminDashboard() {
                           )}
                         </div>
                         <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedOrderId(order.id);
+                              setShowOrderDetails(true);
+                            }}
+                            className="h-8 px-2 gap-1 bg-white/10 text-white border-white/30 hover:bg-white/20"
+                            title="Voir les détails"
+                          >
+                            <Eye className="w-4 h-4" />
+                            <span className="text-xs hidden sm:inline">Détails</span>
+                          </Button>
                           <Package className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                           <span className="text-lg sm:text-2xl font-bold text-white">
                             {Number(order.totalPrice).toFixed(2)} TND
@@ -1684,6 +1700,14 @@ export default function AdminDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Order Details Dialog */}
+      <OrderDetailsDialog
+        orderId={selectedOrderId}
+        open={showOrderDetails}
+        onOpenChange={setShowOrderDetails}
+        role="admin"
+      />
     </div>
   );
 }

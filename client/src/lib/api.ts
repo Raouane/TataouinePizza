@@ -17,6 +17,12 @@ export interface OrderItem {
   pizzaId: string;
   size: "small" | "medium" | "large";
   quantity: number;
+  pizza?: {
+    id: string;
+    name: string;
+    description?: string;
+  };
+  pricePerUnit?: string;
 }
 
 export interface Order {
@@ -31,6 +37,10 @@ export interface Order {
   createdAt?: string;
   driverId?: string;
   restaurantId?: string;
+  restaurantName?: string;
+  restaurantAddress?: string;
+  notes?: string;
+  paymentMethod?: string;
 }
 
 // ============ PUBLIC ENDPOINTS ============

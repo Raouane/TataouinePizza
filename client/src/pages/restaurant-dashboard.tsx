@@ -3,12 +3,14 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChefHat, LogOut, Check, X, RefreshCw, AlertCircle, ArrowLeft, Package, Banknote, Calendar, Menu, BarChart3, User, Power } from "lucide-react";
+import { ChefHat, LogOut, Check, X, RefreshCw, AlertCircle, ArrowLeft, Package, Banknote, Calendar, Menu, BarChart3, User, Power, Eye } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { getStatusColor, getStatusLabel } from "@/lib/order-status-helpers";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { OrderDetailsDialog } from "@/components/order-details-dialog";
+import { playOrderNotificationSound } from "@/lib/sound-utils";
 
 interface Order {
   id: string;
@@ -24,6 +26,7 @@ interface Order {
 export default function RestaurantDashboard() {
   const [, setLocation] = useLocation();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [previousOrderIds, setPreviousOrderIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -31,6 +34,8 @@ export default function RestaurantDashboard() {
   const [isOpen, setIsOpen] = useState(true);
   const [showStatsDialog, setShowStatsDialog] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
 
   const restaurantName = localStorage.getItem("restaurantName") || "Restaurant";
   const token = localStorage.getItem("restaurantToken");
@@ -40,10 +45,29 @@ export default function RestaurantDashboard() {
       setLocation("/restaurant/login");
       return;
     }
+    
+    // Activer l'audio au premier clic/toucher (important pour mobile)
+    const activateAudio = () => {
+      import('@/lib/sound-utils').then(({ initAudioContext }) => {
+        initAudioContext();
+      });
+    };
+    
+    // Écouter plusieurs types d'événements pour mobile
+    document.addEventListener('click', activateAudio, { once: true });
+    document.addEventListener('touchstart', activateAudio, { once: true });
+    document.addEventListener('keydown', activateAudio, { once: true });
+    
     fetchOrders();
     fetchStatus();
     const interval = setInterval(fetchOrders, 5000);
-    return () => clearInterval(interval);
+    
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('click', activateAudio);
+      document.removeEventListener('touchstart', activateAudio);
+      document.removeEventListener('keydown', activateAudio);
+    };
   }, [token, setLocation]);
 
   const fetchStatus = async () => {
@@ -84,6 +108,22 @@ export default function RestaurantDashboard() {
       });
       if (!res.ok) throw new Error("Failed to fetch orders");
       const data = await res.json();
+      
+      // Détecter les nouvelles commandes (pending ou accepted)
+      if (previousOrderIds.size > 0) {
+        const currentOrderIds = new Set(data.map((o: Order) => o.id));
+        const newOrders = data.filter((o: Order) => 
+          !previousOrderIds.has(o.id) && 
+          (o.status === "pending" || o.status === "accepted")
+        );
+        
+        if (newOrders.length > 0) {
+          console.log("[Restaurant] Nouvelles commandes détectées:", newOrders.length);
+          playOrderNotificationSound();
+        }
+      }
+      
+      setPreviousOrderIds(new Set(data.map((o: Order) => o.id)));
       setOrders(data);
       setError("");
     } catch (err) {
@@ -295,13 +335,28 @@ export default function RestaurantDashboard() {
               <Card key={order.id} className="p-6" data-testid={`card-order-${order.id}`}>
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                   <div className="flex-1 space-y-3">
-                    <div className="flex items-center gap-3">
-                      <Badge className={getStatusColor(order.status)}>
-                        {getStatusLabel(order.status)}
-                      </Badge>
-                      <span className="text-sm text-muted-foreground font-mono">
-                        #{order.id.slice(0, 8)}
-                      </span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Badge className={getStatusColor(order.status)}>
+                          {getStatusLabel(order.status)}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground font-mono">
+                          #{order.id.slice(0, 8)}
+                        </span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedOrderId(order.id);
+                          setShowOrderDetails(true);
+                        }}
+                        className="h-8 px-2 gap-1"
+                        title="Voir les détails"
+                      >
+                        <Eye className="w-4 h-4" />
+                        <span className="text-xs">Détails</span>
+                      </Button>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -474,6 +529,14 @@ export default function RestaurantDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Order Details Dialog */}
+      <OrderDetailsDialog
+        orderId={selectedOrderId}
+        open={showOrderDetails}
+        onOpenChange={setShowOrderDetails}
+        role="restaurant"
+      />
     </div>
   );
 }

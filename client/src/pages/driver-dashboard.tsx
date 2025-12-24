@@ -4,12 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bike, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock, Store, Banknote, Navigation, Power, ExternalLink, User, Menu, BarChart3, Bell, Settings } from "lucide-react";
+import { Bike, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock, Store, Banknote, Navigation, Power, ExternalLink, User, Menu, BarChart3, Bell, Settings, Eye } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { getStatusColor, getDriverStatusLabel } from "@/lib/order-status-helpers";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { OrderDetailsDialog } from "@/components/order-details-dialog";
+import { playOrderNotificationSound } from "@/lib/sound-utils";
 
 interface Order {
   id: string;
@@ -46,6 +48,8 @@ export default function DriverDashboard() {
   const [activeTab, setActiveTab] = useState("available"); // État pour contrôler l'onglet actif
   const [showStatsDialog, setShowStatsDialog] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   
   // États pour la visibilité cyclique des commandes
@@ -94,6 +98,10 @@ export default function DriverDashboard() {
             } else if (message.type === "new_order") {
               // Nouvelle commande disponible
               setLastNotification(message);
+              
+              // Jouer le son de notification
+              playOrderNotificationSound();
+              
               toast.info(`Nouvelle commande disponible: ${message.restaurantName}`, {
                 duration: 10000,
                 action: {
@@ -229,6 +237,19 @@ export default function DriverDashboard() {
       setLocation("/driver/login");
       return;
     }
+    
+    // Activer l'audio au premier clic/toucher (important pour mobile)
+    const activateAudio = () => {
+      import('@/lib/sound-utils').then(({ initAudioContext }) => {
+        initAudioContext();
+      });
+    };
+    
+    // Écouter plusieurs types d'événements pour mobile
+    document.addEventListener('click', activateAudio, { once: true });
+    document.addEventListener('touchstart', activateAudio, { once: true });
+    document.addEventListener('keydown', activateAudio, { once: true });
+    
     fetchOrders();
     fetchStatus();
     // Augmenter l'intervalle pour éviter de perturber les timers de visibilité
@@ -236,7 +257,13 @@ export default function DriverDashboard() {
     const interval = setInterval(() => {
       fetchOrders();
     }, 30000); // 30 secondes pour ne pas perturber les timers de visibilité
-    return () => clearInterval(interval);
+    
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('click', activateAudio);
+      document.removeEventListener('touchstart', activateAudio);
+      document.removeEventListener('keydown', activateAudio);
+    };
   }, [token, setLocation]);
 
   const fetchStatus = async () => {
@@ -357,6 +384,17 @@ export default function DriverDashboard() {
       if (availableRes.ok) {
         const data = await availableRes.json();
         console.log("[Driver] Commandes disponibles récupérées:", data);
+        
+        // Détecter les nouvelles commandes disponibles (pas encore assignées)
+        const previousOrderIds = new Set(availableOrdersRef.current.map(o => o.id));
+        const newOrders = data.filter((o: Order) => 
+          !previousOrderIds.has(o.id) && !o.driverId
+        );
+        
+        if (newOrders.length > 0 && previousOrderIds.size > 0) {
+          console.log("[Driver] Nouvelles commandes détectées:", newOrders.length);
+          playOrderNotificationSound();
+        }
         
         // Mettre à jour la ref AVANT de mettre à jour l'état
         availableOrdersRef.current = data;
@@ -751,9 +789,24 @@ export default function DriverDashboard() {
                             #{order.id.slice(0, 8)}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-sm font-medium">
-                          <Banknote className="w-4 h-4" />
-                          +{commission.toFixed(2)} TND
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-sm font-medium">
+                            <Banknote className="w-4 h-4" />
+                            +{commission.toFixed(2)} TND
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedOrderId(order.id);
+                              setShowOrderDetails(true);
+                            }}
+                            className="h-8 px-2 gap-1"
+                            title="Voir les détails"
+                          >
+                            <Eye className="w-4 h-4" />
+                            <span className="text-xs">Détails</span>
+                          </Button>
                         </div>
                       </div>
 
@@ -843,9 +896,24 @@ export default function DriverDashboard() {
                             #{order.id.slice(0, 8)}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-sm font-medium">
-                          <Banknote className="w-4 h-4" />
-                          +{commission.toFixed(2)} TND
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-sm font-medium">
+                            <Banknote className="w-4 h-4" />
+                            +{commission.toFixed(2)} TND
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedOrderId(order.id);
+                              setShowOrderDetails(true);
+                            }}
+                            className="h-8 px-2 gap-1"
+                            title="Voir les détails"
+                          >
+                            <Eye className="w-4 h-4" />
+                            <span className="text-xs">Détails</span>
+                          </Button>
                         </div>
                       </div>
 
@@ -1138,6 +1206,14 @@ export default function DriverDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Order Details Dialog */}
+      <OrderDetailsDialog
+        orderId={selectedOrderId}
+        open={showOrderDetails}
+        onOpenChange={setShowOrderDetails}
+        role="driver"
+      />
     </div>
   );
 }

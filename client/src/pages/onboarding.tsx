@@ -13,9 +13,10 @@ const STORAGE_KEY = "tp_onboarding";
 interface OnboardingData {
   name: string;
   phone: string;
-  address?: string;
-  lat?: number;
-  lng?: number;
+  address?: string; // Adresse optionnelle dans l'onboarding (sera demandée lors de la commande)
+  addressDetails?: string;
+  lat?: number; // Géolocalisation optionnelle
+  lng?: number; // Géolocalisation optionnelle
 }
 
 function saveOnboarding(data: OnboardingData) {
@@ -45,6 +46,7 @@ export default function OnboardingPage() {
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [address, setAddress] = useState("");
+  const [addressDetails, setAddressDetails] = useState("");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -136,16 +138,10 @@ export default function OnboardingPage() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const c = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        // Sauvegarder et rediriger immédiatement sans afficher les coordonnées
-        saveOnboarding({
-          name,
-          phone,
-          address,
-          lat: c.lat,
-          lng: c.lng,
-        });
-        // Utiliser window.location pour forcer la redirection
-        window.location.href = "/";
+        // Mettre à jour les coordonnées mais ne pas rediriger automatiquement
+        setCoords(c);
+        setLoading(false);
+        // L'utilisateur doit toujours remplir l'adresse et cliquer sur "Continuer"
       },
       () => {
         setError(
@@ -165,10 +161,12 @@ export default function OnboardingPage() {
   }
 
   function handleFinish() {
+    // L'adresse sera validée lors de la création de commande, pas ici
     saveOnboarding({
       name,
       phone,
-      address,
+      address: address.trim() || undefined, // Optionnel dans l'onboarding
+      addressDetails: addressDetails.trim() || undefined,
       lat: coords?.lat,
       lng: coords?.lng,
     });
@@ -313,6 +311,53 @@ export default function OnboardingPage() {
                   )}
                 </h2>
               </div>
+
+              {/* Champ adresse optionnel */}
+              <div className="space-y-1">
+                <Input
+                  value={address}
+                  onChange={(e) => {
+                    setAddress(e.target.value);
+                    setError(null);
+                  }}
+                  placeholder={t(
+                    "Adresse complète (optionnel - sera demandé lors de la commande)",
+                    "Full address (optional - will be asked when ordering)",
+                    "العنوان الكامل (اختياري - سيُطلب عند الطلب)",
+                  )}
+                  className="h-12"
+                />
+                <p className="text-xs text-gray-500">
+                  {t(
+                    "Vous pourrez compléter l'adresse lors de votre première commande",
+                    "You can complete the address when placing your first order",
+                    "يمكنك إكمال العنوان عند تقديم طلبك الأول",
+                  )}
+                </p>
+              </div>
+
+              {/* Détails d'adresse optionnels */}
+              <div className="space-y-1">
+                <Input
+                  value={addressDetails}
+                  onChange={(e) => setAddressDetails(e.target.value)}
+                  placeholder={t(
+                    "Détails (étage, repère, café, mosquée...) - optionnel",
+                    "Details (floor, landmark, cafe, mosque...) - optional",
+                    "تفاصيل (الطابق، معلم، مقهى، مسجد...) - اختياري",
+                  )}
+                  className="h-12"
+                />
+                <p className="text-xs text-gray-500">
+                  {t(
+                    "Aide le livreur à te trouver plus facilement",
+                    "Help the driver find you more easily",
+                    "ساعد عامل التوصيل في العثور عليك بسهولة",
+                  )}
+                </p>
+              </div>
+
+              {/* Bouton géolocalisation optionnel */}
               <Button
                 type="button"
                 onClick={handleUseLocation}
@@ -326,40 +371,37 @@ export default function OnboardingPage() {
                   <>
                     <MapPin className="w-4 h-4 mr-2" />
                     {t(
-                      "Utiliser ma position",
-                      "Use my location",
-                      "استخدام موقعي",
+                      "Utiliser ma position (optionnel)",
+                      "Use my location (optional)",
+                      "استخدام موقعي (اختياري)",
                     )}
                   </>
                 )}
               </Button>
+
+              {/* Afficher les coordonnées si disponibles */}
               {coords && (
-                <div className="space-y-3">
-                  <p className="text-xs text-gray-500 text-center">
-                    {coords.lat.toFixed(3)}, {coords.lng.toFixed(3)}
+                <div className="p-3 bg-green-50 rounded-lg">
+                  <p className="text-xs text-green-700 text-center">
+                    {t(
+                      "✓ Position enregistrée",
+                      "✓ Location saved",
+                      "✓ تم حفظ الموقع",
+                    )}: {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
                   </p>
-                  <div className="space-y-1">
-                    <Input
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder={t(
-                        "Ex : en face du café, près de la poste… (facultatif)",
-                        "e.g. in front of the cafe, near the post office… (optional)",
-                        "مثال: أمام المقهى، قرب البريد… (اختياري)",
-                      )}
-                      className="h-12"
-                    />
-                    <p className="text-xs text-gray-500">
-                      {t(
-                        "Aide le livreur à te trouver plus facilement (étage, repère, café, mosquée…).",
-                        "Help the driver find you more easily (floor, landmark, cafe, mosque…).",
-                        "ساعد عامل التوصيل في العثور عليك بسهولة (الطابق، معلم قريب، مقهى، مسجد...).",
-                      )}
-                    </p>
-                  </div>
                 </div>
               )}
-              {error && step === "location" && !coords && (
+
+              {/* Bouton continuer */}
+              <Button
+                type="button"
+                onClick={handleFinish}
+                className="w-full h-12 text-base"
+              >
+                {t("Continuer", "Continue", "متابعة")}
+              </Button>
+
+              {error && step === "location" && (
                 <p className="text-sm text-red-500 text-center">{error}</p>
               )}
             </div>

@@ -136,9 +136,9 @@ export default function CartPage() {
         customerName: name.trim(),
         phone: phone.trim(),
         address: address.trim(),
-        addressDetails: "",
-        customerLat: onboarding?.lat,
-        customerLng: onboarding?.lng,
+        addressDetails: onboarding?.addressDetails || "",
+        customerLat: onboarding?.lat, // Optionnel
+        customerLng: onboarding?.lng, // Optionnel
         items: orderItems,
       });
     });
