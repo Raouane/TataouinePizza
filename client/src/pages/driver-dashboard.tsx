@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { OrderDetailsDialog } from "@/components/order-details-dialog";
 import { AudioPermissionBanner } from "@/components/audio-permission-banner";
-import { playOrderNotificationSound } from "@/lib/sound-utils";
+import { playOrderNotificationSound, startNotificationRepeatViaSW, stopNotificationRepeatViaSW } from "@/lib/sound-utils";
 
 interface Order {
   id: string;
@@ -317,6 +317,9 @@ export default function DriverDashboard() {
     console.log(`[Sound] 🎵 Premier son pour commande ${orderId}`);
     playOrderNotificationSound();
     
+    // Démarrer aussi la répétition via Service Worker pour fonctionner même en arrière-plan/écran éteint
+    startNotificationRepeatViaSW(orderId, SOUND_REPEAT_INTERVAL);
+    
     // Créer un nouvel intervalle qui répète le son toutes les SOUND_REPEAT_INTERVAL ms
     const soundInterval = setInterval(() => {
       // Vérifier UNIQUEMENT que la commande est toujours disponible (pas acceptée)
@@ -337,6 +340,8 @@ export default function DriverDashboard() {
         console.log(`[Sound] ⏹️ Arrêt répétition son pour ${orderId} - commande acceptée`);
         clearInterval(soundInterval);
         soundIntervalsRef.current.delete(orderId);
+        // Arrêter aussi la répétition via Service Worker
+        stopNotificationRepeatViaSW(orderId);
       }
     }, SOUND_REPEAT_INTERVAL);
     
@@ -353,6 +358,8 @@ export default function DriverDashboard() {
       soundIntervalsRef.current.delete(orderId);
       console.log(`[Sound] ✅ Répétition son arrêtée pour ${orderId}`);
     }
+    // Arrêter aussi la répétition via Service Worker
+    stopNotificationRepeatViaSW(orderId);
   };
 
   const showOrder = (orderId: string, playSound: boolean = true) => {

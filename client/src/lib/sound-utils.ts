@@ -142,6 +142,38 @@ function sendSystemNotification(title: string, body: string, options?: Notificat
 }
 
 /**
+ * Démarre la répétition de notifications via Service Worker
+ * Fonctionne même quand l'écran est éteint ou l'app en arrière-plan
+ */
+export function startNotificationRepeatViaSW(orderId: string, interval: number) {
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({
+      type: 'START_NOTIFICATION_REPEAT',
+      orderId,
+      interval,
+    });
+    console.log(`[Notifications] 🔔 Répétition notification démarrée via SW pour ${orderId}, intervalle: ${interval}ms`);
+  } else {
+    console.warn("[Notifications] ⚠️ Service Worker non disponible pour répétition");
+  }
+}
+
+/**
+ * Arrête la répétition de notifications via Service Worker
+ */
+export function stopNotificationRepeatViaSW(orderId: string) {
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({
+      type: 'STOP_NOTIFICATION_REPEAT',
+      orderId,
+    });
+    console.log(`[Notifications] ⏹️ Répétition notification arrêtée via SW pour ${orderId}`);
+  } else {
+    console.warn("[Notifications] ⚠️ Service Worker non disponible pour arrêt");
+  }
+}
+
+/**
  * Détecte si l'appareil est mobile
  */
 function isMobileDevice(): boolean {
