@@ -8,9 +8,12 @@ Ajoutez ces variables dans votre fichier `.env` (ou dans les variables d'environ
 TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TWILIO_PHONE_NUMBER=+1xxxxxxxxxx
+TWILIO_VERIFIED_NUMBER=+33783698509
 ```
 
-**Note** : Remplacez les `x` par vos vraies valeurs depuis votre dashboard Twilio.
+**Note** : 
+- Remplacez les `x` par vos vraies valeurs depuis votre dashboard Twilio.
+- `TWILIO_VERIFIED_NUMBER` : Votre numéro vérifié dans Twilio (obligatoire pour le compte Trial)
 
 ## Comment ça fonctionne
 

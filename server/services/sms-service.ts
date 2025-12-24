@@ -4,6 +4,7 @@ import { storage } from '../storage.js';
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+const verifiedNumber = process.env.TWILIO_VERIFIED_NUMBER; // Numéro vérifié pour le compte Trial
 
 if (!accountSid || !authToken || !twilioPhoneNumber) {
   console.warn('[SMS] ⚠️ Twilio non configuré - les SMS ne seront pas envoyés');
@@ -22,6 +23,11 @@ const twilioClient = accountSid && authToken
 if (twilioClient) {
   console.log('[SMS] ✅ Twilio configuré et prêt');
   console.log('[SMS] Numéro Twilio:', twilioPhoneNumber);
+  if (verifiedNumber) {
+    console.log('[SMS] Mode Trial: SMS envoyés au numéro vérifié:', verifiedNumber);
+  } else {
+    console.log('[SMS] Mode Production: SMS envoyés aux livreurs disponibles');
+  }
 } else {
   console.warn('[SMS] ⚠️ Twilio non configuré - les SMS ne seront pas envoyés');
   console.warn('[SMS] Vérifiez que les variables d\'environnement sont définies:');
@@ -64,17 +70,35 @@ export async function sendSMSToDrivers(
   }
 
   try {
+    const message = `🔔 Nouvelle commande disponible!\nRestaurant: ${restaurantName}\nClient: ${customerName}\nTotal: ${totalPrice} TND\nID: ${orderId.slice(0, 8)}`;
+
+    // Si un numéro vérifié est configuré (pour compte Trial), envoyer uniquement à ce numéro
+    if (verifiedNumber) {
+      console.log(`[SMS] Mode Trial: Envoi SMS au numéro vérifié ${verifiedNumber}`);
+      
+      try {
+        const result = await twilioClient.messages.create({
+          body: message,
+          from: twilioPhoneNumber!,
+          to: verifiedNumber,
+        });
+
+        console.log(`[SMS] ✅ SMS envoyé au numéro vérifié ${verifiedNumber}: ${result.sid}`);
+        console.log(`[SMS] Message: ${message}`);
+      } catch (error: any) {
+        console.error(`[SMS] ❌ Erreur envoi SMS au numéro vérifié:`, error.message);
+        console.error(`[SMS] Détails de l'erreur:`, error);
+      }
+      return;
+    }
+
+    // Sinon, envoyer à tous les livreurs disponibles (pour compte payant)
     // Récupérer tous les livreurs
     const allDrivers = await storage.getAllDrivers();
     
     // Filtrer les livreurs disponibles (en ligne dans les 5 dernières minutes)
-    // Note: On utilise la même logique que dans websocket.ts
-    const now = new Date();
-    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
-    
     const onlineDrivers = allDrivers.filter(driver => {
       const isAvailable = driver.status === 'available' || driver.status === 'online';
-      // Note: On ne peut pas vérifier last_seen facilement ici, donc on se base sur le statut
       return isAvailable;
     });
 
@@ -82,8 +106,6 @@ export async function sendSMSToDrivers(
     const driversToNotify = onlineDrivers.slice(0, maxDrivers);
 
     console.log(`[SMS] Envoi SMS à ${driversToNotify.length} livreur(s) sur ${onlineDrivers.length} disponible(s)`);
-
-    const message = `🔔 Nouvelle commande disponible!\nRestaurant: ${restaurantName}\nClient: ${customerName}\nTotal: ${totalPrice} TND\nID: ${orderId.slice(0, 8)}`;
 
     // Envoyer SMS à chaque livreur
     let successCount = 0;
@@ -98,7 +120,7 @@ export async function sendSMSToDrivers(
 
         const result = await twilioClient.messages.create({
           body: message,
-          from: twilioPhoneNumber,
+          from: twilioPhoneNumber!,
           to: phoneNumber,
         });
 
