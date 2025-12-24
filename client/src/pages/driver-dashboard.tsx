@@ -58,10 +58,12 @@ export default function DriverDashboard() {
   const [visibleOrderIds, setVisibleOrderIds] = useState<Set<string>>(new Set());
   const orderTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const availableOrdersRef = useRef<Order[]>([]); // Ref pour éviter les boucles infinies
+  const soundIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map()); // Intervalles de son par commande
   
   // Durées configurables
   const ORDER_VISIBLE_DURATION = 30000; // 30 secondes - temps d'affichage
   const ORDER_HIDDEN_DURATION = 10000; // 10 secondes - temps de masquage
+  const SOUND_REPEAT_INTERVAL = 5000; // 5 secondes - intervalle entre chaque répétition du son
   
   const driverName = localStorage.getItem("driverName") || "Livreur";
   const driverId = localStorage.getItem("driverId");
@@ -228,11 +230,17 @@ export default function DriverDashboard() {
     };
   }, [token, driverId, isOnline]); // Retirer wsReconnectAttempts des dépendances
 
-  // Nettoyer les timers de visibilité au démontage
+  // Nettoyer les timers de visibilité et les intervalles de son au démontage
   useEffect(() => {
     return () => {
+      console.log("[Sound] 🧹 Nettoyage de tous les intervalles de son au démontage");
       orderTimersRef.current.forEach(timer => clearTimeout(timer));
       orderTimersRef.current.clear();
+      soundIntervalsRef.current.forEach((interval, orderId) => {
+        console.log(`[Sound] 🧹 Arrêt intervalle son pour ${orderId}`);
+        clearInterval(interval);
+      });
+      soundIntervalsRef.current.clear();
     };
   }, []);
 
@@ -252,6 +260,13 @@ export default function DriverDashboard() {
     
     return () => {
       clearInterval(interval);
+      // Nettoyer tous les intervalles de son au démontage
+      console.log("[Sound] 🧹 Nettoyage de tous les intervalles de son au démontage");
+      soundIntervalsRef.current.forEach((interval, orderId) => {
+        console.log(`[Sound] 🧹 Arrêt intervalle son pour ${orderId}`);
+        clearInterval(interval);
+      });
+      soundIntervalsRef.current.clear();
     };
   }, [token, setLocation]);
 
@@ -287,14 +302,62 @@ export default function DriverDashboard() {
   };
 
   // Fonction pour afficher une commande (démarre le cycle de visibilité)
+  // Fonction pour démarrer la répétition du son pour une commande
+  const startSoundRepetition = (orderId: string) => {
+    console.log(`[Sound] 🔊 Démarrage répétition son pour commande ${orderId}`);
+    
+    // Arrêter l'intervalle existant si présent
+    const existingInterval = soundIntervalsRef.current.get(orderId);
+    if (existingInterval) {
+      console.log(`[Sound] ⏹️ Arrêt intervalle son existant pour ${orderId}`);
+      clearInterval(existingInterval);
+    }
+    
+    // Jouer le son immédiatement
+    console.log(`[Sound] 🎵 Premier son pour commande ${orderId}`);
+    playOrderNotificationSound();
+    
+    // Créer un nouvel intervalle qui répète le son toutes les SOUND_REPEAT_INTERVAL ms
+    const soundInterval = setInterval(() => {
+      // Vérifier que la commande est toujours disponible et visible
+      const orderStillAvailable = availableOrdersRef.current.some(
+        o => o.id === orderId && !o.driverId
+      );
+      const isVisible = visibleOrderIds.has(orderId);
+      
+      console.log(`[Sound] 🔁 Répétition son pour ${orderId}:`, {
+        orderStillAvailable,
+        isVisible,
+        willPlay: orderStillAvailable && isVisible
+      });
+      
+      if (orderStillAvailable && isVisible) {
+        console.log(`[Sound] 🎵 Son répété pour commande ${orderId}`);
+        playOrderNotificationSound();
+      } else {
+        console.log(`[Sound] ⏹️ Arrêt répétition son pour ${orderId} - commande acceptée ou masquée`);
+        clearInterval(soundInterval);
+        soundIntervalsRef.current.delete(orderId);
+      }
+    }, SOUND_REPEAT_INTERVAL);
+    
+    soundIntervalsRef.current.set(orderId, soundInterval);
+    console.log(`[Sound] ✅ Répétition son démarrée pour ${orderId}, intervalle: ${SOUND_REPEAT_INTERVAL}ms`);
+  };
+  
+  // Fonction pour arrêter la répétition du son pour une commande
+  const stopSoundRepetition = (orderId: string) => {
+    console.log(`[Sound] ⏹️ Arrêt répétition son pour commande ${orderId}`);
+    const soundInterval = soundIntervalsRef.current.get(orderId);
+    if (soundInterval) {
+      clearInterval(soundInterval);
+      soundIntervalsRef.current.delete(orderId);
+      console.log(`[Sound] ✅ Répétition son arrêtée pour ${orderId}`);
+    }
+  };
+
   const showOrder = (orderId: string, playSound: boolean = true) => {
     console.log(`[Visibility] Affichage commande ${orderId}`);
-    
-    // Jouer le son à chaque affichage (première fois et réapparitions)
-    if (playSound) {
-      console.log(`[Visibility] Son déclenché pour commande ${orderId}`);
-      playOrderNotificationSound();
-    }
     
     // S'assurer que la commande est visible
     setVisibleOrderIds(prev => {
@@ -302,6 +365,12 @@ export default function DriverDashboard() {
       newSet.add(orderId);
       return newSet;
     });
+    
+    // Démarrer la répétition du son si demandé
+    if (playSound) {
+      console.log(`[Visibility] Son déclenché pour commande ${orderId}`);
+      startSoundRepetition(orderId);
+    }
     
     // Nettoyer le timer existant si présent
     const existingTimer = orderTimersRef.current.get(orderId);
@@ -319,6 +388,9 @@ export default function DriverDashboard() {
         console.log(`[Visibility] Commande ${orderId} masquée. Visible: ${newSet.has(orderId)}`);
         return newSet;
       });
+      
+      // Arrêter la répétition du son quand la commande est masquée
+      stopSoundRepetition(orderId);
       
       // Vérifier si la commande existe toujours dans availableOrders et n'a pas été acceptée
       // Utiliser la ref au lieu de setState pour éviter les boucles infinies
@@ -343,6 +415,8 @@ export default function DriverDashboard() {
       } else {
         console.log(`[Visibility] Commande ${orderId} n'est plus disponible, arrêt du cycle`);
         orderTimersRef.current.delete(orderId);
+        // Arrêter définitivement la répétition du son
+        stopSoundRepetition(orderId);
       }
     }, ORDER_VISIBLE_DURATION);
     
@@ -352,6 +426,10 @@ export default function DriverDashboard() {
 
   // Fonction pour masquer définitivement une commande (quand acceptée)
   const hideOrderPermanently = (orderId: string) => {
+    console.log(`[Visibility] Masquage permanent de la commande ${orderId}`);
+    // Arrêter la répétition du son
+    stopSoundRepetition(orderId);
+    
     setVisibleOrderIds(prev => {
       const newSet = new Set(prev);
       newSet.delete(orderId);
@@ -507,8 +585,11 @@ export default function DriverDashboard() {
   };
 
   const handleAcceptOrder = async (orderId: string) => {
+    console.log(`[Driver] 🎯 Acceptation commande ${orderId}`);
     setUpdating(orderId);
     try {
+      // Arrêter immédiatement la répétition du son
+      stopSoundRepetition(orderId);
       // Masquer immédiatement la commande acceptée
       hideOrderPermanently(orderId);
       
@@ -876,7 +957,7 @@ export default function DriverDashboard() {
               } else if (isInDelivery) {
                 // En livraison → Marquer comme livré
                 swipeAction = () => handleDelivered(order.id);
-                swipeLabel = "Livré";
+                swipeLabel = "Livraison terminée";
                 swipeColor = "emerald";
                 swipeIcon = <Check className="w-5 h-5 text-white" />;
               } else {

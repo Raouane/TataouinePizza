@@ -233,9 +233,11 @@ function triggerVisualNotification() {
 export function playOrderNotificationSound() {
   const isMobile = isMobileDevice();
   
-  console.log("[Sound] playOrderNotificationSound appelé");
-  console.log("[Sound] Permission audio:", hasAudioPermission());
-  console.log("[Sound] Permission notifications:", hasNotificationPermission());
+  console.log("[Sound] 🔊 playOrderNotificationSound appelé");
+  console.log("[Sound] 📱 Appareil mobile:", isMobile);
+  console.log("[Sound] ✅ Permission audio:", hasAudioPermission());
+  console.log("[Sound] ✅ Permission notifications:", hasNotificationPermission());
+  console.log("[Sound] ⏰ Timestamp:", new Date().toISOString());
   
   // Notification visuelle (toujours active)
   triggerVisualNotification();
