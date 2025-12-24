@@ -3,8 +3,8 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bike, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock, Store, Banknote, Navigation, Power, ExternalLink, User, Menu, BarChart3, Bell, Settings, Eye } from "lucide-react";
+import { Bike, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock, Store, Banknote, Navigation, Power, ExternalLink, User, Menu, BarChart3, Bell, Settings, Eye, History } from "lucide-react";
+import { SwipeButton } from "@/components/swipe-button";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { getStatusColor, getDriverStatusLabel } from "@/lib/order-status-helpers";
@@ -27,6 +27,7 @@ interface Order {
   restaurantId?: string;
   restaurantName?: string;
   restaurantAddress?: string;
+  driverId?: string;
   createdAt?: string;
 }
 
@@ -45,9 +46,9 @@ export default function DriverDashboard() {
   const [lastNotification, setLastNotification] = useState<any>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showCustomerDialog, setShowCustomerDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState("available"); // État pour contrôler l'onglet actif
   const [showStatsDialog, setShowStatsDialog] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -158,8 +159,6 @@ export default function DriverDashboard() {
               } catch (updateError) {
                 console.error("[WebSocket] Erreur mise à jour statut:", updateError);
               }
-              // Changer automatiquement vers l'onglet "Mes livraisons"
-              setActiveTab("active");
               // Rafraîchir pour obtenir les détails complets
               fetchOrders();
             } else if (message.type === "order_rejected" || message.type === "order_already_taken") {
@@ -379,7 +378,22 @@ export default function DriverDashboard() {
       
       if (availableRes.ok) {
         const data = await availableRes.json();
-        console.log("[Driver] Commandes disponibles récupérées:", data);
+        console.log("[Driver] Commandes disponibles récupérées:", data.length);
+        
+        // LOG DÉTAILLÉ : Voir toutes les commandes avec leurs détails
+        console.log("[DEBUG] Détails des commandes disponibles:", data.map((o: Order) => ({
+          id: o.id,
+          status: o.status,
+          driverId: o.driverId || "AUCUN",
+          restaurantName: o.restaurantName || "N/A",
+          customerName: o.customerName || "N/A",
+          totalPrice: o.totalPrice
+        })));
+        
+        // LOG : Afficher la première commande complète pour debug
+        if (data.length > 0) {
+          console.log("[DEBUG] 🔍 Première commande complète:", JSON.stringify(data[0], null, 2));
+        }
         
         // Détecter les nouvelles commandes disponibles (pas encore assignées)
         const previousOrderIds = new Set(availableOrdersRef.current.map(o => o.id));
@@ -387,10 +401,22 @@ export default function DriverDashboard() {
           !previousOrderIds.has(o.id) && !o.driverId
         );
         
+        // LOG : Comparaison avant/après
+        console.log("[DEBUG] Commandes précédentes:", previousOrderIds.size);
+        console.log("[DEBUG] Nouvelles commandes:", newOrders.length);
+        console.log("[DEBUG] IDs des nouvelles commandes:", newOrders.map((o: Order) => o.id));
+        
         // Note: Le son sera joué dans showOrder() pour chaque commande affichée
         // Pas besoin de jouer le son ici pour éviter les doublons
         if (newOrders.length > 0 && previousOrderIds.size > 0) {
           console.log("[Driver] Nouvelles commandes détectées:", newOrders.length);
+        }
+        
+        // LOG : Vérifier si des commandes ont disparu
+        const currentOrderIds = new Set(data.map((o: Order) => o.id));
+        const disappearedOrders = Array.from(previousOrderIds).filter(id => !currentOrderIds.has(id));
+        if (disappearedOrders.length > 0) {
+          console.log("[DEBUG] ⚠️ Commandes qui ont disparu:", disappearedOrders);
         }
         
         // Mettre à jour la ref AVANT de mettre à jour l'état
@@ -458,13 +484,24 @@ export default function DriverDashboard() {
       }
       if (myRes.ok) {
         const data = await myRes.json();
-        console.log("[Driver] Mes commandes récupérées:", data);
+        console.log("[Driver] Mes commandes récupérées:", data.length);
+        
+        // LOG DÉTAILLÉ : Voir toutes les commandes du livreur
+        console.log("[DEBUG] Détails de mes commandes:", data.map((o: Order) => ({
+          id: o.id,
+          status: o.status,
+          driverId: o.driverId || "AUCUN",
+          restaurantName: o.restaurantName || "N/A",
+          customerName: o.customerName || "N/A"
+        })));
+        
         setMyOrders(data);
       }
       setError("");
     } catch (err) {
       console.error("Failed to fetch orders:", err);
     } finally {
+      console.log("[DEBUG] ✅ fetchOrders terminé - setLoading(false)");
       setLoading(false);
     }
   };
@@ -513,13 +550,10 @@ export default function DriverDashboard() {
         toast.success("Commande acceptée! En route vers le client.");
         // Retirer immédiatement de la liste des disponibles
         setAvailableOrders(prev => prev.filter(o => o.id !== orderId));
-        // Changer automatiquement vers l'onglet "Mes livraisons"
-        setActiveTab("active");
         await fetchOrders();
       } else {
         toast.success("Commande acceptée!");
         setAvailableOrders(prev => prev.filter(o => o.id !== orderId));
-        setActiveTab("active");
         await fetchOrders();
       }
     } catch (err: any) {
@@ -545,8 +579,6 @@ export default function DriverDashboard() {
         throw new Error(err.error || "Erreur");
       }
       toast.success("C'est parti! Bonne livraison!");
-      // Changer automatiquement vers l'onglet "Mes livraisons"
-      setActiveTab("active");
       await fetchOrders();
     } catch (err: any) {
       setError(err.message);
@@ -572,8 +604,6 @@ export default function DriverDashboard() {
         throw new Error(err.error || "Erreur");
       }
       toast.success("Commande livrée!");
-      // Changer automatiquement vers l'onglet "Historique"
-      setActiveTab("completed");
       await fetchOrders();
     } catch (err: any) {
       setError(err.message);
@@ -596,6 +626,42 @@ export default function DriverDashboard() {
   // MVP: Workflow simplifié - fusionner "En attente" et "En livraison" en un seul onglet "Mes livraisons"
   const activeDeliveryOrders = myOrders.filter(o => ["accepted", "ready", "delivery"].includes(o.status));
   const deliveredOrders = myOrders.filter(o => o.status === "delivered");
+
+  // Toutes les commandes à afficher (disponibles + en cours)
+  const allOrdersToShow = [
+    // Afficher TOUTES les commandes disponibles (pas seulement celles "visibles")
+    ...availableOrders.filter(order => {
+      const hasNoDriver = !order.driverId;
+      const isVisible = visibleOrderIds.has(order.id);
+      const hasTimer = orderTimersRef.current.has(order.id);
+      
+      // LOG pour chaque commande filtrée
+      if (!hasNoDriver) {
+        console.log(`[DEBUG] ❌ Commande ${order.id.slice(0, 8)}... filtrée: a un driverId (${order.driverId})`);
+      } else {
+        console.log(`[DEBUG] ✅ Commande ${order.id.slice(0, 8)}... PASSERA le filtre:`, {
+          hasNoDriver,
+          isVisible,
+          hasTimer,
+          status: order.status,
+          restaurantName: order.restaurantName,
+          visibleOrderIds: Array.from(visibleOrderIds)
+        });
+      }
+      
+      return hasNoDriver;
+    }),
+    // + toutes les commandes en cours du livreur
+    ...activeDeliveryOrders,
+  ];
+
+  // LOG : Résumé de ce qui sera affiché
+  console.log("[DEBUG] 📊 Résumé des commandes:");
+  console.log(`  - Commandes disponibles (total): ${availableOrders.length}`);
+  console.log(`  - Commandes disponibles (sans driver): ${availableOrders.filter(o => !o.driverId).length}`);
+  console.log(`  - Commandes en cours: ${activeDeliveryOrders.length}`);
+  console.log(`  - TOTAL à afficher: ${allOrdersToShow.length}`);
+  console.log(`  - IDs à afficher:`, allOrdersToShow.map(o => o.id.slice(0, 8)));
 
   // Calculer les statistiques
   const totalEarnings = deliveredOrders.reduce((sum, o) => sum + Number(o.totalPrice) * DRIVER_COMMISSION_RATE, 0);
@@ -683,6 +749,26 @@ export default function DriverDashboard() {
                       </p>
                     </div>
 
+                    {/* Historique */}
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-3 h-auto py-3"
+                      onClick={() => {
+                        setShowHistoryDialog(true);
+                        setShowMenu(false);
+                      }}
+                    >
+                      <div className="bg-purple-100 p-2 rounded-lg">
+                        <History className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-medium">Historique</p>
+                        <p className="text-xs text-muted-foreground">
+                          {deliveredOrders.length} livraison{deliveredOrders.length > 1 ? 's' : ''} terminée{deliveredOrders.length > 1 ? 's' : ''}
+                        </p>
+                      </div>
+                    </Button>
+
                     {/* Profil */}
                     <Button
                       variant="ghost"
@@ -735,78 +821,114 @@ export default function DriverDashboard() {
           </div>
         )}
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full grid grid-cols-3 h-auto">
-            <TabsTrigger value="available" className="text-xs px-1 py-2">
-              <span className="hidden sm:inline">Disponibles</span>
-              <span className="sm:hidden">Dispo</span>
-            </TabsTrigger>
-            <TabsTrigger value="active" className="text-xs px-1 py-2">
-              <span className="hidden sm:inline">Mes livraisons</span>
-              <span className="sm:hidden">Livr.</span>
-            </TabsTrigger>
-            <TabsTrigger value="completed" className="text-xs px-1 py-2">
-              <span className="hidden sm:inline">Historique</span>
-              <span className="sm:hidden">Hist.</span>
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="available" className="mt-4">
-            {loading ? (
-              <div className="text-center py-12 text-muted-foreground">Chargement...</div>
-            ) : availableOrders.length === 0 ? (
-              <Card className="p-12 text-center">
-                <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">Aucune commande disponible</h3>
-                <p className="text-muted-foreground">
-                  Les commandes prêtes apparaîtront ici. Premier arrivé, premier servi!
-                </p>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {availableOrders
-                  .filter(order => {
-                    const isVisible = visibleOrderIds.has(order.id) || order.driverId;
-                    if (!isVisible && !order.driverId) {
-                      console.log(`[Visibility] Commande ${order.id} filtrée (non visible)`);
-                    }
-                    return isVisible; // Afficher si visible OU déjà assignée
-                  })
-                  .map((order) => {
-                  const commission = Number(order.totalPrice) * DRIVER_COMMISSION_RATE;
-                  return (
-                  <Card key={order.id} className="overflow-hidden border-l-4 border-l-green-500" data-testid={`card-available-${order.id}`}>
-                    <div className="p-4 space-y-3">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="flex items-center gap-2">
-                          <Badge className={getStatusColor(order.status)}>
-                            {getDriverStatusLabel(order.status)}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground font-mono">
-                            #{order.id.slice(0, 8)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-sm font-medium">
-                            <Banknote className="w-4 h-4" />
-                            +{commission.toFixed(2)} TND
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedOrderId(order.id);
-                              setShowOrderDetails(true);
-                            }}
-                            className="h-8 px-2 gap-1"
-                            title="Voir les détails"
-                          >
-                            <Eye className="w-4 h-4" />
-                            <span className="text-xs">Détails</span>
-                          </Button>
-                        </div>
+        {/* Vue unifiée - Toutes les commandes (disponibles + en cours) */}
+        {(() => {
+          console.log("[DEBUG] 🎨 RENDU - État du composant:", {
+            loading,
+            allOrdersToShowLength: allOrdersToShow.length,
+            availableOrdersLength: availableOrders.length,
+            activeDeliveryOrdersLength: activeDeliveryOrders.length
+          });
+          return null;
+        })()}
+        {loading ? (
+          <div className="text-center py-12 text-muted-foreground">Chargement...</div>
+        ) : allOrdersToShow.length === 0 ? (
+          <Card className="p-12 text-center">
+            <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">Aucune commande</h3>
+            <p className="text-muted-foreground">
+              Les commandes disponibles et en cours apparaîtront ici.
+            </p>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {(() => {
+              console.log("[DEBUG] 🎨 RENDU - allOrdersToShow.length:", allOrdersToShow.length);
+              console.log("[DEBUG] 🎨 RENDU - allOrdersToShow:", allOrdersToShow.map(o => ({ id: o.id.slice(0, 8), status: o.status, driverId: o.driverId })));
+              return null;
+            })()}
+            {allOrdersToShow.map((order) => {
+              console.log(`[DEBUG] 🎨 RENDU - Affichage commande ${order.id.slice(0, 8)}...`);
+              const commission = Number(order.totalPrice) * DRIVER_COMMISSION_RATE;
+              const isAvailable = !order.driverId;
+              const isInDelivery = order.status === "delivery";
+              const isReady = order.status === "ready";
+              
+              // Déterminer l'action selon le statut
+              let swipeAction: () => void;
+              let swipeLabel: string;
+              let swipeColor: "green" | "orange" | "emerald";
+              let swipeIcon: React.ReactNode;
+              
+              if (isAvailable) {
+                // Commande disponible → Accepter
+                swipeAction = () => handleAcceptOrder(order.id);
+                swipeLabel = "Accepter";
+                swipeColor = "green";
+                swipeIcon = <Check className="w-5 h-5 text-white" />;
+              } else if (isReady) {
+                // Commande prête → Démarrer livraison
+                swipeAction = () => handleStartDelivery(order.id);
+                swipeLabel = "Démarrer livraison";
+                swipeColor = "orange";
+                swipeIcon = <Bike className="w-5 h-5 text-white" />;
+              } else if (isInDelivery) {
+                // En livraison → Marquer comme livré
+                swipeAction = () => handleDelivered(order.id);
+                swipeLabel = "Livré";
+                swipeColor = "emerald";
+                swipeIcon = <Check className="w-5 h-5 text-white" />;
+              } else {
+                // Autres statuts (accepted) → Pas d'action swipe
+                swipeAction = () => {};
+                swipeLabel = "En préparation...";
+                swipeColor = "orange";
+                swipeIcon = <Clock className="w-5 h-5 text-white" />;
+              }
+              
+              return (
+                <Card 
+                  key={order.id} 
+                  className={`overflow-hidden border-l-4 ${
+                    isAvailable ? 'border-l-green-500' : 
+                    isInDelivery ? 'border-l-indigo-500' : 
+                    'border-l-orange-500'
+                  }`}
+                  data-testid={`card-${isAvailable ? 'available' : 'active'}-${order.id}`}
+                >
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <Badge className={getStatusColor(order.status)}>
+                          {getDriverStatusLabel(order.status)}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground font-mono">
+                          #{order.id.slice(0, 8)}
+                        </span>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-sm font-medium">
+                          <Banknote className="w-4 h-4" />
+                          +{commission.toFixed(2)} TND
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedOrderId(order.id);
+                            setShowOrderDetails(true);
+                          }}
+                          className="h-8 px-2 gap-1"
+                          title="Voir les détails"
+                        >
+                          <Eye className="w-4 h-4" />
+                          <span className="text-xs">Détails</span>
+                        </Button>
+                      </div>
+                    </div>
 
+                    {!isInDelivery && (
                       <div className="bg-orange-50 rounded-lg p-3 space-y-1">
                         <div className="flex items-center gap-2 text-orange-700 font-medium text-sm">
                           <Store className="w-4 h-4" />
@@ -815,218 +937,79 @@ export default function DriverDashboard() {
                         <p className="font-semibold">{order.restaurantName || "Restaurant"}</p>
                         <p className="text-sm text-muted-foreground">{order.restaurantAddress}</p>
                       </div>
+                    )}
 
-                      <div className="bg-blue-50 rounded-lg p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-blue-700 font-medium text-sm">
-                            <Navigation className="w-4 h-4" />
-                            Livrer à:
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedOrder(order);
-                              setShowCustomerDialog(true);
-                            }}
-                            className="h-7 text-xs"
-                          >
-                            <ExternalLink className="w-3 h-3 mr-1" />
-                            Détails
-                          </Button>
-                        </div>
-                        <p className="font-semibold">{order.customerName}</p>
-                        <p className="text-sm">{order.address}</p>
-                        {order.addressDetails && (
-                          <p className="text-xs text-muted-foreground">{order.addressDetails}</p>
-                        )}
-                        <a href={`tel:${order.phone}`} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mt-1">
-                          <Phone className="w-3 h-3" />
-                          {order.phone}
-                        </a>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2 border-t">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Total commande</p>
-                          <p className="font-bold text-lg">{Number(order.totalPrice).toFixed(2)} TND</p>
+                    <div className="bg-blue-50 rounded-lg p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-blue-700 font-medium text-sm">
+                          <Navigation className="w-4 h-4" />
+                          Livrer à:
                         </div>
                         <Button
-                          onClick={() => handleAcceptOrder(order.id)}
-                          disabled={updating === order.id}
-                          className="bg-green-600 hover:bg-green-700"
-                          data-testid={`button-accept-${order.id}`}
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedOrder(order);
+                            setShowCustomerDialog(true);
+                          }}
+                          className="h-7 text-xs"
                         >
-                          <Check className="w-4 h-4 mr-2" />
-                          {updating === order.id ? "..." : "Accepter"}
+                          <ExternalLink className="w-3 h-3 mr-1" />
+                          Détails
                         </Button>
                       </div>
-                    </div>
-                  </Card>
-                  );
-                })}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="active" className="mt-4">
-            {activeDeliveryOrders.length === 0 ? (
-              <Card className="p-12 text-center">
-                <Bike className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">Aucune livraison en cours</h3>
-                <p className="text-muted-foreground">Acceptez une commande disponible pour commencer</p>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {activeDeliveryOrders.map((order) => {
-                  const commission = Number(order.totalPrice) * DRIVER_COMMISSION_RATE;
-                  const isInDelivery = order.status === "delivery";
-                  return (
-                  <Card key={order.id} className={`overflow-hidden border-l-4 ${isInDelivery ? 'border-l-indigo-500' : 'border-l-orange-500'}`} data-testid={`card-active-${order.id}`}>
-                    <div className="p-4 space-y-3">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="flex items-center gap-2">
-                          <Badge className={getStatusColor(order.status)}>
-                            {getDriverStatusLabel(order.status)}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground font-mono">
-                            #{order.id.slice(0, 8)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-sm font-medium">
-                            <Banknote className="w-4 h-4" />
-                            +{commission.toFixed(2)} TND
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedOrderId(order.id);
-                              setShowOrderDetails(true);
-                            }}
-                            className="h-8 px-2 gap-1"
-                            title="Voir les détails"
-                          >
-                            <Eye className="w-4 h-4" />
-                            <span className="text-xs">Détails</span>
-                          </Button>
-                        </div>
-                      </div>
-
-                      {!isInDelivery && (
-                        <div className="bg-orange-50 rounded-lg p-3 space-y-1">
-                          <div className="flex items-center gap-2 text-orange-700 font-medium text-sm">
-                            <Store className="w-4 h-4" />
-                            Récupérer chez:
-                          </div>
-                          <p className="font-semibold">{order.restaurantName || "Restaurant"}</p>
-                          <p className="text-sm text-muted-foreground">{order.restaurantAddress}</p>
-                        </div>
+                      <p className="font-semibold">{order.customerName}</p>
+                      <p className="text-sm">{order.address}</p>
+                      {order.addressDetails && (
+                        <p className="text-xs text-muted-foreground">{order.addressDetails}</p>
                       )}
+                      <a href={`tel:${order.phone}`} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mt-1">
+                        <Phone className="w-3 h-3" />
+                        {order.phone}
+                      </a>
+                    </div>
 
-                      <div className="bg-blue-50 rounded-lg p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-blue-700 font-medium text-sm">
-                            <Navigation className="w-4 h-4" />
-                            Livrer à:
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedOrder(order);
-                              setShowCustomerDialog(true);
-                            }}
-                            className="h-7 text-xs"
-                          >
-                            <ExternalLink className="w-3 h-3 mr-1" />
-                            Détails
-                          </Button>
-                        </div>
-                        <p className="font-semibold">{order.customerName}</p>
-                        <p className="text-sm">{order.address}</p>
-                        {order.addressDetails && (
-                          <p className="text-xs text-muted-foreground">{order.addressDetails}</p>
-                        )}
-                        <a href={`tel:${order.phone}`} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mt-1">
-                          <Phone className="w-3 h-3" />
-                          {order.phone}
-                        </a>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2 border-t">
+                    <div className="pt-2 border-t space-y-2">
+                      <div className="flex items-center justify-between">
                         <div>
                           <p className="text-xs text-muted-foreground">Total commande</p>
                           <p className="font-bold text-lg">{Number(order.totalPrice).toFixed(2)} TND</p>
                         </div>
-                        {isInDelivery ? (
-                          <Button
-                            onClick={() => handleDelivered(order.id)}
+                      </div>
+                      
+                      {/* Bouton swipe pour mobile */}
+                      {(() => {
+                        const shouldShowSwipe = isAvailable || isReady || isInDelivery;
+                        console.log(`[DriverDashboard] 🎯 SwipeButton pour ${order.id.slice(0, 8)}:`, {
+                          isAvailable,
+                          isReady,
+                          isInDelivery,
+                          shouldShowSwipe,
+                          status: order.status,
+                          swipeLabel,
+                          disabled: updating === order.id
+                        });
+                        return shouldShowSwipe ? (
+                          <SwipeButton
+                            onSwipe={swipeAction}
                             disabled={updating === order.id}
-                            className="bg-emerald-600 hover:bg-emerald-700"
-                            data-testid={`button-delivered-${order.id}`}
-                          >
-                            <Check className="w-4 h-4 mr-2" />
-                            {updating === order.id ? "..." : "Livré"}
-                          </Button>
+                            label={swipeLabel}
+                            icon={swipeIcon}
+                            color={swipeColor}
+                          />
                         ) : (
                           <div className="text-center text-orange-600 font-medium py-2 px-4 bg-orange-100 rounded-lg text-sm">
-                            {order.status === "ready" ? "Prête à récupérer" : "En préparation..."}
+                            En préparation...
                           </div>
-                        )}
-                      </div>
+                        );
+                      })()}
                     </div>
-                  </Card>
-                  );
-                })}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="completed" className="mt-4">
-            {deliveredOrders.length === 0 ? (
-              <Card className="p-12 text-center">
-                <Check className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">Aucune livraison terminée</h3>
-                <p className="text-muted-foreground">Vos livraisons complétées apparaîtront ici</p>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {deliveredOrders.map((order) => {
-                  const commission = Number(order.totalPrice) * DRIVER_COMMISSION_RATE;
-                  return (
-                  <Card key={order.id} className="overflow-hidden opacity-80" data-testid={`card-completed-${order.id}`}>
-                    <div className="p-4 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <Badge className="bg-emerald-100 text-emerald-800">
-                            Livrée
-                          </Badge>
-                          <span className="text-xs text-muted-foreground font-mono">
-                            #{order.id.slice(0, 8)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 text-emerald-700 font-medium text-sm">
-                          <Banknote className="w-4 h-4" />
-                          +{commission.toFixed(2)} TND
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{order.customerName}</p>
-                          <p className="text-sm text-muted-foreground">{order.address}</p>
-                        </div>
-                        <p className="font-bold">{Number(order.totalPrice).toFixed(2)} TND</p>
-                      </div>
-                    </div>
-                  </Card>
-                  );
-                })}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Modal Détails Client */}
@@ -1211,6 +1194,61 @@ export default function DriverDashboard() {
         onOpenChange={setShowOrderDetails}
         role="driver"
       />
+
+      {/* Dialog Historique */}
+      <Dialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="w-5 h-5 text-purple-600" />
+              Historique des livraisons
+            </DialogTitle>
+            <DialogDescription>
+              {deliveredOrders.length} livraison{deliveredOrders.length > 1 ? 's' : ''} terminée{deliveredOrders.length > 1 ? 's' : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {deliveredOrders.length === 0 ? (
+            <div className="text-center py-12">
+              <Check className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">Aucune livraison terminée</h3>
+              <p className="text-muted-foreground">Vos livraisons complétées apparaîtront ici</p>
+            </div>
+          ) : (
+            <div className="space-y-3 mt-4">
+              {deliveredOrders.map((order) => {
+                const commission = Number(order.totalPrice) * DRIVER_COMMISSION_RATE;
+                return (
+                  <Card key={order.id} className="overflow-hidden opacity-90">
+                    <div className="p-4 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-emerald-100 text-emerald-800">
+                            Livrée
+                          </Badge>
+                          <span className="text-xs text-muted-foreground font-mono">
+                            #{order.id.slice(0, 8)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 text-emerald-700 font-medium text-sm">
+                          <Banknote className="w-4 h-4" />
+                          +{commission.toFixed(2)} TND
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{order.customerName}</p>
+                          <p className="text-sm text-muted-foreground">{order.address}</p>
+                        </div>
+                        <p className="font-bold">{Number(order.totalPrice).toFixed(2)} TND</p>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Bannière de permission audio */}
       <AudioPermissionBanner />
