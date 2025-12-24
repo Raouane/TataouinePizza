@@ -12,7 +12,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { OrderDetailsDialog } from "@/components/order-details-dialog";
 import { AudioPermissionBanner } from "@/components/audio-permission-banner";
+import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
 import { playOrderNotificationSound, startNotificationRepeatViaSW, stopNotificationRepeatViaSW } from "@/lib/sound-utils";
+import { stopCustomSound } from "@/lib/pwa-sound-manager";
 
 interface Order {
   id: string;
@@ -342,6 +344,8 @@ export default function DriverDashboard() {
         soundIntervalsRef.current.delete(orderId);
         // Arrêter aussi la répétition via Service Worker
         stopNotificationRepeatViaSW(orderId);
+        // Arrêter le son personnalisé
+        stopCustomSound();
       }
     }, SOUND_REPEAT_INTERVAL);
     
@@ -360,6 +364,8 @@ export default function DriverDashboard() {
     }
     // Arrêter aussi la répétition via Service Worker
     stopNotificationRepeatViaSW(orderId);
+    // Arrêter le son personnalisé
+    stopCustomSound();
   };
 
   const showOrder = (orderId: string, playSound: boolean = true) => {
@@ -1339,6 +1345,9 @@ export default function DriverDashboard() {
 
       {/* Bannière de permission audio */}
       <AudioPermissionBanner />
+      
+      {/* Prompt d'installation PWA */}
+      <PWAInstallPrompt />
     </div>
   );
 }

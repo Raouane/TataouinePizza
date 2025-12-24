@@ -2,6 +2,8 @@
  * Utilitaire pour jouer des sons de notification
  */
 
+import { playCustomSound, stopCustomSound, isInForeground } from './pwa-sound-manager';
+
 // Contexte audio global réutilisable
 let globalAudioContext: AudioContext | null = null;
 let audioInitialized = false;
@@ -306,11 +308,19 @@ export function playOrderNotificationSound() {
   console.log("[Sound] ✅ Permission audio:", hasAudioPermission());
   console.log("[Sound] ✅ Permission notifications:", hasNotificationPermission());
   console.log("[Sound] ⏰ Timestamp:", new Date().toISOString());
+  console.log("[Sound] 🎯 App en foreground:", isInForeground());
   
   // Notification visuelle (toujours active)
   triggerVisualNotification();
   
+  // Si l'app est en foreground et permission accordée, jouer le son personnalisé
+  if (isInForeground() && hasAudioPermission()) {
+    console.log("[Sound] 🎵 App en foreground, lecture son personnalisé");
+    playCustomSound(true, 5000); // Répéter toutes les 5 secondes
+  }
+  
   // Notification système (fonctionne même en arrière-plan)
+  // Le Service Worker gérera le son système automatiquement quand l'app est en background
   if (hasNotificationPermission()) {
     sendSystemNotification(
       '🔔 Nouvelle commande!',
@@ -321,9 +331,15 @@ export function playOrderNotificationSound() {
     );
   }
   
-  // Vérifier la permission AVANT de jouer le son
+  // Vérifier la permission AVANT de jouer le son Web Audio (fallback)
   if (!hasAudioPermission()) {
     console.log("[Sound] Permission audio non accordée, notification visuelle uniquement");
+    return;
+  }
+  
+  // Fallback Web Audio uniquement si pas déjà géré par playCustomSound
+  if (!isInForeground()) {
+    console.log("[Sound] App en background, son géré par Service Worker");
     return;
   }
   
