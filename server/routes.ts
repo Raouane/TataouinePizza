@@ -45,9 +45,14 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
-  // Health check endpoint pour Render
+  // Health check endpoint pour Render (ping toutes les 10 minutes pour éviter le cold start)
   app.get("/api/health", (req: Request, res: Response) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
+    res.json({ 
+      status: "ok", 
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || "development"
+    });
   });
   
   // ============ AUTO MIGRATIONS ============
