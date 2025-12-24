@@ -18,6 +18,18 @@ const twilioClient = accountSid && authToken
   ? twilio(accountSid, authToken)
   : null;
 
+// Log de configuration au démarrage
+if (twilioClient) {
+  console.log('[SMS] ✅ Twilio configuré et prêt');
+  console.log('[SMS] Numéro Twilio:', twilioPhoneNumber);
+} else {
+  console.warn('[SMS] ⚠️ Twilio non configuré - les SMS ne seront pas envoyés');
+  console.warn('[SMS] Vérifiez que les variables d\'environnement sont définies:');
+  console.warn('[SMS]   - TWILIO_ACCOUNT_SID:', accountSid ? '✅' : '❌');
+  console.warn('[SMS]   - TWILIO_AUTH_TOKEN:', authToken ? '✅' : '❌');
+  console.warn('[SMS]   - TWILIO_PHONE_NUMBER:', twilioPhoneNumber ? '✅' : '❌');
+}
+
 /**
  * Formate un numéro de téléphone au format international
  */
