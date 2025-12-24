@@ -269,56 +269,55 @@ export function playOrderNotificationSound() {
     
     console.log("[Sound] État du contexte audio:", audioContext.state);
     
-    // Reprendre le contexte s'il est suspendu
-    if (audioContext.state === 'suspended') {
-      console.log("[Sound] Contexte suspendu, tentative de reprise...");
-      audioContext.resume().then(() => {
-        console.log("[Sound] Contexte repris avec succès, rejouer le son");
-        // Rejouer le son une fois le contexte activé (si permission accordée)
-        if (hasAudioPermission()) {
-          // Utiliser setTimeout pour éviter la récursion infinie
-          setTimeout(() => {
-            playOrderNotificationSound();
-          }, 100);
-        }
-      }).catch((error) => {
-        console.error("[Sound] Erreur lors de la reprise du contexte:", error);
-        // Essayer quand même de jouer le son avec un nouveau contexte
-        try {
-          const newContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-          playSoundWithContext(newContext, isMobile);
-        } catch (e) {
-          console.error("[Sound] Impossible de créer un nouveau contexte:", e);
-        }
-      });
-      return;
-    }
+    // Fonction interne pour jouer le son une fois le contexte prêt
+    const playSoundOnceReady = (context: AudioContext) => {
+      if (context.state === 'suspended') {
+        console.log("[Sound] Contexte suspendu, reprise...");
+        context.resume().then(() => {
+          console.log("[Sound] Contexte repris, lecture du son");
+          playSoundWithContext(context, isMobile);
+        }).catch((error) => {
+          console.error("[Sound] Erreur reprise contexte:", error);
+          // Essayer avec un nouveau contexte
+          try {
+            const newContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            playSoundWithContext(newContext, isMobile);
+          } catch (e) {
+            console.error("[Sound] Impossible de créer nouveau contexte:", e);
+            // Fallback Audio HTML5
+            playFallbackSound(isMobile);
+          }
+        });
+      } else {
+        console.log("[Sound] Contexte actif, lecture immédiate");
+        playSoundWithContext(audioContext, isMobile);
+      }
+    };
     
     // Jouer le son avec le contexte actif
-    playSoundWithContext(audioContext, isMobile);
-    
-    // Jouer le son avec le contexte actif
-    playSoundWithContext(audioContext, isMobile);
+    playSoundOnceReady(audioContext);
   } catch (error) {
     console.error("[Sound] Erreur lors de la lecture du son:", error);
-    // Fallback visuel si le son ne fonctionne pas
-    triggerVisualNotification();
-    
     // Fallback Audio HTML5
-    try {
-      console.log("[Sound] Tentative avec Audio HTML5");
-      for (let i = 0; i < (isMobile ? 5 : 3); i++) {
-        setTimeout(() => {
-          const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OSdTgwOUKzn8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQUrgc7y2Yk2CBtpvfDknU4MDlCs5/C2YxwGOJHX8sx5LAUkd8fw3ZBAC');
-          audio.volume = isMobile ? 1.0 : 0.8;
-          audio.play().catch((err) => {
-            console.error("[Sound] Erreur Audio HTML5:", err);
-          });
-        }, i * (isMobile ? 400 : 500));
-      }
-    } catch (e) {
-      console.error("[Sound] Erreur fallback Audio HTML5:", e);
+    playFallbackSound(isMobile);
+  }
+}
+
+// Fonction helper pour le fallback Audio HTML5
+function playFallbackSound(isMobile: boolean) {
+  console.log("[Sound] Utilisation du fallback Audio HTML5");
+  try {
+    for (let i = 0; i < (isMobile ? 5 : 3); i++) {
+      setTimeout(() => {
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OSdTgwOUKzn8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQUrgc7y2Yk2CBtpvfDknU4MDlCs5/C2YxwGOJHX8sx5LAUkd8fw3ZBAC');
+        audio.volume = isMobile ? 1.0 : 0.8;
+        audio.play().catch((err) => {
+          console.error("[Sound] Erreur Audio HTML5:", err);
+        });
+      }, i * (isMobile ? 400 : 500));
     }
+  } catch (e) {
+    console.error("[Sound] Erreur fallback Audio HTML5:", e);
   }
 }
 
@@ -328,19 +327,31 @@ export function playOrderNotificationSound() {
 function playSoundWithContext(audioContext: AudioContext, isMobile: boolean) {
   console.log("[Sound] playSoundWithContext appelé");
   
+  // S'assurer que le contexte est actif
+  if (audioContext.state !== 'running') {
+    console.warn("[Sound] Contexte pas actif:", audioContext.state);
+    audioContext.resume().catch(() => {
+      console.error("[Sound] Impossible de reprendre le contexte");
+    });
+  }
+  
   // Paramètres adaptés selon l'appareil
   const frequencies = [800, 1000]; // Hz
-  const duration = isMobile ? 250 : 200; // Plus long sur mobile
-  const gainValue = isMobile ? 1.0 : 0.8; // Volume max sur mobile
-  const repetitions = isMobile ? 5 : 3; // Plus de répétitions sur mobile
-  const delayBetweenRepetitions = isMobile ? 200 : 300; // Plus rapide sur mobile
+  const duration = isMobile ? 250 : 200; // ms
+  const gainValue = isMobile ? 1.0 : 0.8; // Volume max
+  const repetitions = isMobile ? 5 : 3; // Répétitions
+  const delayBetweenRepetitions = isMobile ? 200 : 300; // ms
   
-  console.log("[Sound] Paramètres:", { frequencies, duration, gainValue, repetitions, delayBetweenRepetitions });
+  console.log("[Sound] Paramètres:", { frequencies, duration, gainValue, repetitions });
   
   // Répéter le bip plusieurs fois
   for (let rep = 0; rep < repetitions; rep++) {
+    const repDelay = rep * (delayBetweenRepetitions + frequencies.length * duration);
+    
     setTimeout(() => {
       frequencies.forEach((freq, index) => {
+        const toneDelay = index * duration;
+        
         setTimeout(() => {
           try {
             const oscillator = audioContext.createOscillator();
@@ -352,7 +363,8 @@ function playSoundWithContext(audioContext: AudioContext, isMobile: boolean) {
             oscillator.frequency.value = freq;
             oscillator.type = 'sine';
             
-            const startTime = audioContext.currentTime + (index * duration / 1000);
+            const now = audioContext.currentTime;
+            const startTime = now + 0.01; // Démarrer presque immédiatement
             
             gainNode.gain.setValueAtTime(0, startTime);
             gainNode.gain.linearRampToValueAtTime(gainValue, startTime + 0.01);
@@ -363,11 +375,11 @@ function playSoundWithContext(audioContext: AudioContext, isMobile: boolean) {
             
             console.log(`[Sound] Son joué: répétition ${rep + 1}/${repetitions}, fréquence ${freq}Hz`);
           } catch (error) {
-            console.error(`[Sound] Erreur lors de la création de l'oscillateur:`, error);
+            console.error(`[Sound] Erreur oscillateur:`, error);
           }
-        }, index * duration);
+        }, toneDelay);
       });
-    }, rep * (delayBetweenRepetitions + frequencies.length * duration));
+    }, repDelay);
   }
 }
 

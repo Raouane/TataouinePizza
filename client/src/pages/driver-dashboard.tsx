@@ -42,7 +42,6 @@ export default function DriverDashboard() {
 
   const [isOnline, setIsOnline] = useState(true);
   const [wsConnected, setWsConnected] = useState(false);
-  const [wsReconnectAttempts, setWsReconnectAttempts] = useState(0);
   const [lastNotification, setLastNotification] = useState<any>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showCustomerDialog, setShowCustomerDialog] = useState(false);
@@ -52,6 +51,7 @@ export default function DriverDashboard() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectAttemptsRef = useRef(0); // Utiliser une ref pour éviter les re-renders
   
   // États pour la visibilité cyclique des commandes
   const [visibleOrderIds, setVisibleOrderIds] = useState<Set<string>>(new Set());
@@ -85,7 +85,7 @@ export default function DriverDashboard() {
         ws.onopen = () => {
           console.log("[WebSocket] Connecté");
           setWsConnected(true);
-          setWsReconnectAttempts(0);
+          reconnectAttemptsRef.current = 0; // Réinitialiser les tentatives
           toast.success("Connecté aux notifications en temps réel");
         };
 
@@ -100,8 +100,7 @@ export default function DriverDashboard() {
               // Nouvelle commande disponible
               setLastNotification(message);
               
-              // Jouer le son de notification
-              playOrderNotificationSound();
+              // Le son sera joué dans showOrder(), pas besoin de le jouer ici
               
               toast.info(`Nouvelle commande disponible: ${message.restaurantName}`, {
                 duration: 10000,
@@ -125,8 +124,9 @@ export default function DriverDashboard() {
                     return newSet;
                   });
                   // Démarrer le timer pour masquer après 30 secondes
+                  // Le son sera joué dans showOrder()
                   setTimeout(() => {
-                    showOrder(message.orderId);
+                    showOrder(message.orderId, true); // true = jouer le son
                   }, 100);
                   return [...prev, newOrder];
                 }
@@ -191,13 +191,16 @@ export default function DriverDashboard() {
           setWsConnected(false);
           
           // Tentative de reconnexion si toujours en ligne
-          if (isOnline && wsReconnectAttempts < 5) {
-            const delay = Math.min(1000 * Math.pow(2, wsReconnectAttempts), 30000);
-            console.log(`[WebSocket] Reconnexion dans ${delay}ms...`);
+          if (isOnline && reconnectAttemptsRef.current < 5) {
+            const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+            console.log(`[WebSocket] Reconnexion dans ${delay}ms... (tentative ${reconnectAttemptsRef.current + 1}/5)`);
             reconnectTimeout = setTimeout(() => {
-              setWsReconnectAttempts(prev => prev + 1);
+              reconnectAttemptsRef.current += 1;
               connect();
             }, delay);
+          } else if (reconnectAttemptsRef.current >= 5) {
+            console.warn("[WebSocket] Nombre maximum de tentatives de reconnexion atteint");
+            toast.error("Impossible de se connecter aux notifications. Veuillez rafraîchir la page.");
           }
         };
       } catch (error) {
@@ -222,8 +225,9 @@ export default function DriverDashboard() {
         ws.close();
         wsRef.current = null;
       }
+      reconnectAttemptsRef.current = 0; // Réinitialiser les tentatives au nettoyage
     };
-  }, [token, driverId, isOnline, wsReconnectAttempts]);
+  }, [token, driverId, isOnline]); // Retirer wsReconnectAttempts des dépendances
 
   // Nettoyer les timers de visibilité au démontage
   useEffect(() => {
@@ -284,8 +288,14 @@ export default function DriverDashboard() {
   };
 
   // Fonction pour afficher une commande (démarre le cycle de visibilité)
-  const showOrder = (orderId: string) => {
+  const showOrder = (orderId: string, playSound: boolean = true) => {
     console.log(`[Visibility] Affichage commande ${orderId}`);
+    
+    // Jouer le son à chaque affichage (première fois et réapparitions)
+    if (playSound) {
+      console.log(`[Visibility] Son déclenché pour commande ${orderId}`);
+      playOrderNotificationSound();
+    }
     
     // S'assurer que la commande est visible
     setVisibleOrderIds(prev => {
@@ -320,14 +330,14 @@ export default function DriverDashboard() {
         // Réafficher après ORDER_HIDDEN_DURATION
         const showTimer = setTimeout(() => {
           console.log(`[Visibility] Réaffichage commande ${orderId} après ${ORDER_HIDDEN_DURATION}ms`);
-          // Réafficher la commande et redémarrer le cycle
+          // Réafficher la commande et redémarrer le cycle AVEC SON
           setVisibleOrderIds(prev => {
             const newSet = new Set(prev);
             newSet.add(orderId);
             return newSet;
           });
-          // Redémarrer le cycle de visibilité
-          showOrder(orderId);
+          // Redémarrer le cycle de visibilité avec son
+          showOrder(orderId, true); // true = jouer le son à chaque réapparition
         }, ORDER_HIDDEN_DURATION);
         
         orderTimersRef.current.set(orderId, showTimer);
@@ -377,9 +387,10 @@ export default function DriverDashboard() {
           !previousOrderIds.has(o.id) && !o.driverId
         );
         
+        // Note: Le son sera joué dans showOrder() pour chaque commande affichée
+        // Pas besoin de jouer le son ici pour éviter les doublons
         if (newOrders.length > 0 && previousOrderIds.size > 0) {
           console.log("[Driver] Nouvelles commandes détectées:", newOrders.length);
-          playOrderNotificationSound();
         }
         
         // Mettre à jour la ref AVANT de mettre à jour l'état
@@ -441,7 +452,7 @@ export default function DriverDashboard() {
         console.log(`[Visibility] Timers actifs:`, Array.from(orderTimersRef.current.keys()));
         ordersToShow.forEach(orderId => {
           setTimeout(() => {
-            showOrder(orderId); // Cela va démarrer le cycle de visibilité
+            showOrder(orderId, true); // true = jouer le son à chaque affichage
           }, 100);
         });
       }
