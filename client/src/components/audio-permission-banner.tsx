@@ -2,21 +2,35 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Volume2, X } from "lucide-react";
-import { grantAudioPermission, hasAudioPermission } from "@/lib/sound-utils";
+import { grantAudioPermission, hasAudioPermission, requestNotificationPermission, hasNotificationPermission } from "@/lib/sound-utils";
 
 export function AudioPermissionBanner() {
   const [showBanner, setShowBanner] = useState(false);
+  const [requestingPermission, setRequestingPermission] = useState(false);
 
   useEffect(() => {
-    // Vérifier si la permission a déjà été accordée
-    const permissionGranted = hasAudioPermission();
-    if (!permissionGranted) {
+    // Vérifier si les permissions ont déjà été accordées
+    const audioGranted = hasAudioPermission();
+    const notificationGranted = hasNotificationPermission();
+    
+    // Afficher la bannière si au moins une permission n'est pas accordée
+    if (!audioGranted || !notificationGranted) {
       setShowBanner(true);
     }
   }, []);
 
-  const handleAccept = () => {
+  const handleAccept = async () => {
+    setRequestingPermission(true);
+    
+    // Demander les deux permissions
     grantAudioPermission();
+    
+    // Demander la permission des notifications système
+    if (!hasNotificationPermission()) {
+      await requestNotificationPermission();
+    }
+    
+    setRequestingPermission(false);
     setShowBanner(false);
   };
 
@@ -36,9 +50,9 @@ export function AudioPermissionBanner() {
               <Volume2 className="w-5 h-5 text-orange-600" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-sm mb-1">Activer les notifications sonores</h3>
+              <h3 className="font-semibold text-sm mb-1">Activer les notifications</h3>
               <p className="text-xs text-muted-foreground">
-                Recevez des alertes sonores pour les nouvelles commandes. Vous pouvez désactiver cela à tout moment.
+                Recevez des alertes sonores et des notifications système même quand l'application est en arrière-plan. Vous pouvez désactiver cela à tout moment.
               </p>
             </div>
           </div>
@@ -54,10 +68,11 @@ export function AudioPermissionBanner() {
         <div className="flex gap-2">
           <Button
             onClick={handleAccept}
+            disabled={requestingPermission}
             className="flex-1 bg-orange-600 hover:bg-orange-700 text-white"
             size="sm"
           >
-            Activer les sons
+            {requestingPermission ? "Activation..." : "Activer"}
           </Button>
           <Button
             onClick={handleDecline}

@@ -6,11 +6,17 @@
 let globalAudioContext: AudioContext | null = null;
 let audioInitialized = false;
 let audioPermissionGranted = false;
+let notificationPermissionGranted = false;
 
 // Charger la permission depuis localStorage au démarrage
 if (typeof window !== 'undefined') {
   const stored = localStorage.getItem('audioPermissionGranted');
   audioPermissionGranted = stored === 'true';
+  
+  // Vérifier la permission des notifications système
+  if ('Notification' in window) {
+    notificationPermissionGranted = Notification.permission === 'granted';
+  }
 }
 
 /**
@@ -37,6 +43,87 @@ export function revokeAudioPermission() {
   audioPermissionGranted = false;
   localStorage.setItem('audioPermissionGranted', 'false');
   console.log("[Sound] Permission audio révoquée");
+}
+
+/**
+ * Vérifie si les notifications système sont supportées
+ */
+export function areNotificationsSupported(): boolean {
+  return 'Notification' in window;
+}
+
+/**
+ * Vérifie si l'utilisateur a autorisé les notifications système
+ */
+export function hasNotificationPermission(): boolean {
+  if (!areNotificationsSupported()) return false;
+  return Notification.permission === 'granted';
+}
+
+/**
+ * Demande la permission pour les notifications système
+ */
+export async function requestNotificationPermission(): Promise<boolean> {
+  if (!areNotificationsSupported()) {
+    console.warn("[Notifications] Les notifications ne sont pas supportées");
+    return false;
+  }
+  
+  if (Notification.permission === 'granted') {
+    notificationPermissionGranted = true;
+    return true;
+  }
+  
+  if (Notification.permission === 'denied') {
+    console.warn("[Notifications] Permission refusée par l'utilisateur");
+    return false;
+  }
+  
+  try {
+    const permission = await Notification.requestPermission();
+    notificationPermissionGranted = permission === 'granted';
+    return notificationPermissionGranted;
+  } catch (error) {
+    console.error("[Notifications] Erreur lors de la demande de permission:", error);
+    return false;
+  }
+}
+
+/**
+ * Envoie une notification système avec son
+ */
+function sendSystemNotification(title: string, body: string, options?: NotificationOptions) {
+  if (!hasNotificationPermission()) {
+    console.log("[Notifications] Permission non accordée, notification système ignorée");
+    return;
+  }
+  
+  try {
+    const notification = new Notification(title, {
+      body,
+      icon: '/favicon.ico', // Icône de l'application
+      badge: '/favicon.ico',
+      tag: 'new-order', // Tag pour éviter les doublons
+      requireInteraction: true, // Nécessite une interaction pour se fermer
+      silent: false, // Activer le son système
+      ...options,
+    });
+    
+    // Fermer automatiquement après 10 secondes
+    setTimeout(() => {
+      notification.close();
+    }, 10000);
+    
+    // Ouvrir l'application quand on clique sur la notification
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+    
+    console.log("[Notifications] Notification système envoyée");
+  } catch (error) {
+    console.error("[Notifications] Erreur lors de l'envoi de la notification:", error);
+  }
 }
 
 /**
@@ -133,6 +220,17 @@ export function playOrderNotificationSound() {
   
   // Notification visuelle (toujours active)
   triggerVisualNotification();
+  
+  // Notification système (fonctionne même en arrière-plan)
+  if (hasNotificationPermission()) {
+    sendSystemNotification(
+      '🔔 Nouvelle commande!',
+      'Une nouvelle commande est disponible',
+      {
+        vibrate: isMobile ? [200, 100, 200, 100, 200] : undefined,
+      }
+    );
+  }
   
   // Vérifier la permission AVANT de jouer le son
   if (!hasAudioPermission()) {
