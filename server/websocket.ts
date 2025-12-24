@@ -195,6 +195,20 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
     }
   }
 
+  // Envoyer aussi des SMS à tous les livreurs disponibles
+  try {
+    const { sendSMSToDrivers } = await import('./services/sms-service.js');
+    await sendSMSToDrivers(
+      orderData.orderId,
+      orderData.restaurantName,
+      orderData.customerName,
+      orderData.totalPrice
+    );
+  } catch (smsError) {
+    console.error('[WebSocket] Erreur envoi SMS:', smsError);
+    // Ne pas bloquer si SMS échoue
+  }
+
   // Démarrer le timer d'acceptation (20 secondes)
   startAcceptanceTimer(orderData.orderId);
 

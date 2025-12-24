@@ -317,6 +317,15 @@ export async function registerRoutes(
         // Continue même si WebSocket échoue
       }
       
+      // Envoyer aussi des SMS aux livreurs (déjà fait dans notifyDriversOfNewOrder, mais on peut aussi le faire ici pour être sûr)
+      // Note: Les SMS sont déjà envoyés dans notifyDriversOfNewOrder, donc cette ligne est optionnelle
+      // try {
+      //   const { sendSMSToDrivers } = await import('./services/sms-service.js');
+      //   await sendSMSToDrivers(order.id, restaurant.name, data.customerName, totalPrice.toString());
+      // } catch (smsError) {
+      //   console.error("[ORDER] Erreur envoi SMS:", smsError);
+      // }
+      
       // Send webhook to n8n
       try {
         await sendN8nWebhook("order-created", {
