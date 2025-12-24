@@ -74,20 +74,28 @@ export async function sendSMSToDrivers(
 
     // Si un numéro vérifié est configuré (pour compte Trial), envoyer uniquement à ce numéro
     if (verifiedNumber) {
-      console.log(`[SMS] Mode Trial: Envoi SMS au numéro vérifié ${verifiedNumber}`);
+      // S'assurer que le numéro a le format international avec +
+      const formattedVerifiedNumber = verifiedNumber.startsWith('+') 
+        ? verifiedNumber 
+        : `+${verifiedNumber}`;
+      
+      console.log(`[SMS] Mode Trial: Envoi SMS au numéro vérifié ${formattedVerifiedNumber}`);
       
       try {
         const result = await twilioClient.messages.create({
           body: message,
           from: twilioPhoneNumber!,
-          to: verifiedNumber,
+          to: formattedVerifiedNumber,
         });
 
-        console.log(`[SMS] ✅ SMS envoyé au numéro vérifié ${verifiedNumber}: ${result.sid}`);
+        console.log(`[SMS] ✅ SMS envoyé au numéro vérifié ${formattedVerifiedNumber}: ${result.sid}`);
         console.log(`[SMS] Message: ${message}`);
       } catch (error: any) {
         console.error(`[SMS] ❌ Erreur envoi SMS au numéro vérifié:`, error.message);
         console.error(`[SMS] Détails de l'erreur:`, error);
+        if (error.code === 21211) {
+          console.error(`[SMS] ⚠️ Numéro invalide. Vérifiez que ${formattedVerifiedNumber} est bien vérifié dans Twilio.`);
+        }
       }
       return;
     }
