@@ -4,6 +4,25 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 
+// Vérifier la configuration Twilio au démarrage
+const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+
+if (twilioAccountSid && twilioAuthToken && twilioPhoneNumber) {
+  console.log('[STARTUP] ✅ Twilio configuré');
+  console.log('[STARTUP]   - Account SID:', twilioAccountSid.substring(0, 10) + '...');
+  console.log('[STARTUP]   - Phone Number:', twilioPhoneNumber);
+} else {
+  console.warn('[STARTUP] ⚠️ Twilio non configuré');
+  console.warn('[STARTUP]   Variables manquantes:', {
+    TWILIO_ACCOUNT_SID: !!twilioAccountSid,
+    TWILIO_AUTH_TOKEN: !!twilioAuthToken,
+    TWILIO_PHONE_NUMBER: !!twilioPhoneNumber,
+  });
+  console.warn('[STARTUP]   Les SMS ne seront pas envoyés');
+}
+
 const app = express();
 const httpServer = createServer(app);
 
