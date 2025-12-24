@@ -32,8 +32,23 @@ export function hasAudioPermission(): boolean {
 export function grantAudioPermission() {
   audioPermissionGranted = true;
   localStorage.setItem('audioPermissionGranted', 'true');
-  initAudioContext();
-  console.log("[Sound] Permission audio accordée");
+  
+  // Initialiser le contexte audio immédiatement
+  const context = initAudioContext();
+  if (context) {
+    console.log("[Sound] Permission audio accordée, contexte audio initialisé");
+    
+    // S'assurer que le contexte est actif
+    if (context.state === 'suspended') {
+      context.resume().then(() => {
+        console.log("[Sound] Contexte audio activé après accord de permission");
+      }).catch((error) => {
+        console.error("[Sound] Erreur lors de l'activation du contexte:", error);
+      });
+    }
+  } else {
+    console.warn("[Sound] Permission accordée mais impossible d'initialiser le contexte");
+  }
 }
 
 /**
@@ -218,6 +233,10 @@ function triggerVisualNotification() {
 export function playOrderNotificationSound() {
   const isMobile = isMobileDevice();
   
+  console.log("[Sound] playOrderNotificationSound appelé");
+  console.log("[Sound] Permission audio:", hasAudioPermission());
+  console.log("[Sound] Permission notifications:", hasNotificationPermission());
+  
   // Notification visuelle (toujours active)
   triggerVisualNotification();
   
@@ -243,45 +262,97 @@ export function playOrderNotificationSound() {
     let audioContext = globalAudioContext;
     
     if (!audioContext) {
+      console.log("[Sound] Création d'un nouveau contexte audio");
       audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       globalAudioContext = audioContext;
     }
     
+    console.log("[Sound] État du contexte audio:", audioContext.state);
+    
     // Reprendre le contexte s'il est suspendu
     if (audioContext.state === 'suspended') {
+      console.log("[Sound] Contexte suspendu, tentative de reprise...");
       audioContext.resume().then(() => {
+        console.log("[Sound] Contexte repris avec succès, rejouer le son");
         // Rejouer le son une fois le contexte activé (si permission accordée)
         if (hasAudioPermission()) {
-          playOrderNotificationSound();
+          // Utiliser setTimeout pour éviter la récursion infinie
+          setTimeout(() => {
+            playOrderNotificationSound();
+          }, 100);
         }
-      }).catch(() => {
-        console.warn("[Sound] Contexte audio suspendu");
+      }).catch((error) => {
+        console.error("[Sound] Erreur lors de la reprise du contexte:", error);
+        // Essayer quand même de jouer le son avec un nouveau contexte
+        try {
+          const newContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+          playSoundWithContext(newContext, isMobile);
+        } catch (e) {
+          console.error("[Sound] Impossible de créer un nouveau contexte:", e);
+        }
       });
       return;
     }
     
-    // Paramètres adaptés selon l'appareil
-    const frequencies = [800, 1000]; // Hz
-    const duration = isMobile ? 250 : 200; // Plus long sur mobile
-    const gainValue = isMobile ? 1.0 : 0.8; // Volume max sur mobile
-    const repetitions = isMobile ? 5 : 3; // Plus de répétitions sur mobile
-    const delayBetweenRepetitions = isMobile ? 200 : 300; // Plus rapide sur mobile
+    // Jouer le son avec le contexte actif
+    playSoundWithContext(audioContext, isMobile);
     
-    // Répéter le bip plusieurs fois
-    for (let rep = 0; rep < repetitions; rep++) {
-      setTimeout(() => {
-        frequencies.forEach((freq, index) => {
-          setTimeout(() => {
-            const oscillator = audioContext!.createOscillator();
-            const gainNode = audioContext!.createGain();
+    // Jouer le son avec le contexte actif
+    playSoundWithContext(audioContext, isMobile);
+  } catch (error) {
+    console.error("[Sound] Erreur lors de la lecture du son:", error);
+    // Fallback visuel si le son ne fonctionne pas
+    triggerVisualNotification();
+    
+    // Fallback Audio HTML5
+    try {
+      console.log("[Sound] Tentative avec Audio HTML5");
+      for (let i = 0; i < (isMobile ? 5 : 3); i++) {
+        setTimeout(() => {
+          const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OSdTgwOUKzn8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQUrgc7y2Yk2CBtpvfDknU4MDlCs5/C2YxwGOJHX8sx5LAUkd8fw3ZBAC');
+          audio.volume = isMobile ? 1.0 : 0.8;
+          audio.play().catch((err) => {
+            console.error("[Sound] Erreur Audio HTML5:", err);
+          });
+        }, i * (isMobile ? 400 : 500));
+      }
+    } catch (e) {
+      console.error("[Sound] Erreur fallback Audio HTML5:", e);
+    }
+  }
+}
+
+/**
+ * Fonction helper pour jouer le son avec un contexte audio donné
+ */
+function playSoundWithContext(audioContext: AudioContext, isMobile: boolean) {
+  console.log("[Sound] playSoundWithContext appelé");
+  
+  // Paramètres adaptés selon l'appareil
+  const frequencies = [800, 1000]; // Hz
+  const duration = isMobile ? 250 : 200; // Plus long sur mobile
+  const gainValue = isMobile ? 1.0 : 0.8; // Volume max sur mobile
+  const repetitions = isMobile ? 5 : 3; // Plus de répétitions sur mobile
+  const delayBetweenRepetitions = isMobile ? 200 : 300; // Plus rapide sur mobile
+  
+  console.log("[Sound] Paramètres:", { frequencies, duration, gainValue, repetitions, delayBetweenRepetitions });
+  
+  // Répéter le bip plusieurs fois
+  for (let rep = 0; rep < repetitions; rep++) {
+    setTimeout(() => {
+      frequencies.forEach((freq, index) => {
+        setTimeout(() => {
+          try {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
             
             oscillator.connect(gainNode);
-            gainNode.connect(audioContext!.destination);
+            gainNode.connect(audioContext.destination);
             
             oscillator.frequency.value = freq;
             oscillator.type = 'sine';
             
-            const startTime = audioContext!.currentTime + (index * duration / 1000);
+            const startTime = audioContext.currentTime + (index * duration / 1000);
             
             gainNode.gain.setValueAtTime(0, startTime);
             gainNode.gain.linearRampToValueAtTime(gainValue, startTime + 0.01);
@@ -289,29 +360,14 @@ export function playOrderNotificationSound() {
             
             oscillator.start(startTime);
             oscillator.stop(startTime + duration / 1000);
-          }, index * duration);
-        });
-      }, rep * (delayBetweenRepetitions + frequencies.length * duration));
-    }
-  } catch (error) {
-    console.warn("[Sound] Impossible de jouer le son:", error);
-    // Fallback visuel si le son ne fonctionne pas
-    triggerVisualNotification();
-    
-    // Fallback Audio HTML5
-    try {
-      for (let i = 0; i < (isMobile ? 5 : 3); i++) {
-        setTimeout(() => {
-          const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OSdTgwOUKzn8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQUrgc7y2Yk2CBtpvfDknU4MDlCs5/C2YxwGOJHX8sx5LAUkd8fw3ZBAC');
-          audio.volume = isMobile ? 1.0 : 0.8;
-          audio.play().catch(() => {
-            // Ignorer les erreurs
-          });
-        }, i * (isMobile ? 400 : 500));
-      }
-    } catch (e) {
-      // Ignorer les erreurs
-    }
+            
+            console.log(`[Sound] Son joué: répétition ${rep + 1}/${repetitions}, fréquence ${freq}Hz`);
+          } catch (error) {
+            console.error(`[Sound] Erreur lors de la création de l'oscillateur:`, error);
+          }
+        }, index * duration);
+      });
+    }, rep * (delayBetweenRepetitions + frequencies.length * duration));
   }
 }
 
