@@ -68,10 +68,30 @@ export async function sendSMSToDrivers(
   customerPhone?: string,
   items?: Array<{ name: string; size: string; quantity: number }>
 ) {
+  console.log('[SMS] 🔔 sendSMSToDrivers appelé pour commande:', orderId.slice(0, 8));
+  console.log('[SMS] 📊 Paramètres reçus:', {
+    orderId: orderId.slice(0, 8),
+    restaurantName,
+    customerName,
+    totalPrice,
+    address: address || 'non fourni',
+    restaurantAddress: restaurantAddress || 'non fourni',
+    customerPhone: customerPhone || 'non fourni',
+    itemsCount: items?.length || 0
+  });
+  
   if (!twilioClient) {
-    console.warn('[SMS] ⚠️ Twilio non configuré, SMS non envoyé');
+    console.error('[SMS] ❌ Twilio non configuré, SMS non envoyé');
+    console.error('[SMS] Vérification configuration:', {
+      accountSid: !!accountSid,
+      authToken: !!authToken,
+      twilioPhoneNumber: !!twilioPhoneNumber,
+      verifiedNumber: verifiedNumber || 'non configuré'
+    });
     return;
   }
+  
+  console.log('[SMS] ✅ Twilio client disponible, envoi du SMS...');
 
   try {
     // Construire le message avec toutes les informations disponibles
