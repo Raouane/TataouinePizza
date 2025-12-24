@@ -62,7 +62,11 @@ export async function sendSMSToDrivers(
   restaurantName: string,
   customerName: string,
   totalPrice: string,
-  maxDrivers: number = 999 // Par défaut, tous les livreurs
+  maxDrivers: number = 999, // Par défaut, tous les livreurs
+  address?: string,
+  restaurantAddress?: string,
+  customerPhone?: string,
+  items?: Array<{ name: string; size: string; quantity: number }>
 ) {
   if (!twilioClient) {
     console.warn('[SMS] ⚠️ Twilio non configuré, SMS non envoyé');
@@ -70,7 +74,47 @@ export async function sendSMSToDrivers(
   }
 
   try {
-    const message = `🔔 Nouvelle commande disponible!\nRestaurant: ${restaurantName}\nClient: ${customerName}\nTotal: ${totalPrice} TND\nID: ${orderId.slice(0, 8)}`;
+    // Construire le message avec toutes les informations disponibles
+    let message = `🔔 NOUVELLE COMMANDE DISPONIBLE!\n\n`;
+    
+    // Informations de base
+    message += `📋 ID: ${orderId.slice(0, 8)}\n`;
+    message += `💰 Total: ${totalPrice} TND\n\n`;
+    
+    // Informations restaurant
+    message += `🍕 RESTAURANT:\n`;
+    message += `${restaurantName}\n`;
+    if (restaurantAddress) {
+      message += `📍 ${restaurantAddress}\n`;
+    }
+    message += `\n`;
+    
+    // Informations client
+    message += `👤 CLIENT:\n`;
+    message += `${customerName}\n`;
+    if (customerPhone) {
+      message += `📞 ${customerPhone}\n`;
+    }
+    if (address) {
+      message += `📍 ${address}\n`;
+    }
+    message += `\n`;
+    
+    // Détails des articles (si disponibles)
+    if (items && items.length > 0) {
+      message += `📦 COMMANDE:\n`;
+      items.forEach((item, index) => {
+        if (index < 3) { // Limiter à 3 articles pour ne pas dépasser la limite SMS
+          message += `• ${item.quantity}x ${item.name} (${item.size})\n`;
+        }
+      });
+      if (items.length > 3) {
+        message += `... et ${items.length - 3} autre(s) article(s)\n`;
+      }
+      message += `\n`;
+    }
+    
+    message += `✅ Vérifiez l'application pour accepter`;
 
     // Si un numéro vérifié est configuré (pour compte Trial), envoyer uniquement à ce numéro
     if (verifiedNumber) {

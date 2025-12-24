@@ -198,11 +198,35 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
   // Envoyer aussi des SMS à tous les livreurs disponibles
   try {
     const { sendSMSToDrivers } = await import('./services/sms-service.js');
+    const { storage } = await import('./storage.js');
+    
+    // Récupérer les informations complètes de la commande depuis la DB
+    const order = await storage.getOrderById(orderData.orderId);
+    let restaurantAddress: string | undefined;
+    let customerPhone: string | undefined;
+    
+    if (order) {
+      customerPhone = order.phone;
+      
+      // Récupérer l'adresse du restaurant
+      if (order.restaurantId) {
+        const restaurant = await storage.getRestaurantById(order.restaurantId);
+        if (restaurant) {
+          restaurantAddress = restaurant.address;
+        }
+      }
+    }
+    
     await sendSMSToDrivers(
       orderData.orderId,
       orderData.restaurantName,
       orderData.customerName,
-      orderData.totalPrice
+      orderData.totalPrice,
+      999, // maxDrivers
+      orderData.address, // Adresse client
+      restaurantAddress, // Adresse restaurant
+      customerPhone, // Téléphone client
+      orderData.items // Articles de la commande
     );
   } catch (smsError) {
     console.error('[WebSocket] Erreur envoi SMS:', smsError);
