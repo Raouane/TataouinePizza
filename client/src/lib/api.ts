@@ -208,7 +208,18 @@ export async function getAdminRestaurants(token: string): Promise<Restaurant[]> 
 }
 
 export async function createRestaurant(
-  data: { name: string; phone: string; address: string; description?: string; imageUrl?: string; categories?: string[] },
+  data: { 
+    name: string; 
+    phone: string; 
+    address: string; 
+    description?: string; 
+    imageUrl?: string; 
+    categories?: string[];
+    openingHours?: string;
+    deliveryTime?: number;
+    minOrder?: string;
+    rating?: string;
+  },
   token: string
 ): Promise<Restaurant> {
   if (!token) {
@@ -244,17 +255,32 @@ export async function createRestaurant(
 
 export async function updateRestaurant(
   id: string,
-  data: { name?: string; phone?: string; address?: string; description?: string; imageUrl?: string; categories?: string[]; isOpen?: boolean },
+  data: { 
+    name?: string; 
+    phone?: string; 
+    address?: string; 
+    description?: string; 
+    imageUrl?: string; 
+    categories?: string[]; 
+    isOpen?: boolean;
+    openingHours?: string;
+    deliveryTime?: number;
+    minOrder?: string;
+    rating?: string;
+  },
   token: string
 ): Promise<Restaurant> {
   console.log("[API] updateRestaurant appelé avec:", { id, data });
+  console.log("[API] updateRestaurant - openingHours dans data:", data.openingHours, "présent:", 'openingHours' in data);
+  const bodyString = JSON.stringify(data);
+  console.log("[API] updateRestaurant - Body JSON:", bodyString);
   const res = await fetch(`${API_BASE}/admin/restaurants/${id}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(data),
+    body: bodyString,
   });
   
   console.log("[API] Réponse updateRestaurant:", res.status, res.statusText);

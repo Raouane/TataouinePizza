@@ -164,8 +164,8 @@ export function registerAdminCrudRoutes(app: Express): void {
   app.post("/api/admin/restaurants", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
       console.log("[API] POST /api/admin/restaurants - Début");
-      const { name, phone, address, description, imageUrl, categories } = req.body;
-      console.log("[API] Données reçues:", { name, phone, address, categories });
+      const { name, phone, address, description, imageUrl, categories, openingHours, deliveryTime, minOrder, rating } = req.body;
+      console.log("[API] Données reçues:", { name, phone, address, categories, openingHours, deliveryTime, minOrder, rating });
       
       if (!name || !phone || !address) {
         console.log("[API] Validation échouée: champs manquants");
@@ -179,12 +179,12 @@ export function registerAdminCrudRoutes(app: Express): void {
       
       const existing = await storage.getRestaurantByPhone(phone);
       if (existing) {
-        console.log("[API] Restaurant existe déjà avec ce téléphone");
-        throw errorHandler.badRequest("Un restaurant avec ce numéro existe déjà");
+        console.log("[API] Restaurant existe déjà avec ce téléphone:", existing.name);
+        throw errorHandler.badRequest(`Un restaurant avec ce numéro existe déjà : "${existing.name}"`);
       }
       
       // Convertir le tableau de catégories en JSON string
-      const restaurantData = {
+      const restaurantData: any = {
         name,
         phone,
         address,
@@ -193,7 +193,21 @@ export function registerAdminCrudRoutes(app: Express): void {
         categories: JSON.stringify(categories),
       };
       
-      console.log("[API] Création du restaurant...");
+      // Ajouter les champs optionnels s'ils sont fournis
+      if (openingHours) {
+        restaurantData.openingHours = openingHours;
+      }
+      if (deliveryTime !== undefined) {
+        restaurantData.deliveryTime = parseInt(deliveryTime) || 30;
+      }
+      if (minOrder !== undefined) {
+        restaurantData.minOrder = minOrder.toString();
+      }
+      if (rating !== undefined) {
+        restaurantData.rating = rating.toString();
+      }
+      
+      console.log("[API] Création du restaurant avec données:", restaurantData);
       const restaurant = await storage.createRestaurant(restaurantData);
       console.log("[API] Restaurant créé:", restaurant.id);
       
@@ -213,12 +227,13 @@ export function registerAdminCrudRoutes(app: Express): void {
   
   app.patch("/api/admin/restaurants/:id", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
-      const { name, phone, address, description, imageUrl, categories, isOpen } = req.body;
+      const { name, phone, address, description, imageUrl, categories, isOpen, openingHours, deliveryTime, minOrder, rating } = req.body;
       const restaurantId = req.params.id;
       
       console.log("[API] PATCH /api/admin/restaurants/:id - Restaurant ID:", restaurantId);
-      console.log("[API] Données reçues:", { name, phone, address, description, imageUrl, categories, isOpen });
+      console.log("[API] Données reçues:", { name, phone, address, description, imageUrl, categories, isOpen, openingHours, deliveryTime, minOrder, rating });
       console.log("[API] isOpen reçu:", isOpen, "type:", typeof isOpen);
+      console.log("[API] openingHours reçu:", openingHours, "type:", typeof openingHours, "valeur:", JSON.stringify(openingHours));
       
       const restaurant = await storage.getRestaurantById(restaurantId);
       if (!restaurant) throw errorHandler.notFound("Restaurant non trouvé");
@@ -239,7 +254,7 @@ export function registerAdminCrudRoutes(app: Express): void {
         // Vérifier que le nouveau numéro n'est pas déjà utilisé par un autre restaurant
         const existing = await storage.getRestaurantByPhone(phone);
         if (existing && existing.id !== restaurantId) {
-          throw errorHandler.badRequest("Un restaurant avec ce numéro existe déjà");
+          throw errorHandler.badRequest(`Un restaurant avec ce numéro existe déjà : "${existing.name}"`);
         }
         updateData.phone = phone;
       }
@@ -252,8 +267,27 @@ export function registerAdminCrudRoutes(app: Express): void {
         }
         updateData.categories = JSON.stringify(categories);
       }
+      // Toujours inclure openingHours dans updateData si présent dans req.body
+      // Cela permet de mettre à jour explicitement à null si nécessaire
+      if (openingHours !== undefined) {
+        // Convertir les chaînes vides en null pour la base de données
+        updateData.openingHours = openingHours === "" || openingHours === null ? null : openingHours;
+        console.log("[API] openingHours à sauvegarder:", updateData.openingHours, "type:", typeof updateData.openingHours);
+      } else {
+        console.log("[API] openingHours NON inclus dans req.body (undefined)");
+      }
+      if (deliveryTime !== undefined) {
+        updateData.deliveryTime = parseInt(deliveryTime) || 30;
+      }
+      if (minOrder !== undefined) {
+        updateData.minOrder = minOrder.toString();
+      }
+      if (rating !== undefined) {
+        updateData.rating = rating.toString();
+      }
       
       console.log("[API] Données à mettre à jour (sans isOpen):", updateData);
+      console.log("[API] openingHours dans updateData:", updateData.openingHours, "présent:", 'openingHours' in updateData);
       
       // Ajouter isOpen séparément si présent
       if (isOpenToUpdate !== undefined) {

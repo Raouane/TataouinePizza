@@ -4,6 +4,7 @@ import { Search, MapPin, Star, Clock, Bike, Zap, Coins } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useCart } from "@/lib/cart";
 import { getOnboarding } from "@/pages/onboarding";
+import { isRestaurantOpen, getRestaurantCloseReason, parseOpeningHours } from "@/lib/restaurant-status";
 
 interface Restaurant {
   id: string;
@@ -14,6 +15,7 @@ interface Restaurant {
   imageUrl?: string;
   categories?: string[];
   isOpen?: boolean;
+  openingHours?: string;
   deliveryTime?: number;
   rating?: string;
 }
@@ -27,6 +29,9 @@ interface Pizza {
   imageUrl?: string;
   prices?: Array<{ size: string; price: string }>;
 }
+
+// Les fonctions parseOpeningHours, isRestaurantOpen et getRestaurantCloseReason 
+// sont maintenant importées depuis @/lib/restaurant-status
 
 export default function Home() {
   const { t } = useLanguage();
@@ -72,6 +77,20 @@ export default function Home() {
           categories: r.categories?.length || 0
         })));
         
+        // Log spécifique pour BOUBA
+        const bouba = data.find((r: Restaurant) => r.name && r.name.toLowerCase().includes('bouba'));
+        if (bouba) {
+          console.log('[Home] ========== BOUBA DANS LA RÉPONSE API ==========');
+          console.log('[Home] BOUBA reçu du serveur:', {
+            name: bouba.name,
+            isOpen: bouba.isOpen,
+            openingHours: bouba.openingHours,
+            computedStatus: bouba.computedStatus,
+            computedStatusString: JSON.stringify(bouba.computedStatus)
+          });
+          console.log('[Home] ===============================================');
+        }
+        
         // Compter les restaurants ouverts/fermés
         const openCount = data.filter((r: Restaurant) => r.isOpen !== false).length;
         const closedCount = data.filter((r: Restaurant) => r.isOpen === false).length;
@@ -111,8 +130,8 @@ export default function Home() {
     const query = searchQuery.toLowerCase();
     const restaurant = restaurants.find(r => r.id === pizza.restaurantId);
     
-    // Ne montrer que les plats des restaurants ouverts
-    if (!restaurant || restaurant.isOpen === false) return false;
+    // Ne montrer que les plats des restaurants ouverts (vérifier avec la fonction complète)
+    if (!restaurant || !isRestaurantOpen(restaurant)) return false;
     
     return (
       pizza.name.toLowerCase().includes(query) ||
@@ -132,17 +151,46 @@ export default function Home() {
   });
 
   // Trier : restaurants ouverts en premier, fermés en dernier
+  // Utiliser isRestaurantOpen pour vérifier le statut réel
   const sortedRestaurants = [...filteredRestaurants].sort((a, b) => {
+    const aIsOpen = isRestaurantOpen(a);
+    const bIsOpen = isRestaurantOpen(b);
     // Si les deux sont ouverts ou fermés, garder l'ordre original
-    if (a.isOpen === b.isOpen) return 0;
+    if (aIsOpen === bIsOpen) return 0;
     // Si a est ouvert et b fermé, a vient en premier
-    if (a.isOpen && !b.isOpen) return -1;
+    if (aIsOpen && !bIsOpen) return -1;
     // Si a est fermé et b ouvert, b vient en premier
     return 1;
   });
 
-  const openRestaurants = sortedRestaurants.filter(r => r.isOpen !== false);
-  const closedRestaurants = sortedRestaurants.filter(r => r.isOpen === false);
+  const openRestaurants = sortedRestaurants.filter(r => {
+    const isOpen = isRestaurantOpen(r);
+    // Log pour débogage de BOUBA
+    if (r.name && r.name.toLowerCase().includes('bouba')) {
+      console.log(`[Home] Filtrage BOUBA:`, {
+        name: r.name,
+        isOpenToggle: r.isOpen,
+        openingHours: r.openingHours,
+        computedStatus: r.computedStatus,
+        isRestaurantOpenResult: isOpen
+      });
+    }
+    return isOpen;
+  });
+  const closedRestaurants = sortedRestaurants.filter(r => {
+    const isOpen = isRestaurantOpen(r);
+    // Log pour débogage de BOUBA
+    if (r.name && r.name.toLowerCase().includes('bouba')) {
+      console.log(`[Home] Filtrage BOUBA (fermé):`, {
+        name: r.name,
+        isOpenToggle: r.isOpen,
+        openingHours: r.openingHours,
+        computedStatus: r.computedStatus,
+        isRestaurantOpenResult: isOpen
+      });
+    }
+    return !isOpen;
+  });
   
   // Logs de débogage pour le filtrage
   useEffect(() => {
@@ -354,41 +402,47 @@ export default function Home() {
                   <span className="text-sm text-gray-500">{t('home.restaurants.available', { count: openRestaurants.length })}</span>
                 </div>
                 <div className="flex flex-col gap-10 md:gap-12">
-                  {openRestaurants.map((restaurant) => (
-                    <Link key={restaurant.id} href={`/menu/${restaurant.id}`} className="block">
-                      <div className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 hover:border-orange-200">
-                        <div className="relative">
-                          {/* Restaurant Image */}
-                          <div className="w-full h-48 bg-gradient-to-br from-orange-200 to-red-200 relative overflow-hidden">
-                            {restaurant.imageUrl && restaurant.imageUrl.trim() !== "" ? (
-                              <img
-                                src={restaurant.imageUrl}
-                                alt={restaurant.name}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  // Si l'image ne charge pas, afficher le fallback
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = 'none';
-                                  const parent = target.parentElement;
-                                  if (parent) {
-                                    const fallback = document.createElement('div');
-                                    fallback.className = 'w-full h-full flex items-center justify-center';
-                                    fallback.innerHTML = '<span class="text-6xl">🍕</span>';
-                                    parent.appendChild(fallback);
-                                  }
-                                }}
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <span className="text-6xl">🍕</span>
+                  {openRestaurants.map((restaurant) => {
+                    const isActuallyOpen = isRestaurantOpen(restaurant);
+                    return (
+                      <Link key={restaurant.id} href={`/menu/${restaurant.id}`} className="block">
+                        <div className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 hover:border-orange-200">
+                          <div className="relative">
+                            {/* Restaurant Image */}
+                            <div className="w-full h-48 bg-gradient-to-br from-orange-200 to-red-200 relative overflow-hidden">
+                              {restaurant.imageUrl && restaurant.imageUrl.trim() !== "" ? (
+                                <img
+                                  src={restaurant.imageUrl}
+                                  alt={restaurant.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    // Si l'image ne charge pas, afficher le fallback
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                    const parent = target.parentElement;
+                                    if (parent) {
+                                      const fallback = document.createElement('div');
+                                      fallback.className = 'w-full h-full flex items-center justify-center';
+                                      fallback.innerHTML = '<span class="text-6xl">🍕</span>';
+                                      parent.appendChild(fallback);
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <span className="text-6xl">🍕</span>
+                                </div>
+                              )}
+                              {/* Status Badge */}
+                              <div className="absolute top-3 left-3">
+                                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                  isActuallyOpen 
+                                    ? "bg-green-500 text-white"
+                                    : "bg-gray-500 text-white"
+                                }`}>
+                                  {isActuallyOpen ? t('menu.status.open') : "Fermé"}
+                                </span>
                               </div>
-                            )}
-                            {/* Status Badge */}
-                            <div className="absolute top-3 left-3">
-                              <span className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold">
-                                {t('menu.status.open')}
-                              </span>
-                            </div>
                             {/* Delivery Time */}
                             <div className="absolute top-3 right-3">
                               <span className="bg-white/90 backdrop-blur-sm text-gray-700 px-3 py-1 rounded-full text-xs font-medium">
@@ -414,6 +468,26 @@ export default function Home() {
                             {restaurant.description || restaurant.address}
                           </p>
                           
+                          {/* Message de fermeture si fermé selon les horaires */}
+                          {!isActuallyOpen && restaurant.openingHours && (
+                            <div className="mb-3 p-2 bg-gray-100 rounded-lg text-xs text-gray-700">
+                              {(() => {
+                                const { hours, closedDay } = parseOpeningHours(restaurant.openingHours);
+                                const now = new Date();
+                                const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+                                const currentDay = dayNames[now.getDay()];
+                                
+                                if (closedDay && currentDay === closedDay) {
+                                  return `🔒 Fermé le ${closedDay}`;
+                                }
+                                if (hours) {
+                                  return `⏰ Ouvert ${hours}`;
+                                }
+                                return "Fermé";
+                              })()}
+                            </div>
+                          )}
+                          
                           {/* Categories */}
                           {restaurant.categories && restaurant.categories.length > 0 && (
                             <div className="flex flex-wrap gap-2 mb-3">
@@ -436,7 +510,8 @@ export default function Home() {
                         </div>
                       </div>
                     </Link>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -446,77 +521,117 @@ export default function Home() {
               <div>
                 <h2 className="text-xl font-bold text-gray-900 mb-6">{t('home.restaurants.closed')}</h2>
                 <div className="flex flex-col gap-10 md:gap-12">
-                  {closedRestaurants.map((restaurant) => (
-                    <Link key={restaurant.id} href={`/menu/${restaurant.id}`} className="block">
-                      <div className="bg-white rounded-2xl overflow-hidden shadow-md opacity-75 border border-gray-200">
-                        <div className="relative">
-                          {/* Restaurant Image */}
-                          <div className="w-full h-48 bg-gradient-to-br from-gray-200 to-gray-300 relative overflow-hidden">
-                            {restaurant.imageUrl && restaurant.imageUrl.trim() !== "" ? (
-                              <img
-                                src={restaurant.imageUrl}
-                                alt={restaurant.name}
-                                className="w-full h-full object-cover grayscale"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <span className="text-6xl opacity-50">🍕</span>
+                  {closedRestaurants.map((restaurant) => {
+                    const closeReason = getRestaurantCloseReason(restaurant);
+                    const isTemporarilyClosed = closeReason === 'toggle';
+                    const { hours, closedDay } = parseOpeningHours(restaurant.openingHours);
+                    
+                    return (
+                      <Link key={restaurant.id} href={`/menu/${restaurant.id}`} className="block">
+                        <div className="bg-white rounded-2xl overflow-hidden shadow-md opacity-75 border border-gray-200">
+                          <div className="relative">
+                            {/* Restaurant Image */}
+                            <div className="w-full h-48 bg-gradient-to-br from-gray-200 to-gray-300 relative overflow-hidden">
+                              {restaurant.imageUrl && restaurant.imageUrl.trim() !== "" ? (
+                                <img
+                                  src={restaurant.imageUrl}
+                                  alt={restaurant.name}
+                                  className="w-full h-full object-cover grayscale"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <span className="text-6xl opacity-50">🍕</span>
+                                </div>
+                              )}
+                              {/* Status Badge */}
+                              <div className="absolute top-3 left-3">
+                                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                  isTemporarilyClosed 
+                                    ? "bg-orange-500 text-white" 
+                                    : "bg-gray-500 text-white"
+                                }`}>
+                                  {isTemporarilyClosed 
+                                    ? "🔒 Fermé temporairement" 
+                                    : "Fermé"}
+                                </span>
+                              </div>
+                              {/* Message avec horaires et jour de repos */}
+                              <div className="absolute bottom-3 left-3 right-3">
+                                <div className={`px-3 py-2 rounded-lg text-xs font-medium ${
+                                  isTemporarilyClosed
+                                    ? "bg-orange-100 text-orange-800"
+                                    : "bg-gray-100 text-gray-700"
+                                }`}>
+                                  {isTemporarilyClosed ? (
+                                    "Le restaurant est fermé temporairement. Réessayez plus tard."
+                                  ) : (
+                                    <div className="space-y-1">
+                                      {hours && (
+                                        <div>
+                                          <span className="font-semibold">Horaires :</span> {hours}
+                                        </div>
+                                      )}
+                                      {closedDay && (
+                                        <div>
+                                          <span className="font-semibold">Jour de repos :</span> {closedDay}
+                                        </div>
+                                      )}
+                                      {!hours && !closedDay && (
+                                        <div>Le restaurant est fermé selon les horaires d'ouverture.</div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              {/* Delivery Time */}
+                              <div className="absolute top-3 right-3">
+                                <span className="bg-white/90 backdrop-blur-sm text-gray-700 px-3 py-1 rounded-full text-xs font-medium">
+                                  {restaurant.deliveryTime || 30}-{restaurant.deliveryTime ? restaurant.deliveryTime + 10 : 40} {t('common.min')}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Restaurant Info */}
+                          <div className="p-5 md:p-6">
+                            <h3 className="font-bold text-lg text-gray-900 mb-1">{restaurant.name}</h3>
+                            <div className="flex items-center gap-2 mb-2">
+                              <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                              <span className="text-sm font-semibold text-gray-700">
+                                {restaurant.rating || "4.5"}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                ({Math.floor(Math.random() * 200) + 50} {t('menu.reviews')})
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                              {restaurant.description || restaurant.address}
+                            </p>
+                            
+                            {/* Categories */}
+                            {restaurant.categories && restaurant.categories.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mb-3">
+                                {restaurant.categories.slice(0, 2).map((cat) => (
+                                  <span
+                                    key={cat}
+                                    className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-md"
+                                  >
+                                    {getCategoryLabel(cat)}
+                                  </span>
+                                ))}
                               </div>
                             )}
-                            {/* Status Badge */}
-                            <div className="absolute top-3 left-3">
-                              <span className="bg-gray-500 text-white px-3 py-1 rounded-full text-xs font-semibold">
-                                {t('menu.status.closed')}
-                              </span>
-                            </div>
-                            {/* Delivery Time */}
-                            <div className="absolute top-3 right-3">
-                              <span className="bg-white/90 backdrop-blur-sm text-gray-700 px-3 py-1 rounded-full text-xs font-medium">
-                                {restaurant.deliveryTime || 30}-{restaurant.deliveryTime ? restaurant.deliveryTime + 10 : 40} {t('common.min')}
-                              </span>
+                            
+                            {/* Delivery Price */}
+                            <div className="flex items-center gap-2 text-sm text-gray-700">
+                              <Bike className="w-4 h-4" />
+                              <span className="font-medium">2.5 {t('common.currency')}</span>
                             </div>
                           </div>
                         </div>
-                        
-                        {/* Restaurant Info */}
-                        <div className="p-5 md:p-6">
-                          <h3 className="font-bold text-lg text-gray-900 mb-1">{restaurant.name}</h3>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                            <span className="text-sm font-semibold text-gray-700">
-                              {restaurant.rating || "4.5"}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              ({Math.floor(Math.random() * 200) + 50} {t('menu.reviews')})
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                            {restaurant.description || restaurant.address}
-                          </p>
-                          
-                          {/* Categories */}
-                          {restaurant.categories && restaurant.categories.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mb-3">
-                              {restaurant.categories.slice(0, 2).map((cat) => (
-                                <span
-                                  key={cat}
-                                  className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-md"
-                                >
-                                  {getCategoryLabel(cat)}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          
-                          {/* Delivery Price */}
-                          <div className="flex items-center gap-2 text-sm text-gray-700">
-                            <Bike className="w-4 h-4" />
-                            <span className="font-medium">2.5 {t('common.currency')}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             )}

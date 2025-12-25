@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertPizzaSchema, insertOrderSchema, verifyOtpSchema, sendOtpSchema, updateOrderStatusSchema, insertAdminUserSchema, insertDriverSchema, driverLoginSchema, insertRestaurantSchema, restaurants, drivers, pizzaPrices } from "@shared/schema";
+import { insertPizzaSchema, insertOrderSchema, verifyOtpSchema, sendOtpSchema, updateOrderStatusSchema, insertAdminUserSchema, insertDriverSchema, driverLoginSchema, insertRestaurantSchema, restaurants, drivers, pizzaPrices, type Order } from "@shared/schema";
 import { z } from "zod";
 import { authenticateAdmin, authenticateN8nWebhook, generateToken, hashPassword, comparePassword, type AuthRequest } from "./auth";
 import { errorHandler, AppError } from "./errors";
@@ -15,8 +15,8 @@ import { OrderService } from "./services/order-service";
 import { OrderAcceptanceService } from "./services/order-acceptance-service";
 import { OrderEnrichmentService } from "./services/order-enrichment-service";
 import { CommissionService } from "./services/commission-service";
-import { OrderStatus } from "./types/order-status";
 import { sendN8nWebhook } from "./webhooks/n8n-webhook";
+import { isRestaurantOpenNow, checkRestaurantStatus } from "./utils/restaurant-status";
 
 declare global {
   namespace Express {
@@ -30,9 +30,9 @@ function generateOtp(): string {
   return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
-function validate<T>(schema: z.ZodSchema, data: any): T | null {
+function validate<T>(schema: z.ZodSchema<T>, data: any): T | null {
   try {
-    return schema.parse(data);
+    return schema.parse(data) as T;
   } catch (error) {
     return null;
   }
@@ -84,7 +84,17 @@ export async function registerRoutes(
   app.get("/api/restaurants", async (req, res) => {
     try {
       const restaurants = await storage.getAllRestaurants();
-      res.json(restaurants);
+      
+      // Enrichir avec le statut calculé côté serveur pour cohérence
+      const restaurantsWithStatus = restaurants.map(restaurant => {
+        const status = checkRestaurantStatus(restaurant);
+        return {
+          ...restaurant,
+          computedStatus: status
+        };
+      });
+      
+      res.json(restaurantsWithStatus);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch restaurants" });
     }
@@ -94,7 +104,14 @@ export async function registerRoutes(
     try {
       const restaurant = await storage.getRestaurantById(req.params.id);
       if (!restaurant) return res.status(404).json({ error: "Restaurant not found" });
-      res.json(restaurant);
+      
+      // Enrichir avec le statut calculé pour cohérence
+      const restaurantWithStatus = {
+        ...restaurant,
+        computedStatus: checkRestaurantStatus(restaurant)
+      };
+      
+      res.json(restaurantWithStatus);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch restaurant" });
     }
@@ -187,20 +204,7 @@ export async function registerRoutes(
   
   // ============ ORDERS (PUBLIC) ============
   
-  // Helper function to check if restaurant is open now
-  function isRestaurantOpenNow(restaurant: any): boolean {
-    if (!restaurant.isOpen) return false;
-    if (!restaurant.openingHours) return true; // Si pas d'horaires, considérer ouvert
-    
-    // Parse opening hours (format: "09:00-23:00")
-    const [openTime, closeTime] = restaurant.openingHours.split("-");
-    if (!openTime || !closeTime) return true;
-    
-    const now = new Date();
-    const currentTime = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
-    
-    return currentTime >= openTime && currentTime <= closeTime;
-  }
+  // La fonction isRestaurantOpenNow est maintenant importée depuis utils/restaurant-status.ts
   
   app.post("/api/orders", async (req, res) => {
     try {
@@ -369,7 +373,7 @@ export async function registerRoutes(
       );
       
       // Enrichir avec les informations du restaurant pour le livreur
-      let enrichedOrder = { ...order, items: itemsWithDetails };
+      let enrichedOrder: any = { ...order, items: itemsWithDetails };
       if (order.restaurantId) {
         const restaurant = await storage.getRestaurantById(order.restaurantId);
         if (restaurant) {
@@ -854,7 +858,11 @@ export async function registerRoutes(
         
         // 3. Ajouter des produits si nécessaire
         if (existingProducts.length < 5) {
-          const productsToAdd = getProductsForCategory(restaurant.categories || []);
+          // Convertir categories en array si nécessaire
+          const categoriesArray = Array.isArray(restaurant.categories) 
+            ? restaurant.categories 
+            : (typeof restaurant.categories === 'string' ? JSON.parse(restaurant.categories) : []);
+          const productsToAdd = getProductsForCategory(categoriesArray);
           const productsNeeded = Math.min(5 - existingProducts.length, productsToAdd.length);
 
           for (let i = 0; i < productsNeeded; i++) {
@@ -1002,7 +1010,7 @@ export async function registerRoutes(
   // Get ready orders available for pickup (for all drivers)
   app.get("/api/driver/available-orders", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
-      let readyOrders;
+      let readyOrders: Order[] = [];
       try {
         readyOrders = await storage.getReadyOrders();
       } catch (err) {

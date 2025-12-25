@@ -19,6 +19,8 @@
     "check-product": "tsx script/check-product.ts",
     "add-products-bab-el-hara": "tsx script/add-products-bab-el-hara.ts",
     "add-test-restaurants": "tsx script/add-test-restaurants.ts",
+    "add-patisserie-el-bacha": "tsx script/add-patisserie-el-bacha.ts",
+    "update-patisserie-image": "tsx script/update-patisserie-image.ts",
     "add-restaurant-images": "tsx script/add-restaurant-images.ts",
     "sync-to-production": "tsx script/sync-to-production.ts",
     "check-production-data": "tsx script/check-production-data.ts",

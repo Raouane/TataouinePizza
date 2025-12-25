@@ -6,6 +6,7 @@ import { useCart } from "@/lib/cart";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { isRestaurantOpen, getRestaurantCloseReason, parseOpeningHours } from "@/lib/restaurant-status";
 
 interface Pizza {
   id: string;
@@ -38,7 +39,7 @@ export default function Menu() {
   const [pizzas, setPizzas] = useState<Pizza[]>([]);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isRestaurantOpen, setIsRestaurantOpen] = useState(true);
+  const [restaurantIsOpen, setRestaurantIsOpen] = useState(true);
   const [selectedPizza, setSelectedPizza] = useState<Pizza | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [isSizeDialogOpen, setIsSizeDialogOpen] = useState(false);
@@ -47,18 +48,8 @@ export default function Menu() {
   
   const restaurantId = params.restaurantId;
 
-  const checkIfRestaurantIsOpen = (restaurant: Restaurant): boolean => {
-    if (restaurant.isOpen === false) return false;
-    if (!restaurant.openingHours) return true;
-    
-    const [openTime, closeTime] = restaurant.openingHours.split("-");
-    if (!openTime || !closeTime) return true;
-    
-    const now = new Date();
-    const currentTime = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
-    
-    return currentTime >= openTime && currentTime <= closeTime;
-  };
+  // Les fonctions parseOpeningHours, isRestaurantOpen et getRestaurantCloseReason 
+  // sont maintenant importées depuis @/lib/restaurant-status
 
   useEffect(() => {
     const loadData = async () => {
@@ -72,7 +63,7 @@ export default function Menu() {
           if (restRes.ok) {
             const restData = await restRes.json();
             setRestaurant(restData);
-            setIsRestaurantOpen(checkIfRestaurantIsOpen(restData));
+            setRestaurantIsOpen(isRestaurantOpen(restData));
           }
           
           if (menuRes.ok) {
@@ -252,13 +243,26 @@ export default function Menu() {
 
         {/* Status Badge */}
         <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
-          <span className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-semibold ${
-            isRestaurantOpen 
-              ? "bg-green-500 text-white" 
-              : "bg-gray-500 text-white"
-          }`}>
-            {isRestaurantOpen ? t('menu.status.open') : t('menu.status.closed')}
-          </span>
+          {(() => {
+            const closeReason = getRestaurantCloseReason(restaurant);
+            const isTemporarilyClosed = closeReason === 'toggle';
+            
+            return (
+              <span className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-semibold ${
+                restaurantIsOpen 
+                  ? "bg-green-500 text-white" 
+                  : isTemporarilyClosed
+                  ? "bg-orange-500 text-white"
+                  : "bg-gray-500 text-white"
+              }`}>
+                {restaurantIsOpen 
+                  ? t('menu.status.open') 
+                  : isTemporarilyClosed
+                  ? "🔒 Fermé temporairement"
+                  : t('menu.status.closed')}
+              </span>
+            );
+          })()}
         </div>
       </div>
 
@@ -314,16 +318,46 @@ export default function Menu() {
           )}
 
           {/* Alert if closed */}
-          {!isRestaurantOpen && (
-            <div className="mt-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
-              <p className="font-semibold text-red-800">{t('menu.restaurantClosed')}</p>
-              <p className="text-sm text-red-600 mt-1">
-                {restaurant.openingHours 
-                  ? `${t('menu.restaurantClosed.desc')} ${restaurant.openingHours}`
-                  : t('menu.restaurantClosed.now')}
-              </p>
-            </div>
-          )}
+          {!restaurantIsOpen && (() => {
+            const closeReason = getRestaurantCloseReason(restaurant);
+            const isTemporarilyClosed = closeReason === 'toggle';
+            const { hours, closedDay } = parseOpeningHours(restaurant?.openingHours);
+            
+            return (
+              <div className={`mt-4 p-4 rounded-lg border-l-4 ${
+                isTemporarilyClosed
+                  ? "bg-orange-50 border-orange-500"
+                  : "bg-gray-50 border-gray-500"
+              }`}>
+                <p className={`font-semibold ${
+                  isTemporarilyClosed ? "text-orange-800" : "text-gray-800"
+                }`}>
+                  {isTemporarilyClosed 
+                    ? "⚠️ Restaurant fermé temporairement" 
+                    : "Fermé"}
+                </p>
+                <div className={`text-sm mt-2 space-y-1 ${
+                  isTemporarilyClosed ? "text-orange-600" : "text-gray-600"
+                }`}>
+                  {isTemporarilyClosed ? (
+                    <p>Le restaurant est fermé temporairement. Veuillez réessayer plus tard.</p>
+                  ) : (
+                    <>
+                      {hours && (
+                        <p><span className="font-semibold">Horaires d'ouverture :</span> {hours}</p>
+                      )}
+                      {closedDay && (
+                        <p><span className="font-semibold">Jour de repos :</span> {closedDay}</p>
+                      )}
+                      {!hours && !closedDay && (
+                        <p>Le restaurant est fermé selon les horaires d'ouverture.</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -434,7 +468,7 @@ export default function Menu() {
                         
                         <Button
                           onClick={(e) => handleAddToCart(pizza, e)}
-                          disabled={!isRestaurantOpen}
+                          disabled={!restaurantIsOpen}
                           className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-6 md:px-8 py-2.5 md:py-3 h-auto flex items-center justify-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                         >
                           <Plus className="w-5 h-5 md:w-6 md:h-6" />

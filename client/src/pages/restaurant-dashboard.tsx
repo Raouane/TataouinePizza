@@ -56,6 +56,29 @@ export default function RestaurantDashboard() {
     };
   }, [token, setLocation]);
 
+  // Keep-alive : rafraîchir périodiquement pour maintenir la session active
+  useEffect(() => {
+    if (!token) return;
+    
+    const refreshInterval = setInterval(() => {
+      // Faire une requête légère pour maintenir la session
+      fetch("/api/restaurant/status", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then(() => {
+        const now = new Date();
+        console.log(`[Restaurant] 🔄 Keep-alive: session maintenue active à ${now.toLocaleTimeString()}`);
+      })
+      .catch((err) => {
+        console.warn("[Restaurant] ⚠️ Erreur keep-alive:", err);
+      });
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => {
+      clearInterval(refreshInterval);
+    };
+  }, [token]);
+
   const fetchStatus = async () => {
     try {
       const res = await fetch("/api/restaurant/status", {

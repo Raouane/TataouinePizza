@@ -128,12 +128,16 @@ export const insertAdminUserSchema = createInsertSchema(adminUsers)
   });
 
 export const insertRestaurantSchema = createInsertSchema(restaurants)
-  .pick({ name: true, phone: true, address: true, description: true, imageUrl: true, categories: true })
+  .pick({ name: true, phone: true, address: true, description: true, imageUrl: true, categories: true, openingHours: true, deliveryTime: true, minOrder: true, rating: true })
   .extend({
     name: z.string().min(2, "Nom min 2 caractères"),
     phone: z.string().min(8, "Téléphone invalide"),
     address: z.string().min(5, "Adresse invalide"),
     categories: z.array(z.string()).optional().default([]),
+    openingHours: z.string().optional(),
+    deliveryTime: z.number().int().min(10).max(120).optional(),
+    minOrder: z.string().optional(),
+    rating: z.string().optional(),
   });
 
 export const insertPizzaSchema = createInsertSchema(pizzas)

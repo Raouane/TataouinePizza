@@ -21,8 +21,27 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is required");
 }
 
+// Log de débogage (masquer le mot de passe)
+const dbUrl = process.env.DATABASE_URL;
+const maskedUrl = dbUrl.replace(/:([^:@]+)@/, ':****@'); // Masquer le mot de passe
+console.log("[DB] DATABASE_URL:", maskedUrl);
+
+// Vérifier et corriger l'URL si le port manque pour Render
+let connectionString = process.env.DATABASE_URL;
+if (connectionString.includes('.render.com') && !connectionString.match(/:\d+\//)) {
+  // Ajouter le port 5432 si manquant pour Render
+  connectionString = connectionString.replace('.render.com/', '.render.com:5432/');
+  console.log("[DB] Port 5432 ajouté automatiquement pour Render");
+}
+
+// Ajouter SSL pour Render PostgreSQL si pas déjà présent
+if (connectionString.includes('.render.com') && !connectionString.includes('sslmode=')) {
+  connectionString += (connectionString.includes('?') ? '&' : '?') + 'sslmode=require';
+  console.log("[DB] SSL mode ajouté automatiquement pour Render");
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString,
 });
 
 // Test de connexion

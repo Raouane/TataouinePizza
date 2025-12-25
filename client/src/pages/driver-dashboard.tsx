@@ -232,6 +232,25 @@ export default function DriverDashboard() {
     };
   }, [token, driverId, isOnline]); // Retirer wsReconnectAttempts des dépendances
 
+  // Keep-alive : envoyer un ping toutes les 5 minutes pour maintenir la connexion WebSocket
+  useEffect(() => {
+    if (!wsConnected || !isOnline) return;
+    
+    const keepAliveInterval = setInterval(() => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: "ping" }));
+        const now = new Date();
+        console.log(`[WebSocket] 🔄 Keep-alive envoyé à ${now.toLocaleTimeString()} - Connexion maintenue active`);
+      } else {
+        console.warn("[WebSocket] ⚠️ Impossible d'envoyer keep-alive - WebSocket non ouvert");
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => {
+      clearInterval(keepAliveInterval);
+    };
+  }, [wsConnected, isOnline]);
+
   // Nettoyer les timers de visibilité et les intervalles de son au démontage
   useEffect(() => {
     return () => {

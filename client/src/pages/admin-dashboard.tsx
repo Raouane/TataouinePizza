@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { getStatusColor, getCardHeaderColor, getStatusLabel } from "@/lib/order-status-helpers";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { OrderDetailsDialog } from "@/components/order-details-dialog";
+import { isRestaurantOpen } from "@/lib/restaurant-status";
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
@@ -46,7 +47,19 @@ export default function AdminDashboard() {
   const token = localStorage.getItem("adminToken");
 
   // Form states
-  const [restaurantForm, setRestaurantForm] = useState({ name: "", phone: "", address: "", description: "", imageUrl: "", categories: [] as string[] });
+  const [restaurantForm, setRestaurantForm] = useState({ 
+    name: "", 
+    phone: "", 
+    address: "", 
+    description: "", 
+    imageUrl: "", 
+    categories: [] as string[],
+    openingHours: "",
+    closedDay: "",
+    deliveryTime: 30,
+    minOrder: "0",
+    rating: "4.5"
+  });
   const [driverForm, setDriverForm] = useState({ name: "", phone: "", password: "" });
   const [pizzaForm, setPizzaForm] = useState({ restaurantId: "", name: "", description: "", productType: "pizza", category: "classic", imageUrl: "", prices: [{ size: "small", price: 10 }, { size: "medium", price: 15 }, { size: "large", price: 18 }] });
   const [showRestaurantDialog, setShowRestaurantDialog] = useState(false);
@@ -95,8 +108,15 @@ export default function AdminDashboard() {
         id: r.id,
         name: r.name,
         isOpen: r.isOpen,
-        isOpenType: typeof r.isOpen
+        isOpenType: typeof r.isOpen,
+        openingHours: r.openingHours
       })));
+      
+      // Log spécifique pour BOUBA
+      const bouba = data.find(r => r.name && r.name.toLowerCase().includes('bouba'));
+      if (bouba) {
+        console.log("[ADMIN] BOUBA trouvé - openingHours:", bouba.openingHours, "type:", typeof bouba.openingHours);
+      }
       setRestaurants(data);
     } catch (err: any) {
       console.error("[ADMIN] Failed to fetch restaurants:", err);
@@ -163,6 +183,37 @@ export default function AdminDashboard() {
 
   const handleEditRestaurant = (restaurant: Restaurant) => {
     setEditingRestaurant(restaurant);
+    
+    // Parser les horaires (support JSON et ancien format)
+    let openingHours = "";
+    let closedDay = "";
+    
+    if (restaurant.openingHours) {
+      // Essayer de parser comme JSON d'abord (nouveau format)
+      if (restaurant.openingHours.trim().startsWith('{')) {
+        try {
+          const parsed = JSON.parse(restaurant.openingHours);
+          openingHours = parsed.open && parsed.close ? `${parsed.open}-${parsed.close}` : "";
+          closedDay = parsed.closedDay || "";
+        } catch {
+          // Si le JSON est invalide, essayer l'ancien format
+          const parts = restaurant.openingHours.split("|");
+          openingHours = parts[0]?.trim() || "";
+          closedDay = parts[1]?.trim() || "";
+        }
+      } else {
+        // Ancien format texte
+        const parts = restaurant.openingHours.split("|");
+        openingHours = parts[0]?.trim() || "";
+        closedDay = parts[1]?.trim() || "";
+      }
+    }
+    
+    console.log("[ADMIN] handleEditRestaurant - Restaurant:", restaurant.name);
+    console.log("[ADMIN] handleEditRestaurant - openingHours brut:", restaurant.openingHours);
+    console.log("[ADMIN] handleEditRestaurant - openingHours parsé:", openingHours);
+    console.log("[ADMIN] handleEditRestaurant - closedDay:", closedDay);
+    
     setRestaurantForm({
       name: restaurant.name,
       phone: restaurant.phone,
@@ -170,6 +221,11 @@ export default function AdminDashboard() {
       description: restaurant.description || "",
       imageUrl: restaurant.imageUrl || "",
       categories: restaurant.categories || [],
+      openingHours: openingHours, // Format: "15:00-23:00" - sera parsé dans les champs time
+      closedDay: closedDay || "none",
+      deliveryTime: restaurant.deliveryTime || 30,
+      minOrder: restaurant.minOrder?.toString() || "0",
+      rating: restaurant.rating?.toString() || "4.5",
     });
     setShowEditRestaurantDialog(true);
   };
@@ -190,11 +246,71 @@ export default function AdminDashboard() {
         toast.error("Veuillez sélectionner au moins une catégorie de produit");
         return;
       }
-      await updateRestaurant(editingRestaurant.id, restaurantForm, token);
+      
+      // Construire openingHours au format JSON
+      let openingHours: string | null = null;
+      
+      // Nettoyer et valider les horaires
+      const hoursPart = restaurantForm.openingHours || "";
+      const [openTime, closeTime] = hoursPart.split("-");
+      
+      // Si les horaires sont valides, créer le format JSON
+      if (openTime && closeTime && openTime.trim() !== "" && closeTime.trim() !== "") {
+        const closedDay = restaurantForm.closedDay && restaurantForm.closedDay !== "none" 
+          ? restaurantForm.closedDay 
+          : null;
+        
+        openingHours = JSON.stringify({
+          open: openTime.trim(),
+          close: closeTime.trim(),
+          closedDay
+        });
+      } else if (restaurantForm.closedDay && restaurantForm.closedDay !== "none") {
+        // Si seulement jour de repos sans horaires, utiliser des horaires par défaut
+        openingHours = JSON.stringify({
+          open: "09:00",
+          close: "23:00",
+          closedDay: restaurantForm.closedDay
+        });
+      }
+      
+      const restaurantData: any = {
+        name: restaurantForm.name,
+        phone: restaurantForm.phone,
+        address: restaurantForm.address,
+        description: restaurantForm.description,
+        imageUrl: restaurantForm.imageUrl,
+        categories: restaurantForm.categories,
+        deliveryTime: restaurantForm.deliveryTime,
+        minOrder: restaurantForm.minOrder,
+        rating: restaurantForm.rating,
+        // Toujours inclure openingHours dans restaurantData (format JSON)
+        openingHours: openingHours,
+      };
+      
+      console.log("[ADMIN] handleUpdateRestaurant - Données à envoyer:", restaurantData);
+      console.log("[ADMIN] handleUpdateRestaurant - openingHours brut:", restaurantForm.openingHours);
+      console.log("[ADMIN] handleUpdateRestaurant - closedDay:", restaurantForm.closedDay);
+      console.log("[ADMIN] handleUpdateRestaurant - openingHours final:", openingHours);
+      console.log("[ADMIN] handleUpdateRestaurant - openingHours dans restaurantData:", restaurantData.openingHours);
+      
+      await updateRestaurant(editingRestaurant.id, restaurantData, token);
       toast.success("Restaurant modifié avec succès!");
       setShowEditRestaurantDialog(false);
       setEditingRestaurant(null);
-      setRestaurantForm({ name: "", phone: "", address: "", description: "", imageUrl: "", categories: [] });
+      setRestaurantForm({ 
+        name: "", 
+        phone: "", 
+        address: "", 
+        description: "", 
+        imageUrl: "", 
+        categories: [],
+        openingHours: "",
+        closedDay: "",
+        deliveryTime: 30,
+        minOrder: "0",
+        rating: "4.5"
+      });
       await fetchRestaurants();
     } catch (err: any) {
       console.error("Erreur lors de la modification du restaurant:", err);
@@ -235,12 +351,64 @@ export default function AdminDashboard() {
         toast.error("Veuillez sélectionner au moins une catégorie de produit");
         return;
       }
-      console.log("Création du restaurant avec:", restaurantForm);
+      // Construire openingHours au format JSON
+      let openingHours: string | null = null;
+      
+      // Nettoyer et valider les horaires
+      const hoursPart = restaurantForm.openingHours || "";
+      const [openTime, closeTime] = hoursPart.split("-");
+      
+      // Si les horaires sont valides, créer le format JSON
+      if (openTime && closeTime && openTime.trim() !== "" && closeTime.trim() !== "") {
+        const closedDay = restaurantForm.closedDay && restaurantForm.closedDay !== "none" 
+          ? restaurantForm.closedDay 
+          : null;
+        
+        openingHours = JSON.stringify({
+          open: openTime.trim(),
+          close: closeTime.trim(),
+          closedDay
+        });
+      } else if (restaurantForm.closedDay && restaurantForm.closedDay !== "none") {
+        // Si seulement jour de repos sans horaires, utiliser des horaires par défaut
+        openingHours = JSON.stringify({
+          open: "09:00",
+          close: "23:00",
+          closedDay: restaurantForm.closedDay
+        });
+      }
+      
+      const restaurantData: any = {
+        name: restaurantForm.name,
+        phone: restaurantForm.phone,
+        address: restaurantForm.address,
+        description: restaurantForm.description,
+        imageUrl: restaurantForm.imageUrl,
+        categories: restaurantForm.categories,
+        deliveryTime: restaurantForm.deliveryTime,
+        minOrder: restaurantForm.minOrder,
+        rating: restaurantForm.rating,
+        openingHours: openingHours,
+      };
+      
+      console.log("Création du restaurant avec:", restaurantData);
       console.log("Token:", token ? "Présent" : "Absent");
-      const result = await createRestaurant(restaurantForm, token);
+      const result = await createRestaurant(restaurantData, token);
       console.log("Restaurant créé:", result);
       toast.success("Restaurant créé avec succès!");
-      setRestaurantForm({ name: "", phone: "", address: "", description: "", imageUrl: "", categories: [] });
+      setRestaurantForm({ 
+        name: "", 
+        phone: "", 
+        address: "", 
+        description: "", 
+        imageUrl: "", 
+        categories: [],
+        openingHours: "",
+        closedDay: "",
+        deliveryTime: 30,
+        minOrder: "0",
+        rating: "4.5"
+      });
       setShowRestaurantDialog(false);
       await fetchRestaurants();
     } catch (err: any) {
@@ -828,10 +996,19 @@ export default function AdminDashboard() {
                     <div>
                       <Label>Téléphone *</Label>
                       <Input
+                        type="tel"
                         value={restaurantForm.phone}
-                        onChange={(e) => setRestaurantForm({ ...restaurantForm, phone: e.target.value })}
-                        placeholder="21612345678"
+                        onChange={(e) => {
+                          // Nettoyer le numéro (garder seulement les chiffres)
+                          const cleaned = e.target.value.replace(/\D/g, '');
+                          setRestaurantForm({ ...restaurantForm, phone: cleaned });
+                        }}
+                        placeholder="21345678"
+                        maxLength={15}
                       />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Entrez uniquement les chiffres (ex: 21345678)
+                      </p>
                     </div>
                     <div>
                       <Label>Adresse *</Label>
@@ -896,6 +1073,107 @@ export default function AdminDashboard() {
                         </p>
                       )}
                     </div>
+                    <div>
+                      <Label>Horaires d'ouverture</Label>
+                      <div className="grid grid-cols-2 gap-4 mt-2">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">De</Label>
+                          <Input
+                            type="time"
+                            value={restaurantForm.openingHours ? restaurantForm.openingHours.split("|")[0]?.split("-")[0] || "" : ""}
+                            onChange={(e) => {
+                              const hoursPart = restaurantForm.openingHours.split("|")[0] || "";
+                              const closeTime = hoursPart.split("-")[1] || "23:00";
+                              const closedDay = restaurantForm.openingHours.split("|")[1] || "";
+                              const newHours = `${e.target.value}-${closeTime}`;
+                              setRestaurantForm({
+                                ...restaurantForm,
+                                openingHours: closedDay ? `${newHours}|${closedDay}` : newHours,
+                              });
+                            }}
+                            placeholder="09:00"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">À</Label>
+                          <Input
+                            type="time"
+                            value={restaurantForm.openingHours ? restaurantForm.openingHours.split("|")[0]?.split("-")[1] || "" : ""}
+                            onChange={(e) => {
+                              const hoursPart = restaurantForm.openingHours.split("|")[0] || "";
+                              const openTime = hoursPart.split("-")[0] || "09:00";
+                              const closedDay = restaurantForm.openingHours.split("|")[1] || "";
+                              const newHours = `${openTime}-${e.target.value}`;
+                              setRestaurantForm({
+                                ...restaurantForm,
+                                openingHours: closedDay ? `${newHours}|${closedDay}` : newHours,
+                              });
+                            }}
+                            placeholder="23:00"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Format: HH:MM (ex: 09:00-23:00 ou 20:00-06:00 pour ouverture nocturne)
+                      </p>
+                    </div>
+                    <div>
+                      <Label>Jour de repos</Label>
+                      <Select
+                        value={restaurantForm.closedDay || "none"}
+                        onValueChange={(value) => setRestaurantForm({ ...restaurantForm, closedDay: value === "none" ? "" : value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Aucun (ouvert tous les jours)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Aucun (ouvert tous les jours)</SelectItem>
+                          <SelectItem value="Dimanche">Dimanche</SelectItem>
+                          <SelectItem value="Lundi">Lundi</SelectItem>
+                          <SelectItem value="Mardi">Mardi</SelectItem>
+                          <SelectItem value="Mercredi">Mercredi</SelectItem>
+                          <SelectItem value="Jeudi">Jeudi</SelectItem>
+                          <SelectItem value="Vendredi">Vendredi</SelectItem>
+                          <SelectItem value="Samedi">Samedi</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Temps de livraison (minutes)</Label>
+                        <Input
+                          type="number"
+                          value={restaurantForm.deliveryTime}
+                          onChange={(e) => setRestaurantForm({ ...restaurantForm, deliveryTime: parseInt(e.target.value) || 30 })}
+                          placeholder="30"
+                          min="10"
+                          max="120"
+                        />
+                      </div>
+                      <div>
+                        <Label>Commande minimum (DT)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={restaurantForm.minOrder}
+                          onChange={(e) => setRestaurantForm({ ...restaurantForm, minOrder: e.target.value })}
+                          placeholder="0.00"
+                          min="0"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Note (sur 5)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={restaurantForm.rating}
+                        onChange={(e) => setRestaurantForm({ ...restaurantForm, rating: e.target.value })}
+                        placeholder="4.5"
+                        min="0"
+                        max="5"
+                      />
+                    </div>
                     <Button 
                       onClick={(e) => {
                         e.preventDefault();
@@ -958,7 +1236,8 @@ export default function AdminDashboard() {
                         title={restaurant.isOpen ? "Masquer le restaurant" : "Afficher le restaurant"}
                       >
                         {(() => {
-                          console.log(`[ADMIN] Rendu icône pour ${restaurant.name} - isOpen:`, restaurant.isOpen, "type:", typeof restaurant.isOpen);
+                          const actuallyOpen = isRestaurantOpen(restaurant);
+                          console.log(`[ADMIN] Rendu icône pour ${restaurant.name} - isOpen (toggle):`, restaurant.isOpen, "actuallyOpen (avec horaires):", actuallyOpen, "openingHours:", restaurant.openingHours);
                           return restaurant.isOpen ? (
                             <Eye className="w-4 h-4" />
                           ) : (
@@ -995,10 +1274,23 @@ export default function AdminDashboard() {
                       ))}
                     </div>
                   )}
-                  <div className="mt-2">
+                  <div className="mt-2 flex gap-2 flex-wrap">
                     <span className={`text-xs px-2 py-1 rounded ${restaurant.isOpen ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                      {restaurant.isOpen ? 'Ouvert' : 'Fermé'}
+                      Toggle: {restaurant.isOpen ? 'Activé' : 'Désactivé'}
                     </span>
+                    {(() => {
+                      const actuallyOpen = isRestaurantOpen(restaurant);
+                      return (
+                        <span className={`text-xs px-2 py-1 rounded ${actuallyOpen ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}`}>
+                          Statut réel: {actuallyOpen ? 'Ouvert' : 'Fermé'}
+                        </span>
+                      );
+                    })()}
+                    {restaurant.openingHours && (
+                      <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800">
+                        Horaires: {restaurant.openingHours.split('|')[0]}
+                      </span>
+                    )}
                   </div>
                 </Card>
               ))}
@@ -1030,10 +1322,19 @@ export default function AdminDashboard() {
                   <div>
                     <Label>Téléphone *</Label>
                     <Input
+                      type="tel"
                       value={restaurantForm.phone}
-                      onChange={(e) => setRestaurantForm({ ...restaurantForm, phone: e.target.value })}
-                      placeholder="21612345678"
+                      onChange={(e) => {
+                        // Nettoyer le numéro (garder seulement les chiffres)
+                        const cleaned = e.target.value.replace(/\D/g, '');
+                        setRestaurantForm({ ...restaurantForm, phone: cleaned });
+                      }}
+                      placeholder="21345678"
+                      maxLength={15}
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Entrez uniquement les chiffres (ex: 21345678)
+                    </p>
                   </div>
                   <div>
                     <Label>Adresse *</Label>
@@ -1098,6 +1399,129 @@ export default function AdminDashboard() {
                       </p>
                     )}
                   </div>
+                  <div>
+                    <Label>Horaires d'ouverture</Label>
+                    <div className="grid grid-cols-2 gap-4 mt-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">De</Label>
+                        <Input
+                          type="time"
+                          value={(() => {
+                            if (!restaurantForm.openingHours) return "";
+                            const hoursPart = restaurantForm.openingHours.split("|")[0] || "";
+                            const openTime = hoursPart.split("-")[0] || "";
+                            console.log("[ADMIN] Modal Edit - Champ 'De' - openingHours:", restaurantForm.openingHours, "hoursPart:", hoursPart, "openTime:", openTime);
+                            return openTime;
+                          })()}
+                          onChange={(e) => {
+                            const hoursPart = restaurantForm.openingHours ? restaurantForm.openingHours.split("|")[0] || "" : "";
+                            const closeTime = hoursPart.split("-")[1] || "23:00";
+                            const closedDay = restaurantForm.closedDay && restaurantForm.closedDay !== "none" ? restaurantForm.closedDay : "";
+                            const newHours = `${e.target.value}-${closeTime}`;
+                            console.log("[ADMIN] Modal Edit - Changement heure ouverture:", e.target.value, "newHours:", newHours);
+                            setRestaurantForm({
+                              ...restaurantForm,
+                              openingHours: closedDay ? `${newHours}|${closedDay}` : newHours,
+                            });
+                          }}
+                          placeholder="09:00"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">À</Label>
+                        <Input
+                          type="time"
+                          value={(() => {
+                            if (!restaurantForm.openingHours) return "";
+                            const hoursPart = restaurantForm.openingHours.split("|")[0] || "";
+                            const closeTime = hoursPart.split("-")[1] || "";
+                            console.log("[ADMIN] Modal Edit - Champ 'À' - openingHours:", restaurantForm.openingHours, "hoursPart:", hoursPart, "closeTime:", closeTime);
+                            return closeTime;
+                          })()}
+                          onChange={(e) => {
+                            const hoursPart = restaurantForm.openingHours ? restaurantForm.openingHours.split("|")[0] || "" : "";
+                            const openTime = hoursPart.split("-")[0] || "09:00";
+                            const closedDay = restaurantForm.closedDay && restaurantForm.closedDay !== "none" ? restaurantForm.closedDay : "";
+                            const newHours = `${openTime}-${e.target.value}`;
+                            console.log("[ADMIN] Modal Edit - Changement heure fermeture:", e.target.value, "newHours:", newHours);
+                            setRestaurantForm({
+                              ...restaurantForm,
+                              openingHours: closedDay ? `${newHours}|${closedDay}` : newHours,
+                            });
+                          }}
+                          placeholder="23:00"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Format: HH:MM (ex: 09:00-23:00 ou 20:00-06:00 pour ouverture nocturne)
+                    </p>
+                  </div>
+                  <div>
+                    <Label>Jour de repos</Label>
+                    <Select
+                      value={restaurantForm.closedDay || "none"}
+                      onValueChange={(value) => {
+                        const closedDay = value === "none" ? "" : value;
+                        let openingHours = restaurantForm.openingHours.split("|")[0] || "";
+                        setRestaurantForm({ 
+                          ...restaurantForm, 
+                          closedDay: closedDay,
+                          openingHours: closedDay ? `${openingHours}|${closedDay}` : openingHours
+                        });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Aucun (ouvert tous les jours)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Aucun (ouvert tous les jours)</SelectItem>
+                        <SelectItem value="Dimanche">Dimanche</SelectItem>
+                        <SelectItem value="Lundi">Lundi</SelectItem>
+                        <SelectItem value="Mardi">Mardi</SelectItem>
+                        <SelectItem value="Mercredi">Mercredi</SelectItem>
+                        <SelectItem value="Jeudi">Jeudi</SelectItem>
+                        <SelectItem value="Vendredi">Vendredi</SelectItem>
+                        <SelectItem value="Samedi">Samedi</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Temps de livraison (minutes)</Label>
+                      <Input
+                        type="number"
+                        value={restaurantForm.deliveryTime}
+                        onChange={(e) => setRestaurantForm({ ...restaurantForm, deliveryTime: parseInt(e.target.value) || 30 })}
+                        placeholder="30"
+                        min="10"
+                        max="120"
+                      />
+                    </div>
+                    <div>
+                      <Label>Commande minimum (DT)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={restaurantForm.minOrder}
+                        onChange={(e) => setRestaurantForm({ ...restaurantForm, minOrder: e.target.value })}
+                        placeholder="0.00"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Note (sur 5)</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={restaurantForm.rating}
+                      onChange={(e) => setRestaurantForm({ ...restaurantForm, rating: e.target.value })}
+                      placeholder="4.5"
+                      min="0"
+                      max="5"
+                    />
+                  </div>
                   <div className="flex gap-2">
                     <Button onClick={handleUpdateRestaurant} className="flex-1">
                       Enregistrer
@@ -1107,7 +1531,19 @@ export default function AdminDashboard() {
                       onClick={() => {
                         setShowEditRestaurantDialog(false);
                         setEditingRestaurant(null);
-                        setRestaurantForm({ name: "", phone: "", address: "", description: "", imageUrl: "", categories: [] });
+                        setRestaurantForm({ 
+                          name: "", 
+                          phone: "", 
+                          address: "", 
+                          description: "", 
+                          imageUrl: "", 
+                          categories: [],
+                          openingHours: "",
+                          closedDay: "",
+                          deliveryTime: 30,
+                          minOrder: "0",
+                          rating: "4.5"
+                        });
                       }}
                     >
                       Annuler

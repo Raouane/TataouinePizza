@@ -164,7 +164,7 @@ export class DatabaseStorage implements IStorage {
           updatedAt: row.updated_at,
         } as Restaurant;
         
-        console.log(`[DB] Restaurant ${restaurant.name} - isOpen: ${restaurant.isOpen} (raw: ${row.is_open_text})`);
+        // Logs réduits pour débogage si nécessaire
         return restaurant;
       });
       
@@ -290,6 +290,12 @@ export class DatabaseStorage implements IStorage {
     console.log("[DB] updateRestaurant - Données à mettre à jour:", data);
     console.log("[DB] updateRestaurant - isOpen dans data:", data.isOpen, "type:", typeof data.isOpen);
     
+    // Vérifier la valeur actuelle de opening_hours AVANT la mise à jour
+    const currentRestaurant = await this.getRestaurantById(id);
+    if (currentRestaurant) {
+      console.log("[DB] updateRestaurant - Valeur ACTUELLE de openingHours dans la DB:", currentRestaurant.openingHours, "type:", typeof currentRestaurant.openingHours);
+    }
+    
     // Préparer les données pour la mise à jour
     const updateData: any = {
       updatedAt: new Date()
@@ -303,6 +309,17 @@ export class DatabaseStorage implements IStorage {
       // Ne pas inclure isOpen dans updateData pour éviter les conflits
     }
     
+    // Traiter openingHours séparément avec SQL brut pour garantir la mise à jour même si null
+    let openingHoursValue: string | null | undefined = undefined;
+    console.log("[DB] updateRestaurant - Données reçues (data.openingHours):", data.openingHours, "type:", typeof data.openingHours, "présent:", 'openingHours' in data);
+    if (data.openingHours !== undefined) {
+      openingHoursValue = data.openingHours === "" ? null : data.openingHours;
+      console.log("[DB] updateRestaurant - openingHours à sauvegarder (SQL brut):", openingHoursValue, "type:", typeof openingHoursValue);
+      // Ne pas inclure openingHours dans updateData, il sera traité séparément avec SQL brut
+    } else {
+      console.log("[DB] updateRestaurant - openingHours NON inclus dans data (undefined)");
+    }
+    
     if (data.name !== undefined) updateData.name = data.name;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.address !== undefined) updateData.address = data.address;
@@ -311,44 +328,72 @@ export class DatabaseStorage implements IStorage {
     if (data.categories !== undefined) {
       updateData.categories = Array.isArray(data.categories) ? JSON.stringify(data.categories) : data.categories;
     }
-    if (data.openingHours !== undefined) updateData.openingHours = data.openingHours;
     if (data.deliveryTime !== undefined) updateData.deliveryTime = data.deliveryTime;
     if (data.minOrder !== undefined) updateData.minOrder = data.minOrder;
     if (data.rating !== undefined) updateData.rating = data.rating;
     
     console.log("[DB] updateRestaurant - Données préparées pour Drizzle (sans isOpen):", updateData);
     
-    // Mettre à jour isOpen AVANT la mise à jour Drizzle pour éviter les conflits
-    if (isOpenValue !== undefined) {
-      console.log("[DB] updateRestaurant - Exécution SQL brut pour isOpen EN PREMIER:", isOpenValue);
+    // Mettre à jour isOpen et openingHours AVANT la mise à jour Drizzle pour éviter les conflits
+    // Utiliser SQL brut pour garantir la mise à jour même si les valeurs sont null
+    if (isOpenValue !== undefined || openingHoursValue !== undefined) {
+      console.log("[DB] updateRestaurant - Exécution SQL brut pour isOpen/openingHours");
+      console.log("[DB] updateRestaurant - isOpen:", isOpenValue, "openingHours:", openingHoursValue);
+      
       try {
-        const sqlResult = await db.execute(sql`
-          UPDATE restaurants 
-          SET is_open = ${isOpenValue}::boolean, updated_at = NOW()
-          WHERE id = ${id}
-        `);
-        console.log("[DB] updateRestaurant - SQL brut exécuté, lignes affectées:", sqlResult.rowCount);
+        // Construire la requête SQL selon les champs à mettre à jour
+        if (isOpenValue !== undefined && openingHoursValue !== undefined) {
+          await db.execute(sql`
+            UPDATE restaurants 
+            SET is_open = ${isOpenValue}::boolean, 
+                opening_hours = ${openingHoursValue}, 
+                updated_at = NOW()
+            WHERE id = ${id}
+          `);
+        } else if (isOpenValue !== undefined) {
+          await db.execute(sql`
+            UPDATE restaurants 
+            SET is_open = ${isOpenValue}::boolean, 
+                updated_at = NOW()
+            WHERE id = ${id}
+          `);
+        } else if (openingHoursValue !== undefined) {
+          await db.execute(sql`
+            UPDATE restaurants 
+            SET opening_hours = ${openingHoursValue}, 
+                updated_at = NOW()
+            WHERE id = ${id}
+          `);
+        }
         
-        // Vérifier directement dans la DB que la valeur a été mise à jour
+        console.log("[DB] updateRestaurant - SQL brut exécuté avec succès");
+        
+        // Vérifier directement dans la DB que les valeurs ont été mises à jour
         const verifyResult = await db.execute(sql`
-          SELECT is_open::text as is_open_text FROM restaurants WHERE id = ${id}
+          SELECT is_open::text as is_open_text, opening_hours 
+          FROM restaurants 
+          WHERE id = ${id}
         `);
         if (verifyResult.rows && verifyResult.rows.length > 0) {
           const row = verifyResult.rows[0] as any;
-          console.log("[DB] updateRestaurant - Vérification DB immédiate - is_open_text:", row.is_open_text);
+          console.log("[DB] updateRestaurant - Vérification DB immédiate - is_open_text:", row.is_open_text, "opening_hours:", row.opening_hours);
         }
       } catch (sqlError) {
-        console.error("[DB] updateRestaurant - Erreur SQL brut pour isOpen:", sqlError);
+        console.error("[DB] updateRestaurant - Erreur SQL brut pour isOpen/openingHours:", sqlError);
         throw sqlError;
       }
     }
     
-    // Utiliser Drizzle pour la mise à jour des autres champs (sans isOpen)
+    // Utiliser Drizzle pour la mise à jour des autres champs (sans isOpen et sans openingHours)
     if (Object.keys(updateData).length > 1) { // Plus que juste updatedAt
+      console.log("[DB] updateRestaurant - Données Drizzle complètes:", JSON.stringify(updateData, null, 2));
+      console.log("[DB] updateRestaurant - Note: isOpen et openingHours sont traités séparément avec SQL brut");
       await db.update(restaurants)
         .set(updateData)
         .where(eq(restaurants.id, id));
       console.log("[DB] updateRestaurant - Mise à jour Drizzle effectuée");
+    } else {
+      console.log("[DB] updateRestaurant - Aucune donnée Drizzle à mettre à jour (seulement isOpen/openingHours avec SQL brut)");
     }
     
     // Récupérer le restaurant mis à jour
