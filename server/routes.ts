@@ -88,6 +88,15 @@ export async function registerRoutes(
       // Enrichir avec le statut calculé côté serveur pour cohérence
       const restaurantsWithStatus = restaurants.map(restaurant => {
         const status = checkRestaurantStatus(restaurant);
+        // Log pour débogage du restaurant BOUBA
+        if (restaurant.name && restaurant.name.toLowerCase().includes('bouba')) {
+          console.log(`[API] Restaurant BOUBA détecté:`, {
+            name: restaurant.name,
+            isOpen: restaurant.isOpen,
+            openingHours: restaurant.openingHours,
+            computedStatus: status
+          });
+        }
         return {
           ...restaurant,
           computedStatus: status
@@ -128,11 +137,29 @@ export async function registerRoutes(
       const pizzasWithPrices = await Promise.all(
         pizzas.map(async (pizza) => {
           const prices = await storage.getPizzaPrices(pizza.id);
-          return { ...pizza, prices };
+          const productWithPrices = { ...pizza, prices };
+          
+          // Log détaillé des images - TRÈS VISIBLE
+          const hasImage = !!(pizza.imageUrl && pizza.imageUrl.trim() !== '');
+          if (hasImage) {
+            console.log(`[API] ✅ Produit "${pizza.name}" - imageUrl: ${pizza.imageUrl}`);
+          } else {
+            console.log(`[API] ❌ Produit "${pizza.name}" - PAS D'IMAGE (imageUrl: ${pizza.imageUrl || 'null'})`);
+          }
+          
+          return productWithPrices;
         })
       );
       
-      console.log(`[API] Menu envoyé avec ${pizzasWithPrices.length} produits`);
+      const withImages = pizzasWithPrices.filter(p => p.imageUrl && p.imageUrl.trim() !== '').length;
+      const withoutImages = pizzasWithPrices.filter(p => !p.imageUrl || p.imageUrl.trim() === '').length;
+      
+      console.log(`[API] ========================================`);
+      console.log(`[API] 📊 MENU ENVOYÉ: ${pizzasWithPrices.length} produits`);
+      console.log(`[API] ✅ Avec images: ${withImages}`);
+      console.log(`[API] ❌ Sans images: ${withoutImages}`);
+      console.log(`[API] ========================================`);
+      
       res.json(pizzasWithPrices);
     } catch (error) {
       console.error("[API] Erreur lors de la récupération du menu:", error);

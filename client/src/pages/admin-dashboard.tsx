@@ -61,7 +61,7 @@ export default function AdminDashboard() {
     rating: "4.5"
   });
   const [driverForm, setDriverForm] = useState({ name: "", phone: "", password: "" });
-  const [pizzaForm, setPizzaForm] = useState({ restaurantId: "", name: "", description: "", productType: "pizza", category: "classic", imageUrl: "", prices: [{ size: "small", price: 10 }, { size: "medium", price: 15 }, { size: "large", price: 18 }] });
+  const [pizzaForm, setPizzaForm] = useState({ restaurantId: "", name: "", description: "", productType: "pizza", category: "classic", imageUrl: "", available: true, prices: [{ size: "small", price: 10 }, { size: "medium", price: 15 }, { size: "large", price: 18 }] });
   const [showRestaurantDialog, setShowRestaurantDialog] = useState(false);
   const [showEditRestaurantDialog, setShowEditRestaurantDialog] = useState(false);
   const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(null);
@@ -184,29 +184,13 @@ export default function AdminDashboard() {
   const handleEditRestaurant = (restaurant: Restaurant) => {
     setEditingRestaurant(restaurant);
     
-    // Parser les horaires (support JSON et ancien format)
+    // Parser les horaires et jour de repos
     let openingHours = "";
     let closedDay = "";
-    
     if (restaurant.openingHours) {
-      // Essayer de parser comme JSON d'abord (nouveau format)
-      if (restaurant.openingHours.trim().startsWith('{')) {
-        try {
-          const parsed = JSON.parse(restaurant.openingHours);
-          openingHours = parsed.open && parsed.close ? `${parsed.open}-${parsed.close}` : "";
-          closedDay = parsed.closedDay || "";
-        } catch {
-          // Si le JSON est invalide, essayer l'ancien format
-          const parts = restaurant.openingHours.split("|");
-          openingHours = parts[0]?.trim() || "";
-          closedDay = parts[1]?.trim() || "";
-        }
-      } else {
-        // Ancien format texte
-        const parts = restaurant.openingHours.split("|");
-        openingHours = parts[0]?.trim() || "";
-        closedDay = parts[1]?.trim() || "";
-      }
+      const parts = restaurant.openingHours.split("|");
+      openingHours = parts[0]?.trim() || "";
+      closedDay = parts[1]?.trim() || "";
     }
     
     console.log("[ADMIN] handleEditRestaurant - Restaurant:", restaurant.name);
@@ -247,31 +231,26 @@ export default function AdminDashboard() {
         return;
       }
       
-      // Construire openingHours au format JSON
-      let openingHours: string | null = null;
+      // Construire openingHours avec le jour de repos si nécessaire
+      let openingHours = restaurantForm.openingHours;
       
-      // Nettoyer et valider les horaires
-      const hoursPart = restaurantForm.openingHours || "";
-      const [openTime, closeTime] = hoursPart.split("-");
+      // Nettoyer openingHours : supprimer les formats invalides comme "-" ou "23:00-" ou "-23:00"
+      if (openingHours) {
+        const hoursPart = openingHours.split("|")[0] || "";
+        const [openTime, closeTime] = hoursPart.split("-");
+        // Si un des deux horaires est vide ou invalide, considérer comme pas d'horaires
+        if (!openTime || !closeTime || openTime.trim() === "" || closeTime.trim() === "") {
+          openingHours = "";
+        }
+      }
       
-      // Si les horaires sont valides, créer le format JSON
-      if (openTime && closeTime && openTime.trim() !== "" && closeTime.trim() !== "") {
-        const closedDay = restaurantForm.closedDay && restaurantForm.closedDay !== "none" 
-          ? restaurantForm.closedDay 
-          : null;
-        
-        openingHours = JSON.stringify({
-          open: openTime.trim(),
-          close: closeTime.trim(),
-          closedDay
-        });
-      } else if (restaurantForm.closedDay && restaurantForm.closedDay !== "none") {
-        // Si seulement jour de repos sans horaires, utiliser des horaires par défaut
-        openingHours = JSON.stringify({
-          open: "09:00",
-          close: "23:00",
-          closedDay: restaurantForm.closedDay
-        });
+      if (restaurantForm.closedDay && restaurantForm.closedDay !== "none") {
+        if (openingHours && openingHours.trim() !== "") {
+          openingHours = `${openingHours}|${restaurantForm.closedDay}`;
+        } else {
+          // Si seulement jour de repos sans horaires, utiliser des horaires par défaut
+          openingHours = `09:00-23:00|${restaurantForm.closedDay}`;
+        }
       }
       
       const restaurantData: any = {
@@ -284,8 +263,10 @@ export default function AdminDashboard() {
         deliveryTime: restaurantForm.deliveryTime,
         minOrder: restaurantForm.minOrder,
         rating: restaurantForm.rating,
-        // Toujours inclure openingHours dans restaurantData (format JSON)
-        openingHours: openingHours,
+        // Toujours inclure openingHours dans restaurantData
+        // Si c'est une chaîne vide, l'envoyer comme chaîne vide (sera converti en null côté serveur)
+        // Si c'est undefined ou null, l'envoyer comme null explicitement
+        openingHours: openingHours !== undefined && openingHours !== null ? openingHours : null,
       };
       
       console.log("[ADMIN] handleUpdateRestaurant - Données à envoyer:", restaurantData);
@@ -351,31 +332,26 @@ export default function AdminDashboard() {
         toast.error("Veuillez sélectionner au moins une catégorie de produit");
         return;
       }
-      // Construire openingHours au format JSON
-      let openingHours: string | null = null;
+      // Construire openingHours avec le jour de repos si nécessaire
+      let openingHours = restaurantForm.openingHours;
       
-      // Nettoyer et valider les horaires
-      const hoursPart = restaurantForm.openingHours || "";
-      const [openTime, closeTime] = hoursPart.split("-");
+      // Nettoyer openingHours : supprimer les formats invalides comme "-" ou "23:00-" ou "-23:00"
+      if (openingHours) {
+        const hoursPart = openingHours.split("|")[0] || "";
+        const [openTime, closeTime] = hoursPart.split("-");
+        // Si un des deux horaires est vide ou invalide, considérer comme pas d'horaires
+        if (!openTime || !closeTime || openTime.trim() === "" || closeTime.trim() === "") {
+          openingHours = "";
+        }
+      }
       
-      // Si les horaires sont valides, créer le format JSON
-      if (openTime && closeTime && openTime.trim() !== "" && closeTime.trim() !== "") {
-        const closedDay = restaurantForm.closedDay && restaurantForm.closedDay !== "none" 
-          ? restaurantForm.closedDay 
-          : null;
-        
-        openingHours = JSON.stringify({
-          open: openTime.trim(),
-          close: closeTime.trim(),
-          closedDay
-        });
-      } else if (restaurantForm.closedDay && restaurantForm.closedDay !== "none") {
-        // Si seulement jour de repos sans horaires, utiliser des horaires par défaut
-        openingHours = JSON.stringify({
-          open: "09:00",
-          close: "23:00",
-          closedDay: restaurantForm.closedDay
-        });
+      if (restaurantForm.closedDay && restaurantForm.closedDay !== "none") {
+        if (openingHours && openingHours.trim() !== "") {
+          openingHours = `${openingHours}|${restaurantForm.closedDay}`;
+        } else {
+          // Si seulement jour de repos sans horaires, utiliser des horaires par défaut
+          openingHours = `09:00-23:00|${restaurantForm.closedDay}`;
+        }
       }
       
       const restaurantData: any = {
@@ -388,8 +364,14 @@ export default function AdminDashboard() {
         deliveryTime: restaurantForm.deliveryTime,
         minOrder: restaurantForm.minOrder,
         rating: restaurantForm.rating,
-        openingHours: openingHours,
       };
+      
+      // Toujours inclure openingHours, même si c'est une chaîne vide (sera converti en null côté serveur)
+      if (openingHours !== undefined && openingHours !== null) {
+        restaurantData.openingHours = openingHours;
+      } else {
+        restaurantData.openingHours = null;
+      }
       
       console.log("Création du restaurant avec:", restaurantData);
       console.log("Token:", token ? "Présent" : "Absent");
@@ -502,7 +484,7 @@ export default function AdminDashboard() {
   const handleEditPizza = (pizza: Pizza) => {
     setEditingPizza(pizza);
     setPizzaForm({
-      restaurantId: pizza.restaurantId,
+      restaurantId: pizza.restaurantId || "",
       name: pizza.name,
       description: pizza.description || "",
       productType: pizza.productType || "pizza",

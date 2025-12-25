@@ -68,7 +68,28 @@ export default function Menu() {
           
           if (menuRes.ok) {
             const menuData = await menuRes.json();
-            console.log(`[Menu] ${menuData.length} produits chargés pour le restaurant ${restaurantId}`, menuData);
+            console.log(`[Menu] ${menuData.length} produits chargés pour le restaurant ${restaurantId}`);
+            
+            // Log détaillé des images - TRÈS VISIBLE
+            console.log(`%c[MENU] 🔍 VÉRIFICATION DES IMAGES DES PRODUITS`, 'background: #ff6b6b; color: white; font-size: 14px; font-weight: bold; padding: 4px;');
+            let withImages = 0;
+            let withoutImages = 0;
+            menuData.forEach((pizza: Pizza) => {
+              const hasImage = pizza.imageUrl && pizza.imageUrl.trim() !== '';
+              if (hasImage) {
+                withImages++;
+                console.log(`%c[MENU] ✅ ${pizza.name}`, 'color: green; font-weight: bold;');
+                console.log(`   📷 imageUrl: ${pizza.imageUrl}`);
+              } else {
+                withoutImages++;
+                console.log(`%c[MENU] ❌ ${pizza.name}`, 'color: red; font-weight: bold;');
+                console.log(`   ⚠️  Pas d'imageUrl ou vide`);
+                console.log(`   imageUrl: ${pizza.imageUrl || 'null/undefined'}`);
+                console.log(`   type: ${typeof pizza.imageUrl}`);
+              }
+            });
+            console.log(`%c[MENU] 📊 RÉSUMÉ: ${withImages} avec images, ${withoutImages} sans images`, 'background: #4ecdc4; color: white; font-size: 12px; padding: 4px;');
+            
             setPizzas(menuData);
           } else {
             console.error(`[Menu] Erreur lors du chargement du menu: ${menuRes.status} ${menuRes.statusText}`);
@@ -299,23 +320,29 @@ export default function Menu() {
           </div>
 
           {/* Categories Tags */}
-          {restaurant.categories && restaurant.categories.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {restaurant.categories.map((cat) => (
-                <span
-                  key={cat}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm"
-                >
-                  {cat === "pizza" ? "Pizza" : 
-                   cat === "burger" ? "Burger" :
-                   cat === "salade" ? "Salade" :
-                   cat === "grill" ? "Grillades" :
-                   cat === "drink" ? "Boisson" :
-                   cat === "dessert" ? "Dessert" : cat}
-                </span>
-              ))}
-            </div>
-          )}
+          {restaurant.categories && restaurant.categories.length > 0 && (() => {
+            // Filtrer les catégories à exclure (dessert, patisserie, bakery, sweets, drink, boisson)
+            const excludedCategories = ['dessert', 'patisserie', 'bakery', 'sweets', 'drink', 'boisson'];
+            const filteredCategories = restaurant.categories.filter(
+              (cat) => !excludedCategories.includes(cat.toLowerCase())
+            );
+            
+            return filteredCategories.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {filteredCategories.map((cat) => (
+                  <span
+                    key={cat}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm"
+                  >
+                    {cat === "pizza" ? "Pizza" : 
+                     cat === "burger" ? "Burger" :
+                     cat === "salade" ? "Salade" :
+                     cat === "grill" ? "Grillades" : cat}
+                  </span>
+                ))}
+              </div>
+            ) : null;
+          })()}
 
           {/* Alert if closed */}
           {!restaurantIsOpen && (() => {
@@ -425,17 +452,53 @@ export default function Menu() {
                 >
                   {/* Image en haut - plus grande et attirante */}
                   <div className="w-full h-48 md:h-56 lg:h-64 relative overflow-hidden bg-gradient-to-br from-orange-100 to-red-100">
-                    {pizza.imageUrl && pizza.imageUrl.trim() !== "" ? (
-                      <img
-                        src={pizza.imageUrl}
-                        alt={pizza.name}
-                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-6xl md:text-7xl">🍕</span>
-                      </div>
-                    )}
+                    {(() => {
+                      const hasImageUrl = pizza.imageUrl && pizza.imageUrl.trim() !== "";
+                      
+                      // Log très visible pour chaque rendu d'image
+                      if (hasImageUrl) {
+                        console.log(`%c[MENU] 🖼️  RENDU IMAGE: "${pizza.name}"`, 'background: #95e1d3; color: #000; font-weight: bold; padding: 2px;');
+                        console.log(`   📷 URL: ${pizza.imageUrl}`);
+                        console.log(`   🔗 URL complète: ${window.location.origin}${pizza.imageUrl}`);
+                      } else {
+                        console.log(`%c[MENU] ⚠️  PAS D'IMAGE: "${pizza.name}"`, 'background: #f38181; color: white; font-weight: bold; padding: 2px;');
+                        console.log(`   imageUrl: ${pizza.imageUrl || 'null/undefined'}`);
+                      }
+                      
+                      return hasImageUrl ? (
+                        <img
+                          src={pizza.imageUrl}
+                          alt={pizza.name}
+                          className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                          onLoad={() => {
+                            console.log(`%c[MENU] ✅✅✅ IMAGE CHARGÉE: ${pizza.imageUrl}`, 'background: #00b894; color: white; font-size: 12px; font-weight: bold; padding: 4px;');
+                            console.log(`   Produit: "${pizza.name}"`);
+                          }}
+                          onError={(e) => {
+                            console.error(`%c[MENU] ❌❌❌ ERREUR CHARGEMENT IMAGE`, 'background: #d63031; color: white; font-size: 12px; font-weight: bold; padding: 4px;');
+                            console.error(`   Produit: "${pizza.name}"`);
+                            console.error(`   URL tentée: ${pizza.imageUrl}`);
+                            console.error(`   URL complète: ${window.location.origin}${pizza.imageUrl}`);
+                            console.error(`   Erreur: L'image n'existe pas ou n'est pas accessible`);
+                            
+                            // Si l'image ne charge pas, remplacer par le fallback
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent && !parent.querySelector('.image-fallback')) {
+                              const fallback = document.createElement('div');
+                              fallback.className = 'image-fallback w-full h-full flex items-center justify-center';
+                              fallback.innerHTML = '<span class="text-6xl md:text-7xl">🍕</span>';
+                              parent.appendChild(fallback);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <span className="text-6xl md:text-7xl">🍕</span>
+                        </div>
+                      );
+                    })()}
                     {/* Overlay subtil pour améliorer la lisibilité */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 hover:opacity-100 transition-opacity" />
                   </div>

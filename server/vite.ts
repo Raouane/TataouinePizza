@@ -1,4 +1,4 @@
-import { type Express } from "express";
+import express, { type Express } from "express";
 import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
@@ -28,6 +28,37 @@ export async function setupVite(server: Server, app: Express) {
     server: serverOptions,
     appType: "custom",
   });
+
+  // IMPORTANT: Servir les fichiers statiques depuis client/public AVANT le middleware Vite
+  // Cela permet de servir les images, favicon, etc. en développement
+  const publicPath = path.resolve(import.meta.dirname, "..", "client", "public");
+  if (fs.existsSync(publicPath)) {
+    // Middleware avec logs pour déboguer les requêtes d'images
+    app.use((req, res, next) => {
+      // Logger uniquement les requêtes d'images
+      if (req.path.match(/\.(png|jpg|jpeg|svg|gif|webp)$/i)) {
+        const filePath = path.join(publicPath, req.path);
+        const exists = fs.existsSync(filePath);
+        console.log(`[STATIC] ${req.method} ${req.path} - ${exists ? '✅' : '❌'} ${exists ? 'Trouvé' : 'Non trouvé'}`);
+        if (exists) {
+          console.log(`[STATIC]   Chemin complet: ${filePath}`);
+        }
+      }
+      next();
+    });
+    
+    app.use(express.static(publicPath));
+    console.log(`[VITE] ✅ Fichiers statiques servis depuis: ${publicPath}`);
+    
+    // Lister les fichiers images disponibles
+    const imagesDir = path.join(publicPath, "images", "products");
+    if (fs.existsSync(imagesDir)) {
+      const imageFiles = fs.readdirSync(imagesDir).filter(f => f.match(/\.(png|jpg|jpeg|svg|gif|webp)$/i));
+      console.log(`[VITE] 📸 ${imageFiles.length} fichiers images trouvés dans products/`);
+    }
+  } else {
+    console.warn(`[VITE] ⚠️  Dossier public non trouvé: ${publicPath}`);
+  }
 
   // Middleware pour ignorer les routes API
   app.use((req, res, next) => {

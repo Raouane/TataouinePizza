@@ -1,0 +1,56 @@
+LISTE DES PRODUITS SANS IMAGES
+===========================
+
+Total: 14 produits
+
+INSTRUCTIONS:
+1. Placez les images dans: client/public/images/products/
+2. Nommez-les exactement comme indiqué ci-dessous
+3. Formats acceptés: .png, .jpg, .jpeg
+
+PRODUITS À AJOUTER:
+1. Burger Classique
+   → burger-classique.png
+
+2. Coca Cola
+   → coca-cola.png
+
+3. Jus d'Orange
+   → jus-d-orange.png
+
+4. Tiramisu
+   → tiramisu.png
+
+5. Tagine Viande
+   → tagine-viande.png
+
+6. Tagine Thon
+   → tagine-thon.png
+
+7. Ma'amoul aux Dattes
+   → ma-amoul-aux-dattes.png
+
+8. Beignets
+   → beignets.png
+
+9. Pizza Margherita
+   → pizza-margherita.png
+
+10. Coca Cola
+   → coca-cola.png
+
+11. Coca Cola
+   → coca-cola.png
+
+12. Coca Cola
+   → coca-cola.png
+
+13. Coca Cola
+   → coca-cola.png
+
+14. Tiramisu
+   → tiramisu.png
+
+APRÈS AJOUT:
+- Rechargez la page pour voir les nouvelles images
+- Les images seront automatiquement associées aux produits

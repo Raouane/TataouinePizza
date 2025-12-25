@@ -10,6 +10,7 @@ export interface Pizza {
   category: string;
   imageUrl?: string;
   available: boolean;
+  restaurantId?: string;
   prices: Array<{ size: string; price: string }>;
 }
 
@@ -197,6 +198,10 @@ export interface Restaurant {
   imageUrl?: string;
   categories?: string[];
   isOpen: boolean;
+  openingHours?: string | null;
+  deliveryTime?: number;
+  minOrder?: string | number;
+  rating?: string | number;
 }
 
 export async function getAdminRestaurants(token: string): Promise<Restaurant[]> {

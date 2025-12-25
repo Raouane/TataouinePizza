@@ -14,9 +14,9 @@ import { eq } from "drizzle-orm";
 import { OrderService } from "../services/order-service";
 import { z } from "zod";
 
-function validate<T>(schema: z.ZodSchema, data: any): T | null {
+function validate<T>(schema: z.ZodSchema<T>, data: any): T | null {
   try {
-    return schema.parse(data);
+    return schema.parse(data) as T;
   } catch (error) {
     return null;
   }

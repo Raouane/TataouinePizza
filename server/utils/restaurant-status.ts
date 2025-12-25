@@ -10,79 +10,20 @@ export interface RestaurantStatus {
 }
 
 /**
- * Format JSON pour les horaires d'ouverture (nouveau format simplifié)
- */
-export interface OpeningHoursJSON {
-  open: string;  // "09:00"
-  close: string; // "23:00"
-  closedDay?: string | null; // "Vendredi" ou null
-}
-
-/**
  * Parse les horaires d'ouverture
- * Supporte deux formats :
- * 1. Nouveau format JSON: {"open": "09:00", "close": "23:00", "closedDay": null}
- * 2. Ancien format texte: "09:00-23:00" ou "20:00-06:00|Vendredi" (pour compatibilité)
+ * Format: "09:00-23:00" ou "20:00-06:00|Vendredi"
  */
 function parseOpeningHours(openingHours?: string | null): {
-  open?: string;
-  close?: string;
-  closedDay?: string | null;
+  hours?: string;
+  closedDay?: string;
 } {
-  if (!openingHours || openingHours.trim() === '') return {};
+  if (!openingHours) return {};
   
-  // Essayer de parser comme JSON d'abord (nouveau format)
-  if (openingHours.trim().startsWith('{')) {
-    try {
-      let parsed = JSON.parse(openingHours) as OpeningHoursJSON;
-      
-      // Vérifier si le résultat est encore une chaîne (double encodage)
-      if (typeof parsed === 'string') {
-        try {
-          parsed = JSON.parse(parsed) as OpeningHoursJSON;
-        } catch (e) {
-          console.warn(`[RestaurantStatus] Double encodage détecté mais parsing échoué:`, e);
-        }
-      }
-      
-      // Vérifier que les champs requis sont présents
-      if (parsed && typeof parsed === 'object' && parsed.open && parsed.close) {
-        return {
-          open: parsed.open,
-          close: parsed.close,
-          closedDay: parsed.closedDay || null
-        };
-      } else {
-        console.warn(`[RestaurantStatus] JSON parsé mais champs manquants:`, parsed);
-      }
-    } catch (error) {
-      // Si le JSON est invalide, essayer l'ancien format
-      console.warn(`[RestaurantStatus] Erreur parsing JSON, fallback sur ancien format:`, error);
-    }
-  }
-  
-  // Ancien format texte (compatibilité)
   const parts = openingHours.split('|');
-  const hours = parts[0]?.trim();
-  const closedDay = parts[1]?.trim() || null;
-  
-  if (!hours) return { closedDay };
-  
-  const [open, close] = hours.split('-');
   return {
-    open: open?.trim(),
-    close: close?.trim(),
-    closedDay
+    hours: parts[0]?.trim() || undefined,
+    closedDay: parts[1]?.trim() || undefined,
   };
-}
-
-/**
- * Convertit une heure au format "HH:MM" en minutes depuis minuit
- */
-function parseTimeToMinutes(time: string): number {
-  const [hour, minute] = time.split(':').map(Number);
-  if (isNaN(hour) || isNaN(minute)) return 0;
-  return hour * 60 + minute;
 }
 
 /**
@@ -105,11 +46,6 @@ export function checkRestaurantStatus(restaurant: {
   // Log pour débogage uniquement pour BOUBA ou si problème détecté
   const shouldLog = restaurantName.toLowerCase().includes('bouba');
   
-  // Logs de débogage réduits (uniquement pour BOUBA en cas de problème)
-  if (shouldLog) {
-    console.log(`[RestaurantStatus] ${restaurantName} - Calcul: ${currentTime}, Horaires: ${restaurant.openingHours}`);
-  }
-  
   // 1. Vérifier le toggle (priorité absolue) - si fermé manuellement, toujours fermé
   if (restaurant.isOpen === false || restaurant.isOpen === null) {
     if (shouldLog) console.log(`[RestaurantStatus] ${restaurantName} - Fermé via toggle`);
@@ -122,41 +58,42 @@ export function checkRestaurantStatus(restaurant: {
     return { isOpen: restaurant.isOpen === true };
   }
   
-  // 3. Parser les horaires (support JSON et ancien format)
-  const parsedHours = parseOpeningHours(restaurant.openingHours);
-  if (shouldLog) {
-    console.log(`[RestaurantStatus] ${restaurantName} - Horaires parsés: ${parsedHours.open}-${parsedHours.close}`);
-  }
+  // 3. Parser les horaires et jour de repos
+  const { hours, closedDay } = parseOpeningHours(restaurant.openingHours);
+  if (shouldLog) console.log(`[RestaurantStatus] ${restaurantName} - Horaires parsés:`, { hours, closedDay, currentTime, currentDay });
   
   // 4. Vérifier le jour de repos
-  if (parsedHours.closedDay && currentDay === parsedHours.closedDay) {
-    if (shouldLog) console.log(`[RestaurantStatus] ${restaurantName} - Fermé - jour de repos (${parsedHours.closedDay})`);
+  if (closedDay && currentDay === closedDay) {
+    if (shouldLog) console.log(`[RestaurantStatus] ${restaurantName} - Fermé - jour de repos (${closedDay})`);
     return { isOpen: false, reason: 'closedDay' };
   }
   
   // 5. Si pas d'horaires spécifiques après parsing, considérer ouvert
-  if (!parsedHours.open || !parsedHours.close) {
-    if (shouldLog) {
-      console.warn(`[RestaurantStatus] ${restaurantName} - Pas d'horaires spécifiques après parsing, considéré ouvert`);
-    }
+  if (!hours || hours.trim() === '') {
+    if (shouldLog) console.log(`[RestaurantStatus] ${restaurantName} - Pas d'horaires spécifiques après parsing, considéré ouvert`);
     return { isOpen: true };
   }
   
-  // 6. Convertir les heures en minutes
+  // 6. Parser les heures
+  const [openTime, closeTime] = hours.split("-");
+  if (!openTime || !closeTime || openTime.trim() === '' || closeTime.trim() === '') {
+    if (shouldLog) console.log(`[RestaurantStatus] ${restaurantName} - Format d'horaires invalide: "${hours}", considéré ouvert par sécurité`);
+    return { isOpen: true }; // Format invalide, considérer ouvert par sécurité
+  }
+  
   const currentTimeMinutes = currentHour * 60 + currentMinute;
-  const openTimeMinutes = parseTimeToMinutes(parsedHours.open);
-  const closeTimeMinutes = parseTimeToMinutes(parsedHours.close);
+  
+  const [openHour, openMin] = openTime.trim().split(":").map(Number);
+  const [closeHour, closeMin] = closeTime.trim().split(":").map(Number);
   
   // Vérifier que les heures sont valides
-  if (openTimeMinutes === 0 && parsedHours.open !== "00:00") {
-    if (shouldLog) console.warn(`[RestaurantStatus] ${restaurantName} - Heure d'ouverture invalide: "${parsedHours.open}"`);
-    return { isOpen: true }; // Format invalide, considérer ouvert par sécurité
+  if (isNaN(openHour) || isNaN(openMin) || isNaN(closeHour) || isNaN(closeMin)) {
+    if (shouldLog) console.log(`[RestaurantStatus] ${restaurantName} - Heures invalides: openTime="${openTime}", closeTime="${closeTime}"`);
+    return { isOpen: true }; // Format invalide
   }
   
-  if (closeTimeMinutes === 0 && parsedHours.close !== "00:00") {
-    if (shouldLog) console.warn(`[RestaurantStatus] ${restaurantName} - Heure de fermeture invalide: "${parsedHours.close}"`);
-    return { isOpen: true }; // Format invalide, considérer ouvert par sécurité
-  }
+  const openTimeMinutes = openHour * 60 + openMin;
+  const closeTimeMinutes = closeHour * 60 + closeMin;
   
   // 7. Vérifier les horaires
   let isWithinHours = false;
@@ -164,9 +101,11 @@ export function checkRestaurantStatus(restaurant: {
   if (closeTimeMinutes > openTimeMinutes) {
     // Cas normal : fermeture le même jour (ex: "09:00-23:00")
     isWithinHours = currentTimeMinutes >= openTimeMinutes && currentTimeMinutes <= closeTimeMinutes;
+    if (shouldLog) console.log(`[RestaurantStatus] ${restaurantName} - Cas normal: ${currentTime} (${currentTimeMinutes} min) entre ${openTime} (${openTimeMinutes} min) et ${closeTime} (${closeTimeMinutes} min) = ${isWithinHours}`);
   } else {
     // Cas nuit : fermeture le lendemain (ex: "20:00-06:00")
     isWithinHours = currentTimeMinutes >= openTimeMinutes || currentTimeMinutes <= closeTimeMinutes;
+    if (shouldLog) console.log(`[RestaurantStatus] ${restaurantName} - Cas nuit: ${currentTime} (${currentTimeMinutes} min) entre ${openTime} (${openTimeMinutes} min) et ${closeTime} (${closeTimeMinutes} min) = ${isWithinHours}`);
   }
   
   const result = {
@@ -174,10 +113,7 @@ export function checkRestaurantStatus(restaurant: {
     reason: isWithinHours ? undefined : 'hours' as const
   };
   
-  if (shouldLog) {
-    console.log(`[RestaurantStatus] ${restaurantName} - Résultat: ${result.isOpen ? 'OUVERT' : 'FERMÉ'} (${result.reason || 'heures'})`);
-  }
-  
+  if (shouldLog) console.log(`[RestaurantStatus] ${restaurantName} - Résultat final:`, result);
   return result;
 }
 

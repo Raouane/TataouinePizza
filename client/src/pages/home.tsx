@@ -77,20 +77,6 @@ export default function Home() {
           categories: r.categories?.length || 0
         })));
         
-        // Log spécifique pour BOUBA
-        const bouba = data.find((r: Restaurant) => r.name && r.name.toLowerCase().includes('bouba'));
-        if (bouba) {
-          console.log('[Home] ========== BOUBA DANS LA RÉPONSE API ==========');
-          console.log('[Home] BOUBA reçu du serveur:', {
-            name: bouba.name,
-            isOpen: bouba.isOpen,
-            openingHours: bouba.openingHours,
-            computedStatus: bouba.computedStatus,
-            computedStatusString: JSON.stringify(bouba.computedStatus)
-          });
-          console.log('[Home] ===============================================');
-        }
-        
         // Compter les restaurants ouverts/fermés
         const openCount = data.filter((r: Restaurant) => r.isOpen !== false).length;
         const closedCount = data.filter((r: Restaurant) => r.isOpen === false).length;
@@ -163,34 +149,8 @@ export default function Home() {
     return 1;
   });
 
-  const openRestaurants = sortedRestaurants.filter(r => {
-    const isOpen = isRestaurantOpen(r);
-    // Log pour débogage de BOUBA
-    if (r.name && r.name.toLowerCase().includes('bouba')) {
-      console.log(`[Home] Filtrage BOUBA:`, {
-        name: r.name,
-        isOpenToggle: r.isOpen,
-        openingHours: r.openingHours,
-        computedStatus: r.computedStatus,
-        isRestaurantOpenResult: isOpen
-      });
-    }
-    return isOpen;
-  });
-  const closedRestaurants = sortedRestaurants.filter(r => {
-    const isOpen = isRestaurantOpen(r);
-    // Log pour débogage de BOUBA
-    if (r.name && r.name.toLowerCase().includes('bouba')) {
-      console.log(`[Home] Filtrage BOUBA (fermé):`, {
-        name: r.name,
-        isOpenToggle: r.isOpen,
-        openingHours: r.openingHours,
-        computedStatus: r.computedStatus,
-        isRestaurantOpenResult: isOpen
-      });
-    }
-    return !isOpen;
-  });
+  const openRestaurants = sortedRestaurants.filter(r => isRestaurantOpen(r));
+  const closedRestaurants = sortedRestaurants.filter(r => !isRestaurantOpen(r));
   
   // Logs de débogage pour le filtrage
   useEffect(() => {
@@ -329,17 +289,42 @@ export default function Home() {
                       <div className="flex gap-4 p-4">
                         {/* Product Image */}
                         <div className="w-24 h-24 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100">
-                          {pizza.imageUrl && pizza.imageUrl.trim() !== "" ? (
-                            <img
-                              src={pizza.imageUrl}
-                              alt={pizza.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <span className="text-3xl">🍕</span>
-                            </div>
-                          )}
+                          {(() => {
+                            const hasImageUrl = pizza.imageUrl && pizza.imageUrl.trim() !== "";
+                            console.log(`[Home] Rendu image pour "${pizza.name}":`, {
+                              imageUrl: pizza.imageUrl,
+                              hasImageUrl,
+                              willShowImage: hasImageUrl
+                            });
+                            
+                            return hasImageUrl ? (
+                              <img
+                                src={pizza.imageUrl}
+                                alt={pizza.name}
+                                className="w-full h-full object-cover"
+                                onLoad={() => {
+                                  console.log(`[Home] ✅ Image chargée avec succès: ${pizza.imageUrl} pour "${pizza.name}"`);
+                                }}
+                                onError={(e) => {
+                                  console.error(`[Home] ❌ Erreur chargement image: ${pizza.imageUrl} pour "${pizza.name}"`);
+                                  // Si l'image ne charge pas, remplacer par le fallback
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent && !parent.querySelector('.image-fallback')) {
+                                    const fallback = document.createElement('div');
+                                    fallback.className = 'image-fallback w-full h-full flex items-center justify-center';
+                                    fallback.innerHTML = '<span class="text-3xl">🍕</span>';
+                                    parent.appendChild(fallback);
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <span className="text-3xl">🍕</span>
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         {/* Product Info */}
@@ -489,18 +474,34 @@ export default function Home() {
                           )}
                           
                           {/* Categories */}
-                          {restaurant.categories && restaurant.categories.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mb-3">
-                              {restaurant.categories.slice(0, 2).map((cat) => (
-                                <span
-                                  key={cat}
-                                  className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-md"
-                                >
-                                  {getCategoryLabel(cat)}
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                          {(() => {
+                            // Parser categories si c'est une chaîne JSON
+                            let categoriesArray: string[] = [];
+                            if (restaurant.categories) {
+                              if (typeof restaurant.categories === 'string') {
+                                try {
+                                  categoriesArray = JSON.parse(restaurant.categories);
+                                } catch {
+                                  // Si ce n'est pas du JSON valide, traiter comme un tableau avec un seul élément
+                                  categoriesArray = [restaurant.categories];
+                                }
+                              } else if (Array.isArray(restaurant.categories)) {
+                                categoriesArray = restaurant.categories;
+                              }
+                            }
+                            return categoriesArray.length > 0 ? (
+                              <div className="flex flex-wrap gap-2 mb-3">
+                                {categoriesArray.slice(0, 2).map((cat) => (
+                                  <span
+                                    key={cat}
+                                    className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-md"
+                                  >
+                                    {getCategoryLabel(cat)}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null;
+                          })()}
                           
                           {/* Delivery Price */}
                           <div className="flex items-center gap-2 text-sm text-gray-700">
@@ -609,18 +610,33 @@ export default function Home() {
                             </p>
                             
                             {/* Categories */}
-                            {restaurant.categories && restaurant.categories.length > 0 && (
-                              <div className="flex flex-wrap gap-2 mb-3">
-                                {restaurant.categories.slice(0, 2).map((cat) => (
-                                  <span
-                                    key={cat}
-                                    className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-md"
-                                  >
-                                    {getCategoryLabel(cat)}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
+                            {(() => {
+                              // Parser categories si c'est une chaîne JSON
+                              let categoriesArray: string[] = [];
+                              if (restaurant.categories) {
+                                if (typeof restaurant.categories === 'string') {
+                                  try {
+                                    categoriesArray = JSON.parse(restaurant.categories);
+                                  } catch {
+                                    categoriesArray = [restaurant.categories];
+                                  }
+                                } else if (Array.isArray(restaurant.categories)) {
+                                  categoriesArray = restaurant.categories;
+                                }
+                              }
+                              return categoriesArray.length > 0 ? (
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                  {categoriesArray.slice(0, 2).map((cat) => (
+                                    <span
+                                      key={cat}
+                                      className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-md"
+                                    >
+                                      {getCategoryLabel(cat)}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null;
+                            })()}
                             
                             {/* Delivery Price */}
                             <div className="flex items-center gap-2 text-sm text-gray-700">
