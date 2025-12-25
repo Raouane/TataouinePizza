@@ -26,8 +26,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
+      icon: '/favicon-32x32.png',
+      badge: '/favicon-32x32.png',
       tag: `order-${orderId}`,
       requireInteraction: true,
       silent: false,
@@ -58,8 +58,8 @@ function startNotificationRepeat(orderId, interval, title, body) {
     console.log(`[SW] Répétition notification pour commande ${orderId}`);
     self.registration.showNotification(title, {
       body,
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
+      icon: '/favicon-32x32.png',
+      badge: '/favicon-32x32.png',
       tag: `order-${orderId}`,
       requireInteraction: true,
       silent: false,
@@ -86,8 +86,8 @@ self.addEventListener('message', (event) => {
     // Envoyer une notification immédiatement
     self.registration.showNotification(title, {
       body,
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
+      icon: '/favicon-32x32.png',
+      badge: '/favicon-32x32.png',
       tag: `order-${orderId}`,
       requireInteraction: true,
       silent: false,

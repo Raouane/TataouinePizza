@@ -26,7 +26,8 @@ export function PWAInstallPrompt() {
       return isStandalone || isStandaloneIOS;
     };
 
-    setIsInstalled(checkIfInstalled());
+    const installed = checkIfInstalled();
+    setIsInstalled(installed);
 
     // Détecter si l'utilisateur est un livreur
     const driverToken = localStorage.getItem("driverToken");
@@ -34,21 +35,23 @@ export function PWAInstallPrompt() {
 
     // Vérifier si le prompt a été refusé aujourd'hui
     const dismissedDate = localStorage.getItem("pwaInstallDismissed");
+    let dismissed = false;
     if (dismissedDate) {
-      const dismissed = new Date(dismissedDate);
+      const dismissedDateObj = new Date(dismissedDate);
       const today = new Date();
-      const isSameDay = dismissed.toDateString() === today.toDateString();
-      setIsDismissed(isSameDay);
+      const isSameDay = dismissedDateObj.toDateString() === today.toDateString();
+      dismissed = isSameDay;
     }
+    setIsDismissed(dismissed);
 
-    // Écouter l'événement beforeinstallprompt
+    // Écouter l'événement beforeinstallprompt (Chrome, Edge, etc.)
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       const promptEvent = e as BeforeInstallPromptEvent;
       setDeferredPrompt(promptEvent);
       
       // Afficher le prompt si pas déjà installé et pas refusé aujourd'hui
-      if (!checkIfInstalled() && !isDismissed) {
+      if (!installed && !dismissed) {
         setShowPrompt(true);
       }
     };
@@ -65,11 +68,28 @@ export function PWAInstallPrompt() {
 
     window.addEventListener("appinstalled", handleAppInstalled);
 
+    // Pour iOS et autres navigateurs qui ne supportent pas beforeinstallprompt
+    // Afficher le prompt après un délai si l'app n'est pas installée
+    if (!installed && !dismissed) {
+      const timer = setTimeout(() => {
+        // Vérifier à nouveau si installé (au cas où l'utilisateur l'a installé entre-temps)
+        if (!checkIfInstalled() && !localStorage.getItem("pwaInstallDismissed")) {
+          setShowPrompt(true);
+        }
+      }, 3000); // Afficher après 3 secondes
+
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+        window.removeEventListener("appinstalled", handleAppInstalled);
+      };
+    }
+
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
       window.removeEventListener("appinstalled", handleAppInstalled);
     };
-  }, [isDismissed]);
+  }, []);
 
   const handleInstall = async () => {
     if (!deferredPrompt) {
@@ -117,10 +137,14 @@ export function PWAInstallPrompt() {
     localStorage.setItem("pwaInstallDismissed", new Date().toISOString());
   };
 
-  // Ne pas afficher si déjà installé, pas de prompt disponible, ou refusé aujourd'hui
-  if (isInstalled || !showPrompt || !deferredPrompt) {
+  // Ne pas afficher si déjà installé ou refusé aujourd'hui
+  if (isInstalled || !showPrompt) {
     return null;
   }
+
+  // Pour iOS et navigateurs sans beforeinstallprompt, on peut quand même afficher le prompt
+  // avec des instructions manuelles
+  const canShowManualInstructions = !deferredPrompt && (/iPhone|iPad|iPod/.test(navigator.userAgent) || /Safari/.test(navigator.userAgent));
 
   // Message spécial pour les livreurs
   const title = isDriver 
@@ -166,7 +190,7 @@ export function PWAInstallPrompt() {
             size="sm"
           >
             <Download className="w-4 h-4 mr-2" />
-            Installer maintenant
+            {canShowManualInstructions ? "Voir instructions" : "Installer maintenant"}
           </Button>
           <Button
             onClick={handleDismiss}
