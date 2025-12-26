@@ -36,9 +36,13 @@ export default defineConfig({
     },
   },
   root: path.resolve(import.meta.dirname, "client"),
+  // Vite copie automatiquement les fichiers de client/public vers dist/public
+  publicDir: "public",
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    // S'assurer que les fichiers publics sont copiés
+    copyPublicDir: true,
   },
   server: {
     host: "0.0.0.0",
