@@ -423,7 +423,7 @@ export async function registerRoutes(
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      padding: 40px 20px;
+      padding: 20px 10px;
       background: #f5f5f5;
       color: #333;
     }
@@ -431,81 +431,93 @@ export async function registerRoutes(
       max-width: 800px;
       margin: 0 auto;
       background: white;
-      padding: 40px;
+      padding: 20px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
     .header {
       border-bottom: 3px solid #f97316;
-      padding-bottom: 20px;
-      margin-bottom: 30px;
+      padding-bottom: 15px;
+      margin-bottom: 20px;
     }
     .header h1 {
       color: #f97316;
-      font-size: 32px;
-      margin-bottom: 10px;
+      font-size: 24px;
+      margin-bottom: 8px;
     }
     .header p {
       color: #666;
-      font-size: 14px;
+      font-size: 12px;
     }
     .info-section {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 30px;
-      margin-bottom: 30px;
+      grid-template-columns: 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
     }
     .info-box h3 {
       color: #f97316;
-      font-size: 14px;
-      margin-bottom: 10px;
+      font-size: 12px;
+      margin-bottom: 8px;
       text-transform: uppercase;
     }
     .info-box p {
       color: #333;
-      margin: 5px 0;
-      font-size: 14px;
+      margin: 4px 0;
+      font-size: 13px;
+      word-break: break-word;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 30px;
+      margin-bottom: 20px;
+      font-size: 12px;
+      overflow-x: auto;
+      display: block;
     }
     thead {
       background: #f97316;
       color: white;
+      display: table-header-group;
+    }
+    tbody {
+      display: table-row-group;
+    }
+    tr {
+      display: table-row;
     }
     th, td {
-      padding: 12px;
+      padding: 8px 4px;
       text-align: left;
       border-bottom: 1px solid #eee;
+      display: table-cell;
     }
     th {
       font-weight: 600;
-      font-size: 12px;
+      font-size: 10px;
       text-transform: uppercase;
     }
     td {
-      font-size: 14px;
+      font-size: 12px;
     }
     .total-row {
       background: #f9f9f9;
       font-weight: bold;
     }
     .total-row td {
-      padding: 15px 12px;
-      font-size: 18px;
+      padding: 12px 4px;
+      font-size: 16px;
       color: #f97316;
     }
     .footer {
-      margin-top: 40px;
-      padding-top: 20px;
+      margin-top: 30px;
+      padding-top: 15px;
       border-top: 2px solid #eee;
       text-align: center;
       color: #666;
-      font-size: 12px;
+      font-size: 11px;
     }
     .download-btn {
-      margin-top: 30px;
+      margin-top: 20px;
       text-align: center;
     }
     .download-btn button {
@@ -514,10 +526,13 @@ export async function registerRoutes(
       border: none;
       padding: 12px 24px;
       border-radius: 8px;
-      font-size: 16px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
       transition: background 0.2s;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 300px;
     }
     .download-btn button:hover {
       background: #ea580c;
@@ -525,10 +540,69 @@ export async function registerRoutes(
     .download-btn button:active {
       transform: scale(0.98);
     }
+    @media (min-width: 640px) {
+      body {
+        padding: 40px 20px;
+      }
+      .invoice {
+        padding: 40px;
+      }
+      .header h1 {
+        font-size: 32px;
+        margin-bottom: 10px;
+      }
+      .header p {
+        font-size: 14px;
+      }
+      .info-section {
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+        margin-bottom: 30px;
+      }
+      .info-box h3 {
+        font-size: 14px;
+        margin-bottom: 10px;
+      }
+      .info-box p {
+        font-size: 14px;
+        margin: 5px 0;
+      }
+      table {
+        font-size: 14px;
+        margin-bottom: 30px;
+        display: table;
+      }
+      th, td {
+        padding: 12px;
+      }
+      th {
+        font-size: 12px;
+      }
+      td {
+        font-size: 14px;
+      }
+      .total-row td {
+        padding: 15px 12px;
+        font-size: 18px;
+      }
+      .footer {
+        margin-top: 40px;
+        padding-top: 20px;
+        font-size: 12px;
+      }
+      .download-btn {
+        margin-top: 30px;
+      }
+      .download-btn button {
+        font-size: 16px;
+        width: auto;
+      }
+    }
     @media print {
       body { background: white; padding: 0; }
-      .invoice { box-shadow: none; }
+      .invoice { box-shadow: none; padding: 20px; }
       .download-btn { display: none; }
+      table { display: table; }
     }
   </style>
   <script>
