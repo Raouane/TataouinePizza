@@ -77,42 +77,44 @@ export async function runMigrationsOnStartup() {
     `);
     console.log("[DB] ✅ Colonne categories ajoutée/vérifiée");
 
-    // Migration : Convertir categories et opening_hours de TEXT vers JSONB (si pas déjà fait)
-    await db.execute(sql`
-      DO $$ 
-      BEGIN
-        -- Vérifier si categories est encore TEXT et convertir vers JSONB
-        IF EXISTS (
-          SELECT 1 FROM information_schema.columns 
-          WHERE table_name = 'restaurants' 
-          AND column_name = 'categories' 
-          AND data_type = 'text'
-        ) THEN
-          -- Créer une colonne temporaire JSONB
-          ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS categories_jsonb JSONB;
-          
-          -- Migrer les données : parser le JSON string en JSONB
-          UPDATE restaurants 
-          SET categories_jsonb = CASE 
-            WHEN categories IS NULL OR categories = '' THEN NULL
-            WHEN categories::text LIKE '[%' OR categories::text LIKE '{%' THEN categories::jsonb
-            ELSE jsonb_build_array(categories)::jsonb
-          END;
-          
-          -- Supprimer l'ancienne colonne TEXT
-          ALTER TABLE restaurants DROP COLUMN categories;
-          
-          -- Renommer la nouvelle colonne
-          ALTER TABLE restaurants RENAME COLUMN categories_jsonb TO categories;
-          
-          console.log("[DB] ✅ Colonne categories migrée de TEXT vers JSONB");
-        END IF;
-        
-        -- Vérifier si opening_hours est encore TEXT (on le garde en TEXT car c'est une string simple)
-        -- Pas besoin de migration pour opening_hours, c'est une string simple comme "09:00-23:00"
-      END $$;
-    `);
-    console.log("[DB] ✅ Migration categories vers JSONB vérifiée");
+    // Migration : Convertir categories de TEXT vers JSONB (si pas déjà fait)
+    try {
+      await db.execute(sql`
+        DO $$ 
+        BEGIN
+          -- Vérifier si categories est encore TEXT et convertir vers JSONB
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'restaurants' 
+            AND column_name = 'categories' 
+            AND data_type = 'text'
+          ) THEN
+            -- Créer une colonne temporaire JSONB
+            ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS categories_jsonb JSONB;
+            
+            -- Migrer les données : parser le JSON string en JSONB
+            UPDATE restaurants 
+            SET categories_jsonb = CASE 
+              WHEN categories IS NULL OR categories = '' THEN NULL
+              WHEN categories::text LIKE '[%' OR categories::text LIKE '{%' THEN categories::jsonb
+              ELSE jsonb_build_array(categories)::jsonb
+            END;
+            
+            -- Supprimer l'ancienne colonne TEXT
+            ALTER TABLE restaurants DROP COLUMN categories;
+            
+            -- Renommer la nouvelle colonne
+            ALTER TABLE restaurants RENAME COLUMN categories_jsonb TO categories;
+            
+            RAISE NOTICE 'Colonne categories migrée de TEXT vers JSONB';
+          END IF;
+        END $$;
+      `);
+      console.log("[DB] ✅ Migration categories vers JSONB vérifiée");
+    } catch (error: any) {
+      // La migration peut échouer si la colonne est déjà JSONB ou n'existe pas
+      console.log("[DB] ℹ️ Migration categories vers JSONB :", error.message.includes('already exists') || error.message.includes('does not exist') ? 'Déjà migrée ou non nécessaire' : error.message);
+    }
 
     // Créer la table drivers si elle n'existe pas
     await db.execute(sql`
