@@ -35,14 +35,17 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         const data = await response.json();
         const realStatus = data.status;
         
+        console.log('[OrderContext] refreshOrderData - Statut récupéré:', realStatus, 'pour orderId:', orderId);
+        
         // Si la commande est livrée ou rejetée, annuler immédiatement
         if (realStatus === 'delivered' || realStatus === 'rejected') {
-          console.log('[OrderContext] Commande livrée/rejetée, masquage immédiat de la bannière');
+          console.log('[OrderContext] Commande livrée/rejetée, masquage de la bannière dans 2 secondes');
           setOrderData(data);
           setEta(0);
           setStepIndex(4); // delivered
           // Masquer après 2 secondes pour laisser voir le statut final
           setTimeout(() => {
+            console.log('[OrderContext] Masquage effectif de la bannière maintenant');
             setActiveOrder(false);
             setOrderId(null);
             setOrderData(null);
@@ -64,6 +67,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         };
         const newStepIndex = statusMap[realStatus] ?? 0;
         setStepIndex(newStepIndex);
+        console.log('[OrderContext] Statut mis à jour - stepIndex:', newStepIndex, 'status:', realStatus);
       }
     } catch (error) {
       console.error('[OrderContext] Erreur lors de la récupération des données:', error);

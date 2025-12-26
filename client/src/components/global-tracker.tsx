@@ -9,16 +9,41 @@ export function GlobalTrackerWidget() {
   const { t } = useLanguage();
   const [, setLocation] = useLocation();
 
+  // Debug logs pour production
+  if (activeOrder) {
+    console.log('[GlobalTracker] Debug:', {
+      activeOrder,
+      status,
+      eta,
+      realStatus: orderData?.status,
+      orderData: orderData ? 'exists' : 'null'
+    });
+  }
+
   // Ne pas afficher si pas d'ordre actif
-  if (!activeOrder) return null;
+  if (!activeOrder) {
+    console.log('[GlobalTracker] Masquage car activeOrder=false');
+    return null;
+  }
   
   // Ne pas afficher si la commande est livrée ou rejetée (vérifier le statut réel ET le statut calculé)
   const realStatus = orderData?.status;
-  if (realStatus === 'delivered' || realStatus === 'rejected') return null;
-  if (status === 'delivered') return null;
+  if (realStatus === 'delivered' || realStatus === 'rejected') {
+    console.log('[GlobalTracker] Masquage car statut réel:', realStatus);
+    return null;
+  }
+  if (status === 'delivered') {
+    console.log('[GlobalTracker] Masquage car status calculé:', status);
+    return null;
+  }
   
   // Ne pas afficher si ETA est 0 (livraison terminée)
-  if (eta === 0 && status === 'delivered') return null;
+  if (eta === 0 && status === 'delivered') {
+    console.log('[GlobalTracker] Masquage car ETA=0 et delivered');
+    return null;
+  }
+  
+  console.log('[GlobalTracker] Affichage de la bannière');
 
   return (
     <motion.div

@@ -28,9 +28,17 @@ export function serveStatic(app: Express) {
   app.use(express.static(actualDistPath));
 
   // IMPORTANT: En production sur Render, les fichiers de client/public sont copiés dans dist/public par Vite
-  // Mais si les images ne sont pas trouvées dans dist/public, servir depuis client/public comme fallback
+  // Mais si les fichiers ne sont pas trouvés dans dist/public, servir depuis client/public comme fallback
   const sourcePublicPath = path.resolve(projectRoot, "client", "public");
   if (fs.existsSync(sourcePublicPath)) {
+    // Servir les fichiers publics depuis le dossier source en fallback (pour Render)
+    // Cela inclut logo.jpeg, favicon, manifest.json, sw.js, etc.
+    app.use(express.static(sourcePublicPath, {
+      // Ne pas servir index.html depuis le fallback (utiliser celui de dist)
+      index: false
+    }));
+    console.log(`[STATIC] ✅ Fichiers publics servis depuis (fallback): ${sourcePublicPath}`);
+    
     // Servir les images depuis le dossier source en fallback (pour Render)
     app.use("/images", express.static(path.join(sourcePublicPath, "images")));
     console.log(`[STATIC] ✅ Images servies depuis (fallback): ${path.join(sourcePublicPath, "images")}`);
