@@ -23,6 +23,16 @@ export function serveStatic(app: Express) {
   }
 
   console.log(`[STATIC] 📁 Servir les fichiers statiques depuis: ${actualDistPath}`);
+  
+  // Lister les fichiers dans dist/public pour déboguer
+  try {
+    const files = fs.readdirSync(actualDistPath);
+    console.log(`[STATIC] 📋 Fichiers dans dist/public (${files.length}):`, files.slice(0, 20).join(', '));
+    const logoExists = files.includes('logo.jpeg');
+    console.log(`[STATIC] ${logoExists ? '✅' : '❌'} logo.jpeg ${logoExists ? 'trouvé' : 'NON trouvé'} dans dist/public`);
+  } catch (err) {
+    console.error(`[STATIC] ⚠️ Erreur lecture dist/public:`, err);
+  }
 
   // IMPORTANT: En production sur Render, les fichiers de client/public sont copiés dans dist/public par Vite
   // Mais si les fichiers ne sont pas trouvés dans dist/public, servir depuis client/public comme fallback
