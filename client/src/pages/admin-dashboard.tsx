@@ -624,8 +624,23 @@ export default function AdminDashboard() {
 
   // Afficher la facture dans un nouvel onglet
   const downloadInvoice = (orderId: string) => {
-    const invoiceUrl = `/api/orders/${orderId}/invoice`;
-    window.open(invoiceUrl, '_blank');
+    try {
+      const invoiceUrl = `/api/orders/${orderId}/invoice`;
+      // Sur mobile, utiliser window.location pour forcer l'ouverture
+      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        window.location.href = invoiceUrl;
+      } else {
+        const newWindow = window.open(invoiceUrl, '_blank');
+        if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+          // Si popup bloquée, utiliser window.location
+          window.location.href = invoiceUrl;
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'ouverture de la facture:', error);
+      // Fallback: utiliser window.location
+      window.location.href = `/api/orders/${orderId}/invoice`;
+    }
   };
 
   // MVP: Statuts simplifiés (preparing et baking supprimés)
