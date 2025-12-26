@@ -53,6 +53,20 @@ export function serveStatic(app: Express) {
       const fallbackPath = path.join(sourcePublicPath, req.path);
       if (fs.existsSync(fallbackPath) && fs.statSync(fallbackPath).isFile()) {
         console.log(`[STATIC] 📦 Fichier servi depuis fallback: ${req.path}`);
+        // Définir le bon Content-Type pour les images
+        const ext = path.extname(fallbackPath).toLowerCase();
+        const contentTypeMap: Record<string, string> = {
+          '.jpeg': 'image/jpeg',
+          '.jpg': 'image/jpeg',
+          '.png': 'image/png',
+          '.gif': 'image/gif',
+          '.svg': 'image/svg+xml',
+          '.webp': 'image/webp',
+          '.ico': 'image/x-icon',
+        };
+        if (contentTypeMap[ext]) {
+          res.setHeader('Content-Type', contentTypeMap[ext]);
+        }
         return res.sendFile(fallbackPath);
       }
       
@@ -66,11 +80,20 @@ export function serveStatic(app: Express) {
   app.use(express.static(actualDistPath));
 
   // fall through to index.html if the file doesn't exist
-  // MAIS ignorer les routes API
+  // MAIS ignorer les routes API et les fichiers statiques
   app.use("*", (req, res, next) => {
     // Ne pas intercepter les routes API
     if (req.originalUrl?.startsWith("/api/") || req.url?.startsWith("/api/")) {
       return next();
+    }
+    
+    // Ne pas intercepter les fichiers statiques (images, CSS, JS, etc.)
+    // Si c'est un fichier statique qui n'a pas été trouvé, retourner 404 au lieu de index.html
+    const ext = path.extname(req.path).toLowerCase();
+    const staticExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.css', '.js', '.woff', '.woff2', '.ttf', '.ico', '.json'];
+    if (staticExtensions.includes(ext)) {
+      console.log(`[STATIC] ⚠️ Fichier statique non trouvé: ${req.path}`);
+      return res.status(404).send('File not found');
     }
     
     // Servir index.html pour toutes les autres routes (SPA routing)
