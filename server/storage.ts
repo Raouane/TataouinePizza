@@ -101,8 +101,10 @@ export class DatabaseStorage implements IStorage {
     try {
       console.log("[DB] getAllRestaurants - Début");
       // Use raw SQL with text cast to bypass Neon HTTP boolean parsing bug
+      // Convertir categories JSONB en texte pour compatibilité (sera reparsé après)
       const rawResult = await db.execute(sql`
-        SELECT id, name, phone, address, description, image_url, categories, 
+        SELECT id, name, phone, address, description, image_url, 
+               COALESCE(categories::text, NULL) as categories,
                is_open::text as is_open_text, opening_hours, delivery_time, 
                min_order, rating, created_at, updated_at 
         FROM restaurants ORDER BY name
