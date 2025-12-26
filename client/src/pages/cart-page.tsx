@@ -487,6 +487,23 @@ export default function CartPage() {
                         </div>
                     </div>
 
+                    {/* Avertissement si plusieurs restaurants */}
+                    {restaurants.length > 1 && (
+                      <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-3 md:p-4 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <div className="text-orange-600 text-lg flex-shrink-0">⚠️</div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-sm md:text-base text-orange-900 mb-1">
+                              {t('cart.multiRestaurant.warning', { count: restaurants.length })}
+                            </h4>
+                            <p className="text-xs md:text-sm text-orange-800">
+                              {t('cart.multiRestaurant.warningDesc', { count: restaurants.length })}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Détails de la commande par restaurant */}
                     <div className="bg-muted/50 rounded-xl p-3 md:p-4 space-y-4 md:space-y-6">
                         <h4 className="font-semibold text-xs md:text-sm text-muted-foreground uppercase">

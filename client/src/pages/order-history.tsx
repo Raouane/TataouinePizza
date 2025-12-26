@@ -6,7 +6,7 @@ import { useLanguage } from "@/lib/i18n";
 import { getOrdersByPhone } from "@/lib/api";
 import { getOnboarding } from "@/pages/onboarding";
 import type { Order } from "@/lib/api";
-import { Clock, MapPin, Phone, RefreshCw, ArrowLeft, Download } from "lucide-react";
+import { Clock, MapPin, Phone, RefreshCw, ArrowLeft, Download, Store } from "lucide-react";
 import { getStatusColor, getStatusLabel } from "@/lib/order-status-helpers";
 
 export default function OrderHistory() {

@@ -235,6 +235,8 @@ const translations: Translations = {
   'cart.error.order': { fr: "Erreur lors de la commande", en: "Order error", ar: "خطأ في الطلب" },
   'cart.error.orderDescription': { fr: "Certaines commandes n'ont pas pu être créées. Veuillez réessayer.", en: "Some orders could not be created. Please try again.", ar: "تعذر إنشاء بعض الطلبات. يرجى المحاولة مرة أخرى." },
   'cart.multiRestaurant.totalNote': { fr: "Total incluant les frais de livraison de tous les restaurants", en: "Total including delivery fees from all restaurants", ar: "الإجمالي يشمل رسوم التوصيل من جميع المطاعم" },
+  'cart.multiRestaurant.warning': { fr: "⚠️ Attention : Vous avez des produits de {count} restaurant(s) différent(s)", en: "⚠️ Warning: You have products from {count} different restaurant(s)", ar: "⚠️ تحذير: لديك منتجات من {count} مطعم(ات) مختلف(ة)" },
+  'cart.multiRestaurant.warningDesc': { fr: "Cela créera {count} commande(s) séparée(s), chacune avec sa propre livraison. Vous recevrez {count} notification(s) de livraison.", en: "This will create {count} separate order(s), each with its own delivery. You will receive {count} delivery notification(s).", ar: "سيؤدي هذا إلى إنشاء {count} طلب(ات) منفصل(ة)، كل منها مع توصيله الخاص. سوف تتلقى {count} إشعار(ات) توصيل." },
 
   // Profile
   'nav.profile': { fr: "Profil", en: "Profile", ar: "الملف الشخصي" },
