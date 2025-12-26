@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Search, MapPin, Star, Clock, Bike, Zap, Coins } from "lucide-react";
+import { Search, MapPin, Star, Clock, Bike, Zap, Coins, ShoppingBag } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useCart } from "@/lib/cart";
 import { getOnboarding } from "@/pages/onboarding";
@@ -194,17 +194,42 @@ export default function Home() {
       <div className="sticky top-0 z-50 bg-white border-b md:hidden">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-lg">T</span>
-            </div>
+            <Link href="/">
+              <img 
+                src="/logo.jpeg" 
+                alt="Tataouine Pizza" 
+                className="w-10 h-10 rounded-full object-cover"
+                onError={(e) => {
+                  console.error('[Home] Erreur chargement logo.jpeg:', e);
+                  // Fallback vers une icône si le logo ne charge pas
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  const parent = target.parentElement;
+                  if (parent && !parent.querySelector('.logo-fallback')) {
+                    const fallback = document.createElement('div');
+                    fallback.className = 'logo-fallback w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold text-lg';
+                    fallback.textContent = 'T';
+                    parent.appendChild(fallback);
+                  }
+                }}
+                onLoad={() => {
+                  console.log('[Home] Logo.jpeg chargé avec succès');
+                }}
+              />
+            </Link>
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-700">
             <MapPin className="w-4 h-4" />
             <span>{t('home.location')}</span>
           </div>
           <Link href="/cart" className="relative">
-            <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold">{count || 0}</span>
+            <div className="relative">
+              <ShoppingBag className="h-6 w-6 text-gray-700" />
+              {count > 0 && (
+                <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-[10px] font-bold h-5 w-5 flex items-center justify-center rounded-full">
+                  {count}
+                </span>
+              )}
             </div>
           </Link>
         </div>
