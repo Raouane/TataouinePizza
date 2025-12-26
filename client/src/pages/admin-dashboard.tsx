@@ -198,13 +198,27 @@ export default function AdminDashboard() {
     console.log("[ADMIN] handleEditRestaurant - openingHours parsé:", openingHours);
     console.log("[ADMIN] handleEditRestaurant - closedDay:", closedDay);
     
+    // Parser categories si c'est une chaîne JSON
+    let categoriesArray: string[] = [];
+    if (restaurant.categories) {
+      if (typeof restaurant.categories === 'string') {
+        try {
+          categoriesArray = JSON.parse(restaurant.categories);
+        } catch {
+          categoriesArray = [];
+        }
+      } else if (Array.isArray(restaurant.categories)) {
+        categoriesArray = restaurant.categories;
+      }
+    }
+    
     setRestaurantForm({
       name: restaurant.name,
       phone: restaurant.phone,
       address: restaurant.address,
       description: restaurant.description || "",
       imageUrl: restaurant.imageUrl || "",
-      categories: restaurant.categories || [],
+      categories: categoriesArray,
       openingHours: openingHours, // Format: "15:00-23:00" - sera parsé dans les champs time
       closedDay: closedDay || "none",
       deliveryTime: restaurant.deliveryTime || 30,
