@@ -33,9 +33,28 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
       const response = await fetch(`/api/orders/${orderId}`);
       if (response.ok) {
         const data = await response.json();
+        const realStatus = data.status;
+        
+        // Si la commande est livrée ou rejetée, annuler immédiatement
+        if (realStatus === 'delivered' || realStatus === 'rejected') {
+          console.log('[OrderContext] Commande livrée/rejetée, masquage immédiat de la bannière');
+          setOrderData(data);
+          setEta(0);
+          setStepIndex(4); // delivered
+          // Masquer après 2 secondes pour laisser voir le statut final
+          setTimeout(() => {
+            setActiveOrder(false);
+            setOrderId(null);
+            setOrderData(null);
+            setStepIndex(0);
+            setEta(0);
+            sessionStorage.removeItem('currentOrderId');
+          }, 2000);
+          return;
+        }
+        
         setOrderData(data);
         // Mettre à jour le statut selon les données réelles
-        const realStatus = data.status;
         const statusMap: Record<string, number> = {
           'pending': 0,
           'accepted': 1,
@@ -74,8 +93,29 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const savedOrderId = sessionStorage.getItem('currentOrderId');
     if (savedOrderId) {
-      setOrderId(savedOrderId);
-      setActiveOrder(true);
+      // Vérifier immédiatement le statut de la commande
+      fetch(`/api/orders/${savedOrderId}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) {
+            const realStatus = data.status;
+            // Si déjà livrée ou rejetée, ne pas activer le suivi
+            if (realStatus === 'delivered' || realStatus === 'rejected') {
+              console.log('[OrderContext] Commande déjà livrée/rejetée au chargement, pas de suivi');
+              sessionStorage.removeItem('currentOrderId');
+              return;
+            }
+            // Sinon, activer le suivi
+            setOrderId(savedOrderId);
+            setActiveOrder(true);
+          }
+        })
+        .catch(err => {
+          console.error('[OrderContext] Erreur vérification statut au chargement:', err);
+          // En cas d'erreur, activer quand même le suivi
+          setOrderId(savedOrderId);
+          setActiveOrder(true);
+        });
     }
   }, []);
 
@@ -93,6 +133,11 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!activeOrder) return;
+    
+    // Ne pas avancer automatiquement si le statut réel est déjà delivered
+    if (orderData?.status === 'delivered' || orderData?.status === 'rejected') {
+      return;
+    }
 
     // Durées en millisecondes pour une livraison de ~30 minutes (MVP simplifié)
     const intervals = [
@@ -106,6 +151,12 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
 
     const advanceStep = () => {
         setStepIndex(current => {
+            // Vérifier à nouveau le statut réel avant d'avancer
+            if (orderData?.status === 'delivered' || orderData?.status === 'rejected') {
+              cancelOrder();
+              return current;
+            }
+            
             if (current < steps.length - 1) {
                 const next = current + 1;
                 
@@ -113,13 +164,17 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
                 if (next === 1) setEta(28);  // Après acceptation: 28 min restantes
                 if (next === 2) setEta(20);  // Après préparation: 20 min restantes
                 if (next === 3) setEta(15);  // Livreur en route: 15 min restantes
-                if (next === 4) setEta(0);   // Livré
+                if (next === 4) {
+                  setEta(0);   // Livré
+                  // Masquer la bannière après 3 secondes
+                  setTimeout(() => {
+                    cancelOrder();
+                  }, 3000);
+                  return next;
+                }
 
                 if (next < intervals.length) {
                     timeout = setTimeout(advanceStep, intervals[next]);
-                } else if (next === steps.length - 1) {
-                    // Auto clear after delivery after 2 minutes
-                    setTimeout(cancelOrder, 2 * 60 * 1000);
                 }
                 return next;
             }
@@ -130,7 +185,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     timeout = setTimeout(advanceStep, intervals[0]);
 
     return () => clearTimeout(timeout);
-  }, [activeOrder]);
+  }, [activeOrder, orderData]);
 
   const status = steps[stepIndex];
 

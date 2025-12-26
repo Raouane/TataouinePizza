@@ -5,11 +5,20 @@ import { Bike, Clock, ArrowRight } from "lucide-react";
 import { useLocation } from "wouter";
 
 export function GlobalTrackerWidget() {
-  const { activeOrder, status, eta } = useOrder();
+  const { activeOrder, status, eta, orderData } = useOrder();
   const { t } = useLanguage();
   const [, setLocation] = useLocation();
 
+  // Ne pas afficher si pas d'ordre actif
   if (!activeOrder) return null;
+  
+  // Ne pas afficher si la commande est livrée ou rejetée (vérifier le statut réel ET le statut calculé)
+  const realStatus = orderData?.status;
+  if (realStatus === 'delivered' || realStatus === 'rejected') return null;
+  if (status === 'delivered') return null;
+  
+  // Ne pas afficher si ETA est 0 (livraison terminée)
+  if (eta === 0 && status === 'delivered') return null;
 
   return (
     <motion.div
