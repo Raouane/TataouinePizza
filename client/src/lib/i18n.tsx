@@ -237,6 +237,14 @@ const translations: Translations = {
   'cart.multiRestaurant.totalNote': { fr: "Total incluant les frais de livraison de tous les restaurants", en: "Total including delivery fees from all restaurants", ar: "الإجمالي يشمل رسوم التوصيل من جميع المطاعم" },
   'cart.multiRestaurant.warning': { fr: "⚠️ Attention : Vous avez des produits de {count} restaurant(s) différent(s)", en: "⚠️ Warning: You have products from {count} different restaurant(s)", ar: "⚠️ تحذير: لديك منتجات من {count} مطعم(ات) مختلف(ة)" },
   'cart.multiRestaurant.warningDesc': { fr: "Cela créera {count} commande(s) séparée(s), chacune avec sa propre livraison. Vous recevrez {count} notification(s) de livraison.", en: "This will create {count} separate order(s), each with its own delivery. You will receive {count} delivery notification(s).", ar: "سيؤدي هذا إلى إنشاء {count} طلب(ات) منفصل(ة)، كل منها مع توصيله الخاص. سوف تتلقى {count} إشعار(ات) توصيل." },
+  'cart.activeOrder.title': { fr: "⚠️ Commande en cours détectée", en: "⚠️ Active order detected", ar: "⚠️ تم اكتشاف طلب نشط" },
+  'cart.activeOrder.description': { fr: "Vous avez déjà une commande en cours de livraison.", en: "You already have an order being delivered.", ar: "لديك بالفعل طلب قيد التوصيل." },
+  'cart.activeOrder.warning': { fr: "Attention : Créer une nouvelle commande signifie :", en: "Warning: Creating a new order means:", ar: "تحذير: إنشاء طلب جديد يعني:" },
+  'cart.activeOrder.consequence1': { fr: "Vous aurez plusieurs commandes séparées", en: "You will have multiple separate orders", ar: "سيكون لديك عدة طلبات منفصلة" },
+  'cart.activeOrder.consequence2': { fr: "Plusieurs livraisons distinctes avec des livreurs potentiellement différents", en: "Multiple distinct deliveries with potentially different drivers", ar: "عدة توصيلات متميزة مع سائقي توصيل محتملين مختلفين" },
+  'cart.activeOrder.consequence3': { fr: "Plusieurs notifications de suivi", en: "Multiple tracking notifications", ar: "عدة إشعارات تتبع" },
+  'cart.activeOrder.question': { fr: "Souhaitez-vous vraiment créer une nouvelle commande distincte ?", en: "Do you really want to create a new separate order?", ar: "هل تريد حقًا إنشاء طلب جديد منفصل؟" },
+  'cart.activeOrder.confirm': { fr: "Oui, créer une nouvelle commande", en: "Yes, create new order", ar: "نعم، إنشاء طلب جديد" },
 
   // Profile
   'nav.profile': { fr: "Profil", en: "Profile", ar: "الملف الشخصي" },

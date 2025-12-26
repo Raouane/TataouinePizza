@@ -1,17 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCart } from "@/lib/cart";
 import { useOrder } from "@/lib/order-context";
-import { createOrder, sendOtp, verifyOtp } from "@/lib/api";
+import { createOrder, sendOtp, verifyOtp, getOrdersByPhone } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Trash2, Plus, Minus, ArrowRight, MapPin, Phone, CheckCircle2, ChevronLeft, User, Store } from "lucide-react";
+import { Trash2, Plus, Minus, ArrowRight, MapPin, Phone, CheckCircle2, ChevronLeft, User, Store, AlertTriangle } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "@/lib/i18n";
 import { getOnboarding } from "@/pages/onboarding";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Step = "cart" | "phone" | "verify" | "address" | "summary";
 
@@ -19,7 +29,7 @@ const DELIVERY_FEE = 2.00; // Prix de livraison fixe en TND
 
 export default function CartPage() {
   const { restaurants, removeItem, updateQuantity, total, clearCart, clearRestaurant } = useCart();
-  const { startOrder } = useOrder();
+  const { startOrder, activeOrder, orderId } = useOrder();
   const onboarding = getOnboarding();
   const hasPhoneFromOnboarding = !!onboarding?.phone;
   const [step, setStep] = useState<Step>("cart");
@@ -31,6 +41,37 @@ export default function CartPage() {
   const { toast } = useToast();
   const { t, language } = useLanguage();
   const isRtl = language === 'ar';
+  const [hasActiveOrder, setHasActiveOrder] = useState(false);
+  const [showActiveOrderDialog, setShowActiveOrderDialog] = useState(false);
+  const [checkingActiveOrder, setCheckingActiveOrder] = useState(false);
+
+  // Vérifier si le client a une commande active
+  useEffect(() => {
+    const checkActiveOrders = async () => {
+      if (!phone || phone.length < 8) {
+        setHasActiveOrder(false);
+        return;
+      }
+      
+      setCheckingActiveOrder(true);
+      try {
+        const orders = await getOrdersByPhone(phone);
+        // Vérifier s'il y a une commande non livrée
+        const activeOrders = orders.filter(order => 
+          order.status !== 'delivered' && order.status !== 'rejected'
+        );
+        
+        setHasActiveOrder(activeOrders.length > 0);
+      } catch (error) {
+        console.error('[Cart] Erreur vérification commandes actives:', error);
+        setHasActiveOrder(false);
+      } finally {
+        setCheckingActiveOrder(false);
+      }
+    };
+
+    checkActiveOrders();
+  }, [phone]);
 
   // Total global (déjà calculé dans le contexte)
   const totalWithDelivery = total;
@@ -94,28 +135,7 @@ export default function CartPage() {
       if (step === "summary") setStep("address");
   };
 
-  const handleConfirmOrder = async () => {
-    // Validation des champs requis
-    if (!name || name.trim().length < 2) {
-      toast({ title: "Erreur", description: "Le nom doit contenir au moins 2 caractères", variant: "destructive" });
-      return;
-    }
-    
-    if (!phone || phone.trim().length < 8) {
-      toast({ title: "Erreur", description: "Le téléphone doit contenir au moins 8 caractères", variant: "destructive" });
-      return;
-    }
-    
-    if (!address || address.trim().length < 5) {
-      toast({ title: "Erreur", description: "L'adresse doit contenir au moins 5 caractères", variant: "destructive" });
-      return;
-    }
-    
-    if (restaurants.length === 0) {
-      toast({ title: "Erreur", description: "Le panier est vide", variant: "destructive" });
-      return;
-    }
-    
+  const proceedWithOrderCreation = async () => {
     // Créer une commande par restaurant
     console.log(`[Cart] Création de ${restaurants.length} commande(s)...`);
     
@@ -157,6 +177,7 @@ export default function CartPage() {
       } else {
         startOrder();
       }
+      setShowActiveOrderDialog(false);
       console.log("[Cart] Navigation vers /success");
       setLocation("/success");
     } catch (error: any) {
@@ -167,6 +188,38 @@ export default function CartPage() {
         variant: "destructive" 
       });
     }
+  };
+
+  const handleConfirmOrder = async () => {
+    // Validation des champs requis
+    if (!name || name.trim().length < 2) {
+      toast({ title: "Erreur", description: "Le nom doit contenir au moins 2 caractères", variant: "destructive" });
+      return;
+    }
+    
+    if (!phone || phone.trim().length < 8) {
+      toast({ title: "Erreur", description: "Le téléphone doit contenir au moins 8 caractères", variant: "destructive" });
+      return;
+    }
+    
+    if (!address || address.trim().length < 5) {
+      toast({ title: "Erreur", description: "L'adresse doit contenir au moins 5 caractères", variant: "destructive" });
+      return;
+    }
+    
+    if (restaurants.length === 0) {
+      toast({ title: "Erreur", description: "Le panier est vide", variant: "destructive" });
+      return;
+    }
+    
+    // Vérifier si le client a une commande active
+    if (hasActiveOrder || (activeOrder && orderId)) {
+      setShowActiveOrderDialog(true);
+      return;
+    }
+    
+    // Créer la commande normalement
+    await proceedWithOrderCreation();
   };
 
   if (restaurants.length === 0 && step === "cart") {
@@ -187,6 +240,7 @@ export default function CartPage() {
   }
 
   return (
+    <>
     <div className="max-w-2xl mx-auto px-4 pb-20 md:pb-8">
       {/* Progress Header */}
       <div className="flex items-center justify-between mb-4 md:mb-8 px-2">
