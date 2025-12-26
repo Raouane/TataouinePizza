@@ -115,20 +115,36 @@ export class DatabaseStorage implements IStorage {
       }
       
       const restaurants = rawResult.rows.map((row: any) => {
-        // Garder categories comme chaîne JSON (comme dans la base de données)
-        // Le parsing en tableau sera fait dans les routes si nécessaire
-        const categories = row.categories || null;
-
-        // Parser isOpen de manière plus robuste
-        let isOpen = false;
+        // Parser categories : toujours retourner un tableau ou null
+        let categories: string[] | null = null;
         try {
-          if (row.is_open_text === 'true' || row.is_open_text === 't' || row.is_open_text === true) {
+          if (row.categories) {
+            if (typeof row.categories === 'string') {
+              categories = JSON.parse(row.categories);
+            } else if (Array.isArray(row.categories)) {
+              categories = row.categories;
+            }
+          }
+          // S'assurer que c'est un tableau
+          if (categories && !Array.isArray(categories)) {
+            categories = null;
+          }
+        } catch (e) {
+          console.warn(`[DB] Erreur parsing categories pour ${row.name}:`, e);
+          categories = null;
+        }
+
+        // Parser isOpen : TOUJOURS un boolean
+        let isOpen: boolean = false;
+        try {
+          const isOpenValue = row.is_open_text;
+          if (isOpenValue === 'true' || isOpenValue === 't' || isOpenValue === true || isOpenValue === 1) {
             isOpen = true;
-          } else if (row.is_open_text === 'false' || row.is_open_text === 'f' || row.is_open_text === false) {
+          } else if (isOpenValue === 'false' || isOpenValue === 'f' || isOpenValue === false || isOpenValue === 0) {
             isOpen = false;
           } else {
             // Fallback: si la valeur n'est pas claire, considérer comme ouvert par défaut
-            console.warn(`[DB] Valeur is_open_text inattendue pour ${row.name}: "${row.is_open_text}", défaut à true`);
+            console.warn(`[DB] Valeur is_open_text inattendue pour ${row.name}: "${isOpenValue}", défaut à true`);
             isOpen = true;
           }
         } catch (e) {
@@ -136,19 +152,37 @@ export class DatabaseStorage implements IStorage {
           isOpen = true; // Par défaut, considérer ouvert
         }
 
+        // Parser openingHours : toujours une string propre ou null
+        let openingHours: string | null = null;
+        try {
+          if (row.opening_hours) {
+            if (typeof row.opening_hours === 'string') {
+              openingHours = row.opening_hours.trim();
+            } else {
+              openingHours = String(row.opening_hours).trim();
+            }
+            if (openingHours === '') {
+              openingHours = null;
+            }
+          }
+        } catch (e) {
+          console.warn(`[DB] Erreur parsing opening_hours pour ${row.name}:`, e);
+          openingHours = null;
+        }
+
         const restaurant = {
           id: row.id,
           name: row.name,
           phone: row.phone,
           address: row.address,
-          description: row.description,
-          imageUrl: row.image_url,
-          categories,
-          isOpen,
-          openingHours: row.opening_hours,
-          deliveryTime: row.delivery_time,
-          minOrder: row.min_order,
-          rating: row.rating,
+          description: row.description || null,
+          imageUrl: row.image_url || null,
+          categories: categories || null, // Toujours null ou un tableau
+          isOpen: Boolean(isOpen), // FORCER boolean
+          openingHours: openingHours,
+          deliveryTime: row.delivery_time || 30,
+          minOrder: row.min_order || "0",
+          rating: row.rating || "4.5",
           createdAt: row.created_at,
           updatedAt: row.updated_at,
         } as Restaurant;
