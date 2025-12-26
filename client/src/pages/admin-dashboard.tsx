@@ -913,6 +913,18 @@ export default function AdminDashboard() {
                           )}
                         </div>
 
+                        {/* Bouton Facture */}
+                        <div className="space-y-2">
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => downloadInvoice(order.id)}
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Facture
+                          </Button>
+                        </div>
+
                         {/* Changement de statut */}
                         <div className="space-y-2">
                           <Label className="text-sm font-medium">Modifier le statut</Label>
