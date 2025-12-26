@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { User, Phone, MapPin, History, Globe, ArrowLeft } from "lucide-react";
+import { User, Phone, MapPin, History, Globe, ArrowLeft, ShoppingBag, CreditCard, Home, Gift, HelpCircle, Settings, LogOut, ChevronRight, Download } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { getOnboarding } from "@/pages/onboarding";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 
 export default function Profile() {
   const { t, language, setLanguage } = useLanguage();
@@ -12,161 +12,203 @@ export default function Profile() {
 
   if (!onboardingData) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
+      <div className="min-h-[60vh] flex items-center justify-center px-4">
         <Card className="max-w-md w-full">
-          <CardHeader>
-            <CardTitle>{t('profile.notFound.title')}</CardTitle>
-            <CardDescription>{t('profile.notFound.desc')}</CardDescription>
-          </CardHeader>
-          <CardContent>
+          <div className="p-6 text-center">
+            <h2 className="text-xl font-bold mb-2">{t('profile.notFound.title')}</h2>
+            <p className="text-muted-foreground mb-4">{t('profile.notFound.desc')}</p>
             <Link href="/onboarding">
               <Button className="w-full">{t('profile.notFound.action')}</Button>
             </Link>
-          </CardContent>
+          </div>
         </Card>
       </div>
     );
   }
 
+  // Générer les initiales pour l'avatar
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   return (
-    <div className="min-h-screen pb-20 md:pb-0">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b md:static md:border-0 mb-6">
-        <div className="container max-w-4xl mx-auto px-4 py-4 flex items-center gap-4">
+    <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
+      {/* Header vert */}
+      <div className="bg-primary text-primary-foreground sticky top-0 z-10">
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-4">
           <Link href="/">
-            <Button variant="ghost" size="icon" className="md:hidden">
+            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 md:hidden">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <h1 className="text-2xl md:text-3xl font-bold">{t('profile.title')}</h1>
+          <h1 className="text-xl font-bold flex-1">{t('profile.title')}</h1>
+          <Link href="/cart">
+            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+              <ShoppingBag className="h-5 w-5" />
+            </Button>
+          </Link>
         </div>
       </div>
 
-      <div className="container max-w-4xl mx-auto px-4 space-y-6">
-        {/* Profile Info Card */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-                <User className="h-8 w-8 text-primary" />
-              </div>
-              <div>
-                <CardTitle className="text-2xl">{onboardingData.name}</CardTitle>
-                <CardDescription>{t('profile.subtitle')}</CardDescription>
-              </div>
+      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+        {/* Section Informations utilisateur */}
+        <Card className="p-6">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
+              <span className="text-2xl font-bold text-primary">{getInitials(onboardingData.name)}</span>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Phone */}
-            <div className="flex items-start gap-3">
-              <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-muted-foreground">{t('profile.phone')}</p>
-                <p className="text-base">{onboardingData.phone}</p>
-              </div>
+            <div className="flex-1">
+              <h2 className="text-xl font-bold">{onboardingData.name}</h2>
+              <p className="text-sm text-muted-foreground">{onboardingData.phone}</p>
+              {onboardingData.address && (
+                <p className="text-xs text-muted-foreground mt-1">{onboardingData.address}</p>
+              )}
             </div>
-
-            {/* Address */}
-            {onboardingData.address && (
-              <div className="flex items-start gap-3">
-                <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-muted-foreground">{t('profile.address')}</p>
-                  <p className="text-base">{onboardingData.address}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Coordinates (if available) */}
-            {onboardingData.lat && onboardingData.lng && (
-              <div className="flex items-start gap-3">
-                <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-muted-foreground">{t('profile.location')}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {onboardingData.lat.toFixed(6)}, {onboardingData.lng.toFixed(6)}
-                  </p>
-                </div>
-              </div>
-            )}
-          </CardContent>
+          </div>
+          
+          {/* Badge membre (optionnel - peut être ajouté plus tard) */}
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-primary">★</span>
+            <span className="font-medium">Membre</span>
+          </div>
         </Card>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Order History */}
+        {/* Menu de navigation */}
+        <Card className="p-0 overflow-hidden">
           <Link href="/history">
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                    <History className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg">{t('profile.actions.history')}</h3>
-                    <p className="text-sm text-muted-foreground">{t('profile.actions.history.desc')}</p>
-                  </div>
+            <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors cursor-pointer border-b">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <History className="h-5 w-5 text-primary" />
                 </div>
-              </CardContent>
-            </Card>
+                <div>
+                  <p className="font-semibold">{t('profile.actions.history')}</p>
+                  <p className="text-xs text-muted-foreground">{t('profile.actions.history.desc')}</p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </div>
           </Link>
 
-          {/* Language Settings */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <Globe className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-lg">{t('profile.actions.language')}</h3>
-                  <p className="text-sm text-muted-foreground">{t('profile.actions.language.desc')}</p>
-                </div>
+          <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors cursor-pointer border-b">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                <CreditCard className="h-5 w-5 text-primary" />
               </div>
-              <div className="space-y-2">
-                <Button
-                  variant={language === 'fr' ? 'default' : 'outline'}
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => setLanguage('fr')}
-                >
-                  Français {language === 'fr' && '✓'}
-                </Button>
-                <Button
-                  variant={language === 'en' ? 'default' : 'outline'}
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => setLanguage('en')}
-                >
-                  English {language === 'en' && '✓'}
-                </Button>
-                <Button
-                  variant={language === 'ar' ? 'default' : 'outline'}
-                  size="sm"
-                  className="w-full justify-start font-sans"
-                  onClick={() => setLanguage('ar')}
-                >
-                  العربية {language === 'ar' && '✓'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Edit Profile */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-lg">{t('profile.edit.title')}</h3>
-                <p className="text-sm text-muted-foreground">{t('profile.edit.desc')}</p>
+                <p className="font-semibold">Méthodes de paiement</p>
+                <p className="text-xs text-muted-foreground">Gérer vos moyens de paiement</p>
               </div>
-              <Link href="/onboarding">
-                <Button variant="outline">{t('profile.edit.button')}</Button>
-              </Link>
             </div>
-          </CardContent>
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          </div>
+
+          <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors cursor-pointer border-b">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                <Home className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold">Adresses</p>
+                <p className="text-xs text-muted-foreground">{onboardingData.address || 'Aucune adresse enregistrée'}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">♡</span>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors cursor-pointer border-b">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                <Gift className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold">Cartes cadeaux & crédits</p>
+                <p className="text-xs text-muted-foreground">Gérer vos crédits</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">?</span>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors cursor-pointer">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                <HelpCircle className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold">Centre d'aide</p>
+                <p className="text-xs text-muted-foreground">FAQ et support</p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          </div>
         </Card>
+
+        {/* Bouton Inviter des amis */}
+        <Button className="w-full bg-primary hover:bg-primary/90 text-white h-12 text-base font-semibold">
+          Inviter des amis - Obtenez 10€ de réduction
+        </Button>
+
+        {/* Langue */}
+        <Card className="p-4">
+          <div className="flex items-center gap-3 mb-4">
+            <Globe className="h-5 w-5 text-primary" />
+            <div>
+              <p className="font-semibold">{t('profile.actions.language')}</p>
+              <p className="text-xs text-muted-foreground">{t('profile.actions.language.desc')}</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Button
+              variant={language === 'fr' ? 'default' : 'outline'}
+              size="sm"
+              className="w-full justify-start"
+              onClick={() => setLanguage('fr')}
+            >
+              Français {language === 'fr' && '✓'}
+            </Button>
+            <Button
+              variant={language === 'en' ? 'default' : 'outline'}
+              size="sm"
+              className="w-full justify-start"
+              onClick={() => setLanguage('en')}
+            >
+              English {language === 'en' && '✓'}
+            </Button>
+            <Button
+              variant={language === 'ar' ? 'default' : 'outline'}
+              size="sm"
+              className="w-full justify-start font-sans"
+              onClick={() => setLanguage('ar')}
+            >
+              العربية {language === 'ar' && '✓'}
+            </Button>
+          </div>
+        </Card>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between text-sm text-primary pt-4">
+          <Link href="/onboarding">
+            <Button variant="ghost" className="text-primary hover:bg-primary/10">
+              <Settings className="h-4 w-4 mr-2" />
+              Paramètres
+            </Button>
+          </Link>
+          <Button variant="ghost" className="text-primary hover:bg-primary/10">
+            <LogOut className="h-4 w-4 mr-2" />
+            Déconnexion
+          </Button>
+        </div>
       </div>
     </div>
   );

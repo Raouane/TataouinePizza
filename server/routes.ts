@@ -385,6 +385,252 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to create order" });
     }
   });
+
+  // Endpoint pour générer une facture HTML (doit être AVANT /api/orders/:id pour éviter les conflits)
+  app.get("/api/orders/:id/invoice", async (req, res) => {
+    try {
+      const order = await storage.getOrderById(req.params.id);
+      if (!order) return res.status(404).json({ error: "Order not found" });
+      
+      const items = await storage.getOrderItems(order.id);
+      const itemsWithDetails = await Promise.all(
+        items.map(async (item) => {
+          const pizza = await storage.getPizzaById(item.pizzaId);
+          return { ...item, pizza };
+        })
+      );
+      
+      // Enrichir avec les informations du restaurant
+      let restaurantName = "Restaurant";
+      let restaurantAddress = "";
+      if (order.restaurantId) {
+        const restaurant = await storage.getRestaurantById(order.restaurantId);
+        if (restaurant) {
+          restaurantName = restaurant.name;
+          restaurantAddress = restaurant.address || "";
+        }
+      }
+
+      // Générer le HTML de la facture
+      const invoiceHTML = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Facture ${order.id.slice(0, 8)}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 40px 20px;
+      background: #f5f5f5;
+      color: #333;
+    }
+    .invoice {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 40px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .header {
+      border-bottom: 3px solid #f97316;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      color: #f97316;
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+    .header p {
+      color: #666;
+      font-size: 14px;
+    }
+    .info-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
+      margin-bottom: 30px;
+    }
+    .info-box h3 {
+      color: #f97316;
+      font-size: 14px;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+    }
+    .info-box p {
+      color: #333;
+      margin: 5px 0;
+      font-size: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 30px;
+    }
+    thead {
+      background: #f97316;
+      color: white;
+    }
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+    th {
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+    td {
+      font-size: 14px;
+    }
+    .total-row {
+      background: #f9f9f9;
+      font-weight: bold;
+    }
+    .total-row td {
+      padding: 15px 12px;
+      font-size: 18px;
+      color: #f97316;
+    }
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 2px solid #eee;
+      text-align: center;
+      color: #666;
+      font-size: 12px;
+    }
+    .download-btn {
+      margin-top: 30px;
+      text-align: center;
+    }
+    .download-btn button {
+      background: #f97316;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .download-btn button:hover {
+      background: #ea580c;
+    }
+    .download-btn button:active {
+      transform: scale(0.98);
+    }
+    @media print {
+      body { background: white; padding: 0; }
+      .invoice { box-shadow: none; }
+      .download-btn { display: none; }
+    }
+  </style>
+  <script>
+    function downloadInvoice() {
+      const htmlContent = document.documentElement.outerHTML;
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'facture-${order.id.slice(0, 8).toUpperCase()}.html';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }
+  </script>
+</head>
+<body>
+  <div class="invoice">
+    <div class="header">
+      <h1>FACTURE</h1>
+      <p>Commande #${order.id.slice(0, 8).toUpperCase()}</p>
+      <p>Date: ${order.createdAt ? new Date(order.createdAt).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}</p>
+    </div>
+    
+    <div class="info-section">
+      <div class="info-box">
+        <h3>Restaurant</h3>
+        <p><strong>${restaurantName}</strong></p>
+        ${restaurantAddress ? `<p>${restaurantAddress}</p>` : ''}
+      </div>
+      <div class="info-box">
+        <h3>Client</h3>
+        <p><strong>${order.customerName}</strong></p>
+        <p>${order.phone}</p>
+        <p>${order.address}</p>
+        ${order.addressDetails ? `<p>${order.addressDetails}</p>` : ''}
+      </div>
+    </div>
+    
+    <table>
+      <thead>
+        <tr>
+          <th>Article</th>
+          <th>Taille</th>
+          <th>Quantité</th>
+          <th>Prix unitaire</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsWithDetails.map(item => `
+          <tr>
+            <td>${item.pizza?.name || `Pizza ${item.pizzaId}`}</td>
+            <td>${item.size === 'small' ? 'Petite' : item.size === 'medium' ? 'Moyenne' : 'Grande'}</td>
+            <td>${item.quantity}</td>
+            <td>${Number(item.pricePerUnit).toFixed(2)} TND</td>
+            <td>${(Number(item.pricePerUnit) * item.quantity).toFixed(2)} TND</td>
+          </tr>
+        `).join('')}
+        <tr class="total-row">
+          <td colspan="4" style="text-align: right;">TOTAL</td>
+          <td>${Number(order.totalPrice).toFixed(2)} TND</td>
+        </tr>
+      </tbody>
+    </table>
+    
+    <div class="footer">
+      <p>Merci pour votre commande !</p>
+      <p>Tataouine Pizza - L'authentique goût du désert</p>
+    </div>
+    
+    <div class="download-btn">
+      <button onclick="downloadInvoice()">
+        📥 Télécharger la facture
+      </button>
+    </div>
+  </div>
+</body>
+</html>
+      `;
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      // Utiliser "attachment" pour forcer le téléchargement, ou "inline" pour l'affichage
+      // Si le paramètre "download" est présent dans la query string, on force le téléchargement
+      const forceDownload = req.query.download === 'true';
+      res.setHeader('Content-Disposition', `${forceDownload ? 'attachment' : 'inline'}; filename="facture-${order.id.slice(0, 8)}.html"`);
+      res.send(invoiceHTML);
+    } catch (error) {
+      console.error("[INVOICE] Error:", error);
+      res.status(500).json({ error: "Failed to generate invoice" });
+    }
+  });
+
+  app.get("/api/orders/customer/:phone", async (req, res) => {
+    try {
+      const orders = await storage.getOrdersByPhone(req.params.phone);
+      res.json(orders);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch orders" });
+    }
+  });
   
   app.get("/api/orders/:id", async (req, res) => {
     try {
@@ -399,7 +645,7 @@ export async function registerRoutes(
         })
       );
       
-      // Enrichir avec les informations du restaurant pour le livreur
+      // Enrichir avec les informations du restaurant
       let enrichedOrder: any = { ...order, items: itemsWithDetails };
       if (order.restaurantId) {
         const restaurant = await storage.getRestaurantById(order.restaurantId);
@@ -412,18 +658,21 @@ export async function registerRoutes(
         }
       }
       
+      // Enrichir avec les informations du livreur si assigné
+      if (order.driverId) {
+        const driver = await storage.getDriverById(order.driverId);
+        if (driver) {
+          enrichedOrder = {
+            ...enrichedOrder,
+            driverName: driver.name,
+            driverPhone: driver.phone,
+          };
+        }
+      }
+      
       res.json(enrichedOrder);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch order" });
-    }
-  });
-  
-  app.get("/api/orders/customer/:phone", async (req, res) => {
-    try {
-      const orders = await storage.getOrdersByPhone(req.params.phone);
-      res.json(orders);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch orders" });
     }
   });
   

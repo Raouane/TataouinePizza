@@ -9,6 +9,8 @@ import { GlobalTrackerWidget } from "@/components/global-tracker";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  // Ne pas afficher le tracker global sur la page de succès (elle a son propre suivi)
+  const showGlobalTracker = !location.startsWith('/success');
   const { count } = useCart();
   const { t, language, setLanguage, dir } = useLanguage();
 
@@ -84,8 +86,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      {/* Global Order Tracker Widget */}
-      <GlobalTrackerWidget />
+      {/* Global Order Tracker Widget - Masqué sur la page de succès */}
+      {showGlobalTracker && <GlobalTrackerWidget />}
 
       {/* Mobile Bottom Nav */}
       <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur px-3 py-2 md:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">

@@ -148,7 +148,15 @@ export default function CartPage() {
       console.log(`[Cart] ${results.length} commande(s) créée(s) avec succès:`, results);
       
       clearCart();
-      startOrder();
+      // Réinitialiser les flags pour la nouvelle commande
+      sessionStorage.removeItem('orderSearchShown');
+      sessionStorage.removeItem('orderConfettiShown');
+      // Stocker l'ID de la première commande créée pour le suivi
+      if (results.length > 0 && results[0].orderId) {
+        startOrder(results[0].orderId);
+      } else {
+        startOrder();
+      }
       console.log("[Cart] Navigation vers /success");
       setLocation("/success");
     } catch (error: any) {

@@ -6,7 +6,7 @@ import { useLanguage } from "@/lib/i18n";
 import { getOrdersByPhone } from "@/lib/api";
 import { getOnboarding } from "@/pages/onboarding";
 import type { Order } from "@/lib/api";
-import { Clock, MapPin, Phone, RefreshCw, ArrowLeft } from "lucide-react";
+import { Clock, MapPin, Phone, RefreshCw, ArrowLeft, Download } from "lucide-react";
 import { getStatusColor, getStatusLabel } from "@/lib/order-status-helpers";
 
 export default function OrderHistory() {
@@ -64,6 +64,12 @@ export default function OrderHistory() {
   // Utiliser les helpers centralisés avec support i18n
   const getStatusLabelWithI18n = (status: string) => {
     return getStatusLabel(status, t);
+  };
+
+  // Afficher la facture dans un nouvel onglet
+  const downloadInvoice = (orderId: string) => {
+    const invoiceUrl = `/api/orders/${orderId}/invoice`;
+    window.open(invoiceUrl, '_blank');
   };
 
   // Si pas de données d'onboarding, afficher un message
@@ -189,15 +195,26 @@ export default function OrderHistory() {
                 </div>
               )}
 
-              <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
-                <Clock className="w-3 h-3" />
-                {order.createdAt ? new Date(order.createdAt).toLocaleDateString("fr-FR", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }) : "Date indisponible"}
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Clock className="w-3 h-3" />
+                  {order.createdAt ? new Date(order.createdAt).toLocaleDateString("fr-FR", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }) : "Date indisponible"}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadInvoice(order.id)}
+                  className="h-8 text-xs"
+                >
+                  <Download className="h-3 w-3 mr-1" />
+                  Facture
+                </Button>
               </div>
             </Card>
           ))}

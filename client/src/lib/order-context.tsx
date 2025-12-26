@@ -5,11 +5,14 @@ type OrderStatus = 'received' | 'accepted' | 'ready' | 'delivery' | 'delivered';
 
 type OrderContextType = {
   activeOrder: boolean;
+  orderId: string | null;
+  orderData: any | null;
   status: OrderStatus;
   eta: number;
-  startOrder: () => void;
+  startOrder: (orderId?: string) => void;
   cancelOrder: () => void;
   stepIndex: number;
+  refreshOrderData: () => Promise<void>;
 };
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
@@ -19,20 +22,74 @@ const steps: OrderStatus[] = ['received', 'accepted', 'ready', 'delivery', 'deli
 
 export function OrderProvider({ children }: { children: React.ReactNode }) {
   const [activeOrder, setActiveOrder] = useState(false);
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const [orderData, setOrderData] = useState<any | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [eta, setEta] = useState(0);
 
-  const startOrder = () => {
+  const refreshOrderData = async () => {
+    if (!orderId) return;
+    try {
+      const response = await fetch(`/api/orders/${orderId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setOrderData(data);
+        // Mettre à jour le statut selon les données réelles
+        const realStatus = data.status;
+        const statusMap: Record<string, number> = {
+          'pending': 0,
+          'accepted': 1,
+          'ready': 2,
+          'delivery': 3,
+          'delivered': 4,
+        };
+        const newStepIndex = statusMap[realStatus] ?? 0;
+        setStepIndex(newStepIndex);
+      }
+    } catch (error) {
+      console.error('[OrderContext] Erreur lors de la récupération des données:', error);
+    }
+  };
+
+  const startOrder = (newOrderId?: string) => {
     setActiveOrder(true);
     setStepIndex(0);
     setEta(30); // ETA initial de 30 minutes (MVP simplifié)
+    if (newOrderId) {
+      setOrderId(newOrderId);
+      sessionStorage.setItem('currentOrderId', newOrderId);
+    }
   };
 
   const cancelOrder = () => {
     setActiveOrder(false);
+    setOrderId(null);
+    setOrderData(null);
     setStepIndex(0);
     setEta(0);
+    sessionStorage.removeItem('currentOrderId');
   };
+
+  // Récupérer l'ID de commande depuis sessionStorage au chargement
+  useEffect(() => {
+    const savedOrderId = sessionStorage.getItem('currentOrderId');
+    if (savedOrderId) {
+      setOrderId(savedOrderId);
+      setActiveOrder(true);
+    }
+  }, []);
+
+  // Rafraîchir les données si orderId est défini
+  useEffect(() => {
+    if (orderId) {
+      refreshOrderData();
+      // Rafraîchir les données toutes les 5 secondes
+      const interval = setInterval(() => {
+        refreshOrderData();
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [orderId]);
 
   useEffect(() => {
     if (!activeOrder) return;
@@ -78,7 +135,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
   const status = steps[stepIndex];
 
   return (
-    <OrderContext.Provider value={{ activeOrder, status, eta, startOrder, cancelOrder, stepIndex }}>
+    <OrderContext.Provider value={{ activeOrder, orderId, orderData, status, eta, startOrder, cancelOrder, stepIndex, refreshOrderData }}>
       {children}
     </OrderContext.Provider>
   );
