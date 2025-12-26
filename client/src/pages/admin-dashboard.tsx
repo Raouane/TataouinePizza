@@ -622,6 +622,12 @@ export default function AdminDashboard() {
     setLocation("/admin/login");
   };
 
+  // Afficher la facture dans un nouvel onglet
+  const downloadInvoice = (orderId: string) => {
+    const invoiceUrl = `/api/orders/${orderId}/invoice`;
+    window.open(invoiceUrl, '_blank');
+  };
+
   // MVP: Statuts simplifiés (preparing et baking supprimés)
   const statuses = ["pending", "accepted", "ready", "delivery", "delivered", "rejected"] as const;
 
