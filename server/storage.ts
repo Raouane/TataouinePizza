@@ -116,13 +116,20 @@ export class DatabaseStorage implements IStorage {
       
       const restaurants = rawResult.rows.map((row: any) => {
         // Parser categories : toujours retourner un tableau ou null
+        // Supporte JSONB (objet PostgreSQL) et TEXT (string JSON)
         let categories: string[] | null = null;
         try {
           if (row.categories) {
-            if (typeof row.categories === 'string') {
-              categories = JSON.parse(row.categories);
-            } else if (Array.isArray(row.categories)) {
+            if (Array.isArray(row.categories)) {
+              // Déjà un tableau (JSONB PostgreSQL)
               categories = row.categories;
+            } else if (typeof row.categories === 'string') {
+              // String JSON à parser
+              const parsed = JSON.parse(row.categories);
+              categories = Array.isArray(parsed) ? parsed : null;
+            } else if (typeof row.categories === 'object') {
+              // Objet JSONB PostgreSQL, convertir en tableau si possible
+              categories = Array.isArray(row.categories) ? row.categories : null;
             }
           }
           // S'assurer que c'est un tableau
