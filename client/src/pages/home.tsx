@@ -200,20 +200,13 @@ export default function Home() {
                 alt="Tataouine Pizza" 
                 className="w-10 h-10 rounded-full object-cover"
                 onError={(e) => {
-                  console.error('[Home] Erreur chargement logo.jpeg:', e);
+                  console.error('[Home] Erreur chargement logo.jpeg, utilisation fallback');
                   // Fallback vers une icône si le logo ne charge pas
                   const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  const parent = target.parentElement;
-                  if (parent && !parent.querySelector('.logo-fallback')) {
-                    const fallback = document.createElement('div');
-                    fallback.className = 'logo-fallback w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold text-lg';
-                    fallback.textContent = 'T';
-                    parent.appendChild(fallback);
-                  }
+                  target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNGOTczMTYiLz4KPHRleHQgeD0iMjAiIHk9IjI4IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+VDwvdGV4dD4KPC9zdmc+';
                 }}
                 onLoad={() => {
-                  console.log('[Home] Logo.jpeg chargé avec succès');
+                  console.log('[Home] ✅ Logo.jpeg chargé avec succès');
                 }}
               />
             </Link>
