@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { getAdminOrders, updateOrderStatus, getAdminDrivers, assignOrderToDriver, getAdminRestaurants, createRestaurant, updateRestaurant, deleteRestaurant, createDriver, updateDriver, deleteDriver, getAdminPizzas, createPizza, updatePizza, deletePizza } from "@/lib/api";
 import type { Order, Driver, Restaurant, Pizza } from "@/lib/api";
-import { LogOut, RefreshCw, AlertCircle, Plus, Store, Bike, Pizza as PizzaIcon, ShoppingCart, Edit, Trash2, MapPin, Phone, User, Calendar, Package, Menu, BarChart3, Settings, Eye, EyeOff } from "lucide-react";
+import { LogOut, RefreshCw, AlertCircle, Plus, Store, Bike, Pizza as PizzaIcon, ShoppingCart, Edit, Trash2, MapPin, Phone, User, Calendar, Package, Menu, BarChart3, Settings, Eye, EyeOff, Download } from "lucide-react";
 import { toast } from "sonner";
 import { getStatusColor, getCardHeaderColor, getStatusLabel } from "@/lib/order-status-helpers";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
