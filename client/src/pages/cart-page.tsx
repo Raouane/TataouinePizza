@@ -677,6 +677,48 @@ export default function CartPage() {
             </div>
         </div>
       </div>
+
+      {/* Dialog de confirmation pour commande active */}
+      <AlertDialog open={showActiveOrderDialog} onOpenChange={setShowActiveOrderDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-orange-500" />
+              {t('cart.activeOrder.title')}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('cart.activeOrder.description')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3 py-4">
+            <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+              <p className="text-sm font-semibold text-orange-900 mb-2">
+                {t('cart.activeOrder.warning')}
+              </p>
+              <ul className="text-xs text-orange-800 space-y-1 list-disc list-inside">
+                <li>{t('cart.activeOrder.consequence1')}</li>
+                <li>{t('cart.activeOrder.consequence2')}</li>
+                <li>{t('cart.activeOrder.consequence3')}</li>
+              </ul>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {t('cart.activeOrder.question')}
+            </p>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {t('common.cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={proceedWithOrderCreation} 
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              {t('cart.activeOrder.confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+    </>
   );
 }
