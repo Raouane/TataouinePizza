@@ -51,23 +51,33 @@ export function serveStatic(app: Express) {
       
       // Sinon, vérifier dans le fallback
       const fallbackPath = path.join(sourcePublicPath, req.path);
-      if (fs.existsSync(fallbackPath) && fs.statSync(fallbackPath).isFile()) {
-        console.log(`[STATIC] 📦 Fichier servi depuis fallback: ${req.path}`);
-        // Définir le bon Content-Type pour les images
-        const ext = path.extname(fallbackPath).toLowerCase();
-        const contentTypeMap: Record<string, string> = {
-          '.jpeg': 'image/jpeg',
-          '.jpg': 'image/jpeg',
-          '.png': 'image/png',
-          '.gif': 'image/gif',
-          '.svg': 'image/svg+xml',
-          '.webp': 'image/webp',
-          '.ico': 'image/x-icon',
-        };
-        if (contentTypeMap[ext]) {
-          res.setHeader('Content-Type', contentTypeMap[ext]);
+      console.log(`[STATIC] 🔍 Vérification fallback pour: ${req.path}`);
+      console.log(`[STATIC]   Chemin fallback: ${fallbackPath}`);
+      console.log(`[STATIC]   Existe: ${fs.existsSync(fallbackPath)}`);
+      if (fs.existsSync(fallbackPath)) {
+        const stats = fs.statSync(fallbackPath);
+        console.log(`[STATIC]   Est fichier: ${stats.isFile()}`);
+        if (stats.isFile()) {
+          console.log(`[STATIC] 📦 Fichier servi depuis fallback: ${req.path}`);
+          // Définir le bon Content-Type pour les images
+          const ext = path.extname(fallbackPath).toLowerCase();
+          const contentTypeMap: Record<string, string> = {
+            '.jpeg': 'image/jpeg',
+            '.jpg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.svg': 'image/svg+xml',
+            '.webp': 'image/webp',
+            '.ico': 'image/x-icon',
+          };
+          if (contentTypeMap[ext]) {
+            res.setHeader('Content-Type', contentTypeMap[ext]);
+            console.log(`[STATIC]   Content-Type défini: ${contentTypeMap[ext]}`);
+          }
+          return res.sendFile(fallbackPath);
         }
-        return res.sendFile(fallbackPath);
+      } else {
+        console.log(`[STATIC] ⚠️ Fichier non trouvé dans fallback: ${req.path}`);
       }
       
       // Le fichier n'existe nulle part, passer au middleware suivant
