@@ -1247,15 +1247,32 @@ export default function AdminDashboard() {
                   </div>
                   <p className="text-sm text-muted-foreground">{restaurant.phone}</p>
                   <p className="text-sm mt-2">{restaurant.address}</p>
-                  {restaurant.categories && restaurant.categories.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {restaurant.categories.map((cat) => (
-                        <span key={cat} className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 capitalize">
-                          {cat === "drink" ? "Boisson" : cat === "dessert" ? "Dessert" : cat}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  {(() => {
+                    // Parser categories si c'est une chaîne JSON
+                    let categoriesArray: string[] = [];
+                    if (restaurant.categories) {
+                      if (typeof restaurant.categories === 'string') {
+                        try {
+                          categoriesArray = JSON.parse(restaurant.categories);
+                        } catch (e) {
+                          // Si le parsing échoue, traiter comme un tableau d'un seul élément
+                          categoriesArray = [restaurant.categories];
+                        }
+                      } else if (Array.isArray(restaurant.categories)) {
+                        categoriesArray = restaurant.categories;
+                      }
+                    }
+                    
+                    return categoriesArray.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {categoriesArray.map((cat) => (
+                          <span key={cat} className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 capitalize">
+                            {cat === "drink" ? "Boisson" : cat === "dessert" ? "Dessert" : cat}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null;
+                  })()}
                   <div className="mt-2 flex gap-2 flex-wrap">
                     <span className={`text-xs px-2 py-1 rounded ${restaurant.isOpen ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                       Toggle: {restaurant.isOpen ? 'Activé' : 'Désactivé'}
