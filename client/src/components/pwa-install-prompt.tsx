@@ -68,15 +68,18 @@ export function PWAInstallPrompt() {
 
     window.addEventListener("appinstalled", handleAppInstalled);
 
-    // Pour iOS et autres navigateurs qui ne supportent pas beforeinstallprompt
-    // Afficher le prompt après un délai si l'app n'est pas installée
-    if (!installed && !dismissed) {
+    // Pour iOS uniquement : afficher le prompt après un délai avec instructions manuelles
+    // Pour les autres navigateurs, on attend que beforeinstallprompt soit déclenché
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+    
+    if ((isIOS || isSafari) && !installed && !dismissed) {
       const timer = setTimeout(() => {
         // Vérifier à nouveau si installé (au cas où l'utilisateur l'a installé entre-temps)
         if (!checkIfInstalled() && !localStorage.getItem("pwaInstallDismissed")) {
           setShowPrompt(true);
         }
-      }, 3000); // Afficher après 3 secondes
+      }, 3000); // Afficher après 3 secondes pour iOS/Safari uniquement
 
       return () => {
         clearTimeout(timer);
@@ -92,43 +95,50 @@ export function PWAInstallPrompt() {
   }, []);
 
   const handleInstall = async () => {
-    if (!deferredPrompt) {
-      // Fallback pour iOS (instructions manuelles)
-      if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-        alert(
-          "Pour installer l'application sur iOS:\n\n" +
-          "1. Appuyez sur le bouton Partager (📤)\n" +
-          "2. Sélectionnez 'Sur l'écran d'accueil'\n" +
-          "3. Confirmez l'ajout"
-        );
-        setShowPrompt(false);
-        setIsDismissed(true);
-        localStorage.setItem("pwaInstallDismissed", new Date().toISOString());
-        return;
+    // Si deferredPrompt est disponible, l'utiliser pour installer directement
+    if (deferredPrompt) {
+      try {
+        await deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        
+        if (outcome === "accepted") {
+          console.log("[PWA] ✅ Installation acceptée");
+          setShowPrompt(false);
+          setIsInstalled(true);
+          localStorage.removeItem("pwaInstallDismissed");
+        } else {
+          console.log("[PWA] ❌ Installation refusée");
+          setShowPrompt(false);
+          setIsDismissed(true);
+          localStorage.setItem("pwaInstallDismissed", new Date().toISOString());
+        }
+        
+        setDeferredPrompt(null);
+      } catch (error) {
+        console.error("[PWA] Erreur lors de l'installation:", error);
+        // En cas d'erreur, essayer de déclencher le prompt natif du navigateur
+        alert("Erreur lors de l'installation. Veuillez utiliser le menu du navigateur pour installer l'application.");
       }
       return;
     }
 
-    try {
-      await deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      
-      if (outcome === "accepted") {
-        console.log("[PWA] ✅ Installation acceptée");
-        setShowPrompt(false);
-        setIsInstalled(true);
-        localStorage.removeItem("pwaInstallDismissed");
-      } else {
-        console.log("[PWA] ❌ Installation refusée");
-        setShowPrompt(false);
-        setIsDismissed(true);
-        localStorage.setItem("pwaInstallDismissed", new Date().toISOString());
-      }
-      
-      setDeferredPrompt(null);
-    } catch (error) {
-      console.error("[PWA] Erreur lors de l'installation:", error);
+    // Fallback pour iOS/Safari (instructions manuelles)
+    if (isIOS || isSafari) {
+      alert(
+        "Pour installer l'application:\n\n" +
+        "1. Appuyez sur le bouton Partager (📤) dans la barre d'adresse\n" +
+        "2. Sélectionnez 'Sur l'écran d'accueil' ou 'Ajouter à l'écran d'accueil'\n" +
+        "3. Confirmez l'ajout"
+      );
+      setShowPrompt(false);
+      setIsDismissed(true);
+      localStorage.setItem("pwaInstallDismissed", new Date().toISOString());
+      return;
     }
+
+    // Si on arrive ici, c'est qu'il n'y a pas de deferredPrompt et ce n'est pas iOS
+    // Ne devrait pas arriver car on ne devrait pas afficher le prompt dans ce cas
+    console.warn("[PWA] deferredPrompt non disponible et ce n'est pas iOS");
   };
 
   const handleDismiss = () => {
@@ -142,9 +152,16 @@ export function PWAInstallPrompt() {
     return null;
   }
 
-  // Pour iOS et navigateurs sans beforeinstallprompt, on peut quand même afficher le prompt
-  // avec des instructions manuelles
-  const canShowManualInstructions = !deferredPrompt && (/iPhone|iPad|iPod/.test(navigator.userAgent) || /Safari/.test(navigator.userAgent));
+  // Ne pas afficher le prompt si deferredPrompt n'est pas disponible (sauf pour iOS)
+  // Sur Chrome/Edge, on attend que beforeinstallprompt soit déclenché
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+  
+  // Pour iOS/Safari uniquement, on peut afficher des instructions manuelles
+  // Pour les autres navigateurs, on attend que deferredPrompt soit disponible
+  if (!deferredPrompt && !isIOS && !isSafari) {
+    return null; // Attendre que beforeinstallprompt soit déclenché
+  }
 
   // Message spécial pour les livreurs
   const title = isDriver 
@@ -190,7 +207,7 @@ export function PWAInstallPrompt() {
             size="sm"
           >
             <Download className="w-4 h-4 mr-2" />
-            {canShowManualInstructions ? "Voir instructions" : "Installer maintenant"}
+            {deferredPrompt ? "Installer maintenant" : (isIOS || isSafari ? "Voir instructions" : "Installer maintenant")}
           </Button>
           <Button
             onClick={handleDismiss}
