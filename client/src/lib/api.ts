@@ -58,7 +58,22 @@ export async function fetchPizzaById(id: string): Promise<Pizza> {
   return res.json();
 }
 
-// ============ OTP ============
+// ============ CUSTOMER AUTHENTICATION (Simple - MVP) ============
+
+export async function customerLogin(firstName: string, phone: string): Promise<{ token: string; customer: { id: string; firstName: string; phone: string } }> {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ firstName, phone }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to login");
+  }
+  return res.json();
+}
+
+// ============ OTP (Conditional - only if ENABLE_SMS_OTP=true) ============
 
 export async function sendOtp(phone: string): Promise<{ code?: string }> {
   const res = await fetch(`${API_BASE}/otp/send`, {
@@ -66,7 +81,10 @@ export async function sendOtp(phone: string): Promise<{ code?: string }> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone }),
   });
-  if (!res.ok) throw new Error("Failed to send OTP");
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || error.message || "Failed to send OTP");
+  }
   return res.json();
 }
 
@@ -76,7 +94,10 @@ export async function verifyOtp(phone: string, code: string): Promise<{ verified
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone, code }),
   });
-  if (!res.ok) throw new Error("Failed to verify OTP");
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || error.message || "Failed to verify OTP");
+  }
   return res.json();
 }
 

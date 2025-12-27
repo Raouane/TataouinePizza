@@ -35,7 +35,29 @@ declare module "http" {
 }
 
 // Sécurité : Helmet pour les headers HTTP sécurisés
-app.use(helmet());
+// Configuration CSP pour autoriser les images externes (nécessaire pour les images de restaurants)
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"], // Tailwind nécessite unsafe-inline
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Vite nécessite unsafe-eval en dev
+        imgSrc: [
+          "'self'",
+          "data:",
+          "https:", // Autoriser toutes les images HTTPS (pour les images externes)
+          "http:", // Autoriser HTTP en dev (peut être retiré en production)
+        ],
+        connectSrc: ["'self'", "https:", "http:"], // Pour les API externes
+        fontSrc: ["'self'", "data:"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'none'"],
+      },
+    },
+  })
+);
 
 // CORS : Permet les requêtes cross-origin (peut être restreint plus tard)
 app.use(cors());

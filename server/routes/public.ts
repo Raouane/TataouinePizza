@@ -521,10 +521,21 @@ export function registerPublicRoutes(app: Express): void {
 
   app.get("/api/orders/customer/:phone", async (req, res) => {
     try {
-      const orders = await storage.getOrdersByPhone(req.params.phone);
+      const phone = req.params.phone;
+      
+      // Validation basique du numéro de téléphone
+      if (!phone || phone.length < 8) {
+        return res.status(400).json({ 
+          error: "Invalid phone number",
+          details: "Phone number must be at least 8 characters"
+        });
+      }
+      
+      const orders = await storage.getOrdersByPhone(phone);
       res.json(orders);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch orders" });
+    } catch (error: any) {
+      console.error("[ORDERS] Error fetching orders by phone:", error);
+      errorHandler.sendError(res, error);
     }
   });
   

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useCart } from "@/lib/cart";
 import { useOrder } from "@/lib/order-context";
-import { createOrder, sendOtp, verifyOtp, getOrdersByPhone } from "@/lib/api";
+import { createOrder, sendOtp, verifyOtp, getOrdersByPhone, customerLogin } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -142,17 +142,44 @@ export default function CartPage() {
         toast({ title: t('cart.error.phone'), variant: "destructive" });
         return;
       }
+      
+      // Authentification simple (MVP) - OTP désactivé par défaut
+      // ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG
       try {
-        await sendOtp(phone);
-        setStep("verify");
-      } catch (error) {
-        toast({ 
-          title: t('cart.error.order'), 
-          description: t('cart.error.sendOtp') || "Impossible d'envoyer le code", 
-          variant: "destructive" 
-        });
+        // Essayer d'abord l'authentification simple
+        const authResult = await customerLogin(name.trim(), phone);
+        
+        // Sauvegarder le token si nécessaire
+        if (authResult.token) {
+          localStorage.setItem('customerToken', authResult.token);
+        }
+        
+        // Passer directement à l'adresse (pas d'étape verify)
+        setStep("address");
+      } catch (error: any) {
+        // Si l'erreur indique que l'OTP est activé, essayer le flow OTP
+        if (error.message?.includes('OTP authentication is enabled') || error.message?.includes('OTP désactivé')) {
+          // Fallback vers OTP si activé
+          try {
+            await sendOtp(phone);
+            setStep("verify");
+          } catch (otpError) {
+            toast({ 
+              title: t('cart.error.order'), 
+              description: t('cart.error.sendOtp') || "Impossible d'envoyer le code", 
+              variant: "destructive" 
+            });
+          }
+        } else {
+          toast({ 
+            title: t('cart.error.order'), 
+            description: error.message || "Erreur lors de l'authentification", 
+            variant: "destructive" 
+          });
+        }
       }
     } else if (step === "verify") {
+      // Étape verify uniquement si OTP est activé
       try {
         await verifyOtp(phone, code);
         setStep("address");
