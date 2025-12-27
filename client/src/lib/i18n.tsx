@@ -376,10 +376,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const t = (key: string, params?: { [key: string]: string | number }) => {
     // Gérer le pluriel pour certaines clés
     let finalKey = key;
-    if (params?.count !== undefined && params.count > 1) {
-      const pluralKey = `${key}.plural`;
-      if (translations[pluralKey]) {
-        finalKey = pluralKey;
+    if (params?.count !== undefined) {
+      const count = typeof params.count === 'number' ? params.count : Number(params.count);
+      if (count > 1) {
+        const pluralKey = `${key}.plural`;
+        if (translations[pluralKey]) {
+          finalKey = pluralKey;
+        }
       }
     }
     

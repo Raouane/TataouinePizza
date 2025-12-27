@@ -24,7 +24,7 @@ export function useDrivers(token: string | null) {
     }
   }, [token]);
 
-  const create = useCallback(async (data: Partial<Driver>) => {
+  const create = useCallback(async (data: { name: string; phone: string; password: string }) => {
     if (!token) throw new Error("Non authentifié");
     
     try {

@@ -58,6 +58,7 @@ export default function CartPage() {
   const [newAddressLabel, setNewAddressLabel] = useState("");
   const [newAddressStreet, setNewAddressStreet] = useState("");
   const [newAddressDetails, setNewAddressDetails] = useState("");
+  const [addressDetails, setAddressDetails] = useState(onboarding?.addressDetails || "");
 
   // Charger les adresses sauvegardées au montage
   useEffect(() => {
@@ -73,6 +74,7 @@ export default function CartPage() {
         if (defaultAddress) {
           setSelectedAddressId(defaultAddress.id);
           setAddress(defaultAddress.street);
+          setAddressDetails(defaultAddress.details || "");
         }
       } catch (e) {
         console.error("Erreur chargement adresses:", e);
@@ -144,7 +146,11 @@ export default function CartPage() {
         await sendOtp(phone);
         setStep("verify");
       } catch (error) {
-        toast({ title: "Erreur", description: "Impossible d'envoyer le code", variant: "destructive" });
+        toast({ 
+          title: t('cart.error.order'), 
+          description: t('cart.error.sendOtp') || "Impossible d'envoyer le code", 
+          variant: "destructive" 
+        });
       }
     } else if (step === "verify") {
       try {
@@ -170,18 +176,27 @@ export default function CartPage() {
       if (step === "summary") setStep("address");
   };
 
+  // Fonction pour générer un ID unique
+  const generateAddressId = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    // Fallback pour les navigateurs plus anciens
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  };
+
   const proceedWithOrderCreation = async () => {
     // Récupérer les détails de l'adresse sélectionnée si elle existe
     const selectedAddress = savedAddresses.find(addr => addr.id === selectedAddressId);
-    const finalAddressDetails = selectedAddress?.details || onboarding?.addressDetails || "";
+    const finalAddressDetails = selectedAddress?.details || addressDetails.trim() || onboarding?.addressDetails || "";
     
     // Sauvegarder l'adresse actuelle si elle n'est pas dans les adresses sauvegardées
     if (address.trim() && !selectedAddress && address.trim().length >= 5) {
       const newAddress: SavedAddress = {
-        id: Date.now().toString(),
+        id: generateAddressId(),
         label: language === 'ar' ? "آخر" : language === 'en' ? "Other" : "Autre",
         street: address.trim(),
-        details: finalAddressDetails,
+        details: finalAddressDetails || undefined,
         isDefault: savedAddresses.length === 0,
       };
       const updated = [...savedAddresses, newAddress];
@@ -251,7 +266,7 @@ export default function CartPage() {
     }
 
     const newAddress: SavedAddress = {
-      id: Date.now().toString(),
+      id: generateAddressId(),
       label: newAddressLabel.trim() || (language === 'ar' ? "آخر" : language === 'en' ? "Other" : "Autre"),
       street: newAddressStreet.trim(),
       details: newAddressDetails.trim() || undefined,
@@ -282,6 +297,7 @@ export default function CartPage() {
   const handleSelectAddress = (addr: SavedAddress) => {
     setSelectedAddressId(addr.id);
     setAddress(addr.street);
+    setAddressDetails(addr.details || "");
   };
 
   // Fonction pour définir une adresse par défaut
@@ -325,22 +341,38 @@ export default function CartPage() {
   const handleConfirmOrder = async () => {
     // Validation des champs requis
     if (!name || name.trim().length < 2) {
-      toast({ title: "Erreur", description: "Le nom doit contenir au moins 2 caractères", variant: "destructive" });
+      toast({ 
+        title: t('cart.error.name'), 
+        description: t('cart.error.nameMin') || "Le nom doit contenir au moins 2 caractères", 
+        variant: "destructive" 
+      });
       return;
     }
     
     if (!phone || phone.trim().length < 8) {
-      toast({ title: "Erreur", description: "Le téléphone doit contenir au moins 8 caractères", variant: "destructive" });
+      toast({ 
+        title: t('cart.error.phone'), 
+        description: t('cart.error.phoneMin') || "Le téléphone doit contenir au moins 8 caractères", 
+        variant: "destructive" 
+      });
       return;
     }
     
     if (!address || address.trim().length < 5) {
-      toast({ title: "Erreur", description: "L'adresse doit contenir au moins 5 caractères", variant: "destructive" });
+      toast({ 
+        title: t('cart.error.address'), 
+        description: t('cart.error.addressMin') || "L'adresse doit contenir au moins 5 caractères", 
+        variant: "destructive" 
+      });
       return;
     }
     
     if (restaurants.length === 0) {
-      toast({ title: "Erreur", description: "Le panier est vide", variant: "destructive" });
+      toast({ 
+        title: t('cart.error.order'), 
+        description: t('cart.error.emptyCart') || "Le panier est vide", 
+        variant: "destructive" 
+      });
       return;
     }
     
@@ -756,6 +788,8 @@ export default function CartPage() {
                             <Label className="text-sm md:text-base">{t('cart.address.details')}</Label>
                             <Input 
                                 placeholder={t('cart.address.details.ph')} 
+                                value={addressDetails}
+                                onChange={(e) => setAddressDetails(e.target.value)}
                                 className="text-sm md:text-base"
                             />
                         </div>
@@ -805,6 +839,16 @@ export default function CartPage() {
                                 </span>
                                 <span className="font-medium text-xs md:text-sm text-right break-words max-w-[60%]">{address}</span>
                             </div>
+                            {(addressDetails || (savedAddresses.find(addr => addr.id === selectedAddressId)?.details)) && (
+                              <div className="flex justify-between items-start gap-2">
+                                <span className="text-xs md:text-sm text-muted-foreground flex-shrink-0">
+                                    {language === 'ar' ? "تفاصيل" : language === 'en' ? "Details" : "Détails"}
+                                </span>
+                                <span className="font-medium text-xs md:text-sm text-right break-words max-w-[60%]">
+                                  {addressDetails || savedAddresses.find(addr => addr.id === selectedAddressId)?.details}
+                                </span>
+                              </div>
+                            )}
                         </div>
                     </div>
 
@@ -934,9 +978,16 @@ export default function CartPage() {
                             <Button 
                                 className="w-full h-11 md:h-12 text-sm md:text-base rounded-xl shadow-lg shadow-primary/20" 
                                 onClick={handleConfirmOrder}
+                                disabled={checkingActiveOrder}
                             >
-                                {language === 'ar' ? "تأكيد الطلب" : language === 'en' ? "Confirm Order" : "Confirmer la commande"}
-                                <ArrowRight className={`w-4 h-4 md:w-5 md:h-5 ${isRtl ? 'mr-2 rotate-180' : 'ml-2'}`} />
+                                {checkingActiveOrder ? (
+                                  language === 'ar' ? "جارٍ التحقق..." : language === 'en' ? "Checking..." : "Vérification..."
+                                ) : (
+                                  <>
+                                    {language === 'ar' ? "تأكيد الطلب" : language === 'en' ? "Confirm Order" : "Confirmer la commande"}
+                                    <ArrowRight className={`w-4 h-4 md:w-5 md:h-5 ${isRtl ? 'mr-2 rotate-180' : 'ml-2'}`} />
+                                  </>
+                                )}
                             </Button>
                         </div>
                     </div>

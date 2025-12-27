@@ -43,7 +43,7 @@ export function canTransitionTo(
   newStatus: OrderStatus | string,
   actorType: keyof typeof ORDER_STATUS_RULES
 ): boolean {
-  const allowedStatuses = ORDER_STATUS_RULES[actorType];
+  const allowedStatuses: readonly OrderStatus[] = ORDER_STATUS_RULES[actorType];
   return allowedStatuses.includes(newStatus as OrderStatus);
 }
 

@@ -1,25 +1,29 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Phone, MapPin, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { sendOtp, verifyOtp } from "@/lib/api";
+import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/lib/i18n";
+import { useOnboarding } from "@/hooks/use-onboarding";
+import { StepError } from "@/components/onboarding/step-error";
+import { StepProgress } from "@/components/onboarding/step-progress";
+import { motion, AnimatePresence } from "framer-motion";
 
 type Step = "phone" | "otp" | "location";
 
 const STORAGE_KEY = "tp_onboarding";
 
-interface OnboardingData {
+export interface OnboardingData {
   name: string;
   phone: string;
-  address?: string; // Adresse optionnelle dans l'onboarding (sera demandée lors de la commande)
+  address?: string;
   addressDetails?: string;
-  lat?: number; // Géolocalisation optionnelle
-  lng?: number; // Géolocalisation optionnelle
+  lat?: number;
+  lng?: number;
 }
 
-function saveOnboarding(data: OnboardingData) {
+export function saveOnboarding(data: OnboardingData) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch {
@@ -40,139 +44,83 @@ export function getOnboarding(): OnboardingData | null {
 export default function OnboardingPage() {
   const { language } = useLanguage();
   const [, navigate] = useLocation();
-
   const [step, setStep] = useState<Step>("phone");
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
-  const [address, setAddress] = useState("");
-  const [addressDetails, setAddressDetails] = useState("");
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [showManualAddress, setShowManualAddress] = useState(false);
 
-  const t = (fr: string, en: string, ar: string) =>
-    language === "ar" ? ar : language === "en" ? en : fr;
+  const {
+    state,
+    loading,
+    error,
+    setError,
+    sendOtpCode,
+    verifyOtpCode,
+    getLocation,
+    save,
+    updateField,
+  } = useOnboarding();
 
-  async function handleSendOtp(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
+  const t = useCallback(
+    (fr: string, en: string, ar: string) =>
+      language === "ar" ? ar : language === "en" ? en : fr,
+    [language],
+  );
 
-    if (name.trim().length < 2) {
-      setError(
-        t(
-          "Nom trop court (2 caractères minimum).",
-          "Name is too short (min 2 characters).",
-          "الاسم قصير جدًا (على الأقل حرفان).",
-        ),
-      );
-      return;
-    }
-
-    if (phone.trim().length < 8) {
-      setError(t("Numéro invalide", "Invalid phone number", "رقم غير صالح"));
-      return;
-    }
-
-    try {
-      setLoading(true);
-      await sendOtp(phone);
-      setStep("otp");
-    } catch (err: any) {
-      console.error("[Onboarding] Erreur envoi OTP:", err);
-      const errorMessage = err?.message || t(
-        "Échec de l'envoi du code. Réessaie.",
-        "Failed to send code. Please try again.",
-        "فشل إرسال الرمز، حاول مرة أخرى.",
-      );
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-
-    if (otp.length !== 4) {
-      setError(t("Code à 4 chiffres requis", "4‑digit code required", "رمز من 4 أرقام مطلوب"));
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const res = await verifyOtp(phone, otp);
-      if (!res.verified) {
-        setError(t("Code incorrect", "Invalid code", "رمز غير صحيح"));
-        return;
+  const handleSendOtp = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      const success = await sendOtpCode();
+      if (success) {
+        setStep("otp");
       }
-      setStep("location");
-    } catch {
-      setError(
-        t(
-          "Échec de la vérification. Réessaie.",
-          "Verification failed. Please try again.",
-          "فشل التحقق، حاول مرة أخرى.",
-        ),
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
+    },
+    [sendOtpCode],
+  );
 
-  function handleUseLocation() {
+  const handleVerifyOtp = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      const success = await verifyOtpCode();
+      if (success) {
+        setStep("location");
+      }
+    },
+    [verifyOtpCode],
+  );
+
+  const handleUseLocation = useCallback(async () => {
     setError(null);
-    if (!("geolocation" in navigator)) {
-      setError(
-        t(
-          "La géolocalisation n'est pas supportée par ce navigateur.",
-          "Geolocation is not supported by your browser.",
-          "المتصفح لا يدعم تحديد الموقع الجغرافي.",
-        ),
-      );
-      return;
+    const coords = await getLocation();
+    if (!coords && !showManualAddress) {
+      setShowManualAddress(true);
     }
+  }, [getLocation, showManualAddress, setError]);
 
-    setLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const c = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        // Mettre à jour les coordonnées mais ne pas rediriger automatiquement
-        setCoords(c);
-        setLoading(false);
-        // L'utilisateur doit toujours remplir l'adresse et cliquer sur "Continuer"
-      },
-      () => {
-        setError(
-          t(
-            "Impossible de récupérer votre position.",
-            "Unable to retrieve your location.",
-            "تعذر الحصول على موقعك.",
-          ),
-        );
-        setLoading(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-      },
-    );
-  }
-
-  function handleFinish() {
-    // L'adresse sera validée lors de la création de commande, pas ici
-    saveOnboarding({
-      name,
-      phone,
-      address: address.trim() || undefined, // Optionnel dans l'onboarding
-      addressDetails: addressDetails.trim() || undefined,
-      lat: coords?.lat,
-      lng: coords?.lng,
-    });
-    // Navigate to home page
+  const handleFinish = useCallback(() => {
+    save();
     navigate("/");
-  }
+  }, [save, navigate]);
+
+  const handlePhoneChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value.replace(/\D/g, "");
+      updateField("phone", value);
+    },
+    [updateField],
+  );
+
+  const handleOtpChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+      updateField("otp", value);
+    },
+    [updateField],
+  );
+
+  const stepVariants = {
+    hidden: { opacity: 0, x: 20 },
+    visible: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: -20 },
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 flex flex-col">
@@ -198,229 +146,291 @@ export default function OnboardingPage() {
 
       <main className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-md space-y-6">
-          {step === "phone" && (
-            <form
-              onSubmit={handleSendOtp}
-              className="bg-white rounded-3xl p-6 shadow-md border border-orange-100 space-y-4"
-            >
-              <div className="text-center mb-2">
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-orange-100 mb-3">
-                  <Phone className="w-7 h-7 text-orange-600" />
-                </div>
-                <h2 className="text-lg font-semibold">
-                  {t(
-                    "Ton numéro de téléphone",
-                    "Your phone number",
-                    "رقم هاتفك",
-                  )}
-                </h2>
-                <p className="text-sm text-gray-500">
-                  {t(
-                    "On l’utilise pour suivre tes commandes",
-                    "We use it to track your orders",
-                    "نستخدمه لتتبع طلباتك",
-                  )}
-                </p>
-              </div>
-              <div className="space-y-3">
-                <Input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={t(
-                    "Ton prénom et nom",
-                    "Your first and last name",
-                    "اسمك الكامل",
-                  )}
-                  className="h-12 text-lg"
-                />
-                <Input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+216 XX XXX XXX"
-                  className="h-12 text-center text-lg"
-                />
-              </div>
-              {error && step === "phone" && (
-                <p className="text-sm text-red-500 text-center">{error}</p>
-              )}
-              <Button
-                type="submit"
-                className="w-full h-12 text-base"
-                disabled={loading || !phone.trim()}
+          <AnimatePresence mode="wait">
+            {step === "phone" && (
+              <motion.form
+                key="phone"
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                variants={stepVariants}
+                onSubmit={handleSendOtp}
+                className="bg-white rounded-3xl p-6 shadow-md border border-orange-100 space-y-4"
               >
-                {loading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  t("Recevoir un code", "Send code", "إرسال الرمز")
-                )}
-              </Button>
-            </form>
-          )}
-
-          {step === "otp" && (
-            <form
-              onSubmit={handleVerifyOtp}
-              className="bg-white rounded-3xl p-6 shadow-md border border-orange-100 space-y-4"
-            >
-              <div className="text-center mb-2">
-                <h2 className="text-lg font-semibold">
-                  {t(
-                    "Entre le code reçu par SMS",
-                    "Enter the SMS code",
-                    "أدخل الرمز المرسل في الرسالة",
-                  )}
-                </h2>
-              </div>
-              <Input
-                type="tel"
-                maxLength={4}
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                className="h-12 text-center text-2xl tracking-[0.4em]"
-              />
-              {error && step === "otp" && (
-                <p className="text-sm text-red-500 text-center">{error}</p>
-              )}
-              <Button
-                type="submit"
-                className="w-full h-12 text-base"
-                disabled={loading || otp.length !== 4}
-              >
-                {loading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  t("Confirmer", "Confirm", "تأكيد")
-                )}
-              </Button>
-            </form>
-          )}
-
-          {step === "location" && (
-            <div className="bg-white rounded-3xl p-6 shadow-md border border-orange-100 space-y-4">
-              <div className="text-center mb-2">
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-orange-100 mb-3">
-                  <MapPin className="w-7 h-7 text-orange-600" />
-                </div>
-                <h2 className="text-lg font-semibold">
-                  {t(
-                    "Où doit-on livrer ?",
-                    "Where should we deliver?",
-                    "أين نوصّل طلبك؟",
-                  )}
-                </h2>
-              </div>
-
-              {/* Champ adresse optionnel */}
-              <div className="space-y-1">
-                <Input
-                  value={address}
-                  onChange={(e) => {
-                    setAddress(e.target.value);
-                    setError(null);
-                  }}
-                  placeholder={t(
-                    "Adresse complète (optionnel - sera demandé lors de la commande)",
-                    "Full address (optional - will be asked when ordering)",
-                    "العنوان الكامل (اختياري - سيُطلب عند الطلب)",
-                  )}
-                  className="h-12"
-                />
-                <p className="text-xs text-gray-500">
-                  {t(
-                    "Vous pourrez compléter l'adresse lors de votre première commande",
-                    "You can complete the address when placing your first order",
-                    "يمكنك إكمال العنوان عند تقديم طلبك الأول",
-                  )}
-                </p>
-              </div>
-
-              {/* Détails d'adresse optionnels */}
-              <div className="space-y-1">
-                <Input
-                  value={addressDetails}
-                  onChange={(e) => setAddressDetails(e.target.value)}
-                  placeholder={t(
-                    "Détails (étage, repère, café, mosquée...) - optionnel",
-                    "Details (floor, landmark, cafe, mosque...) - optional",
-                    "تفاصيل (الطابق، معلم، مقهى، مسجد...) - اختياري",
-                  )}
-                  className="h-12"
-                />
-                <p className="text-xs text-gray-500">
-                  {t(
-                    "Aide le livreur à te trouver plus facilement",
-                    "Help the driver find you more easily",
-                    "ساعد عامل التوصيل في العثور عليك بسهولة",
-                  )}
-                </p>
-              </div>
-
-              {/* Bouton géolocalisation optionnel */}
-              <Button
-                type="button"
-                onClick={handleUseLocation}
-                className="w-full h-12 text-base"
-                variant="outline"
-                disabled={loading}
-              >
-                {loading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <MapPin className="w-4 h-4 mr-2" />
+                <div className="text-center mb-2">
+                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-orange-100 mb-3">
+                    <Phone className="w-7 h-7 text-orange-600" />
+                  </div>
+                  <h2 className="text-lg font-semibold">
                     {t(
-                      "Utiliser ma position (optionnel)",
-                      "Use my location (optional)",
-                      "استخدام موقعي (اختياري)",
+                      "Ton numéro de téléphone",
+                      "Your phone number",
+                      "رقم هاتفك",
                     )}
-                  </>
-                )}
-              </Button>
-
-              {/* Afficher les coordonnées si disponibles */}
-              {coords && (
-                <div className="p-3 bg-green-50 rounded-lg">
-                  <p className="text-xs text-green-700 text-center">
+                  </h2>
+                  <p className="text-sm text-gray-500">
                     {t(
-                      "✓ Position enregistrée",
-                      "✓ Location saved",
-                      "✓ تم حفظ الموقع",
-                    )}: {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
+                      "On l'utilise pour suivre tes commandes",
+                      "We use it to track your orders",
+                      "نستخدمه لتتبع طلباتك",
+                    )}
                   </p>
                 </div>
-              )}
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="onboarding-name" className="sr-only">
+                      {t("Ton prénom et nom", "Your first and last name", "اسمك الكامل")}
+                    </Label>
+                    <Input
+                      id="onboarding-name"
+                      type="text"
+                      value={state.name}
+                      onChange={(e) => updateField("name", e.target.value)}
+                      placeholder={t(
+                        "Ton prénom et nom",
+                        "Your first and last name",
+                        "اسمك الكامل",
+                      )}
+                      className="h-12 text-lg"
+                      aria-label={t(
+                        "Ton prénom et nom",
+                        "Your first and last name",
+                        "اسمك الكامل",
+                      )}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="onboarding-phone" className="sr-only">
+                      {t("Numéro de téléphone", "Phone number", "رقم الهاتف")}
+                    </Label>
+                    <Input
+                      id="onboarding-phone"
+                      type="tel"
+                      value={state.phone}
+                      onChange={handlePhoneChange}
+                      placeholder="+216 XX XXX XXX"
+                      className="h-12 text-center text-lg"
+                      aria-label={t("Numéro de téléphone", "Phone number", "رقم الهاتف")}
+                      maxLength={15}
+                    />
+                  </div>
+                </div>
+                <StepError error={error} step="phone" currentStep={step} />
+                <Button
+                  type="submit"
+                  className="w-full h-12 text-base"
+                  disabled={loading || !state.phone.trim() || !state.name.trim()}
+                >
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    t("Recevoir un code", "Send code", "إرسال الرمز")
+                  )}
+                </Button>
+              </motion.form>
+            )}
 
-              {/* Bouton continuer */}
-              <Button
-                type="button"
-                onClick={handleFinish}
-                className="w-full h-12 text-base"
+            {step === "otp" && (
+              <motion.form
+                key="otp"
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                variants={stepVariants}
+                onSubmit={handleVerifyOtp}
+                className="bg-white rounded-3xl p-6 shadow-md border border-orange-100 space-y-4"
               >
-                {t("Continuer", "Continue", "متابعة")}
-              </Button>
+                <div className="text-center mb-2">
+                  <h2 className="text-lg font-semibold">
+                    {t(
+                      "Entre le code reçu par SMS",
+                      "Enter the SMS code",
+                      "أدخل الرمز المرسل في الرسالة",
+                    )}
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {t(
+                      `Tentatives restantes: ${3 - state.otpAttempts}`,
+                      `Remaining attempts: ${3 - state.otpAttempts}`,
+                      `المحاولات المتبقية: ${3 - state.otpAttempts}`,
+                    )}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="onboarding-otp" className="sr-only">
+                    {t("Code OTP", "OTP code", "رمز OTP")}
+                  </Label>
+                  <Input
+                    id="onboarding-otp"
+                    type="tel"
+                    maxLength={4}
+                    value={state.otp}
+                    onChange={handleOtpChange}
+                    className="h-12 text-center text-2xl tracking-[0.4em]"
+                    placeholder="0000"
+                    aria-label={t("Code OTP", "OTP code", "رمز OTP")}
+                    autoComplete="one-time-code"
+                  />
+                </div>
+                <StepError error={error} step="otp" currentStep={step} />
+                <Button
+                  type="submit"
+                  className="w-full h-12 text-base"
+                  disabled={loading || state.otp.length !== 4}
+                >
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    t("Confirmer", "Confirm", "تأكيد")
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full text-sm"
+                  onClick={() => {
+                    setError(null);
+                    setStep("phone");
+                  }}
+                >
+                  {t("Changer de numéro", "Change number", "تغيير الرقم")}
+                </Button>
+              </motion.form>
+            )}
 
-              {error && step === "location" && (
-                <p className="text-sm text-red-500 text-center">{error}</p>
-              )}
-            </div>
-          )}
+            {step === "location" && (
+              <motion.div
+                key="location"
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                variants={stepVariants}
+                className="bg-white rounded-3xl p-6 shadow-md border border-orange-100 space-y-4"
+              >
+                <div className="text-center mb-2">
+                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-orange-100 mb-3">
+                    <MapPin className="w-7 h-7 text-orange-600" />
+                  </div>
+                  <h2 className="text-lg font-semibold">
+                    {t(
+                      "Où doit-on livrer ?",
+                      "Where should we deliver?",
+                      "أين نوصّل طلبك؟",
+                    )}
+                  </h2>
+                </div>
 
-          <div className="flex justify-center gap-2 mt-2">
-            {(["phone", "otp", "location"] as Step[]).map((s) => (
-              <div
-                key={s}
-                className={`w-3 h-3 rounded-full ${
-                  step === s ? "bg-orange-600" : "bg-orange-200"
-                }`}
-              />
-            ))}
-          </div>
+                <div className="space-y-1">
+                  <Label htmlFor="onboarding-address" className="sr-only">
+                    {t("Adresse complète", "Full address", "العنوان الكامل")}
+                  </Label>
+                  <Input
+                    id="onboarding-address"
+                    value={state.address}
+                    onChange={(e) => updateField("address", e.target.value)}
+                    placeholder={t(
+                      "Adresse complète (optionnel - sera demandé lors de la commande)",
+                      "Full address (optional - will be asked when ordering)",
+                      "العنوان الكامل (اختياري - سيُطلب عند الطلب)",
+                    )}
+                    className="h-12"
+                    aria-label={t("Adresse complète", "Full address", "العنوان الكامل")}
+                  />
+                  <p className="text-xs text-gray-500">
+                    {t(
+                      "Vous pourrez compléter l'adresse lors de votre première commande",
+                      "You can complete the address when placing your first order",
+                      "يمكنك إكمال العنوان عند تقديم طلبك الأول",
+                    )}
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="onboarding-address-details" className="sr-only">
+                    {t("Détails d'adresse", "Address details", "تفاصيل العنوان")}
+                  </Label>
+                  <Input
+                    id="onboarding-address-details"
+                    value={state.addressDetails}
+                    onChange={(e) => updateField("addressDetails", e.target.value)}
+                    placeholder={t(
+                      "Détails (étage, repère, café, mosquée...) - optionnel",
+                      "Details (floor, landmark, cafe, mosque...) - optional",
+                      "تفاصيل (الطابق، معلم، مقهى، مسجد...) - اختياري",
+                    )}
+                    className="h-12"
+                    aria-label={t("Détails d'adresse", "Address details", "تفاصيل العنوان")}
+                  />
+                  <p className="text-xs text-gray-500">
+                    {t(
+                      "Aide le livreur à te trouver plus facilement",
+                      "Help the driver find you more easily",
+                      "ساعد عامل التوصيل في العثور عليك بسهولة",
+                    )}
+                  </p>
+                </div>
+
+                <Button
+                  type="button"
+                  onClick={handleUseLocation}
+                  className="w-full h-12 text-base"
+                  variant="outline"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <MapPin className="w-4 h-4 mr-2" />
+                      {t(
+                        "Utiliser ma position (optionnel)",
+                        "Use my location (optional)",
+                        "استخدام موقعي (اختياري)",
+                      )}
+                    </>
+                  )}
+                </Button>
+
+                {!state.coords && (showManualAddress || error) && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-xs text-blue-700 text-center">
+                      {t(
+                        "Vous pouvez entrer votre adresse manuellement ci-dessus",
+                        "You can enter your address manually above",
+                        "يمكنك إدخال عنوانك يدويًا أعلاه",
+                      )}
+                    </p>
+                  </div>
+                )}
+
+                {state.coords && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-xs text-green-700 text-center">
+                      {t(
+                        "✓ Position enregistrée",
+                        "✓ Location saved",
+                        "✓ تم حفظ الموقع",
+                      )}: {state.coords.lat.toFixed(6)}, {state.coords.lng.toFixed(6)}
+                    </p>
+                  </div>
+                )}
+
+                <StepError error={error} step="location" currentStep={step} />
+
+                <Button
+                  type="button"
+                  onClick={handleFinish}
+                  className="w-full h-12 text-base"
+                >
+                  {t("Continuer", "Continue", "متابعة")}
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <StepProgress currentStep={step} />
         </div>
       </main>
     </div>
   );
 }
-
-

@@ -325,10 +325,12 @@ export function playOrderNotificationSound() {
     sendSystemNotification(
       '🔔 Nouvelle commande!',
       'Une nouvelle commande est disponible',
-      {
-        vibrate: isMobile ? [200, 100, 200, 100, 200] : undefined,
-      }
+      {}
     );
+    // Vibrate séparément si disponible
+    if (isMobile && 'vibrate' in navigator) {
+      navigator.vibrate([200, 100, 200, 100, 200]);
+    }
   }
   
   // Vérifier la permission AVANT de jouer le son Web Audio (fallback)

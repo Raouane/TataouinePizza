@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { ArrowLeft, Star, Clock, MapPin, Plus } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
@@ -7,6 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { isRestaurantOpen, getRestaurantCloseReason, parseOpeningHours } from "@/lib/restaurant-status";
+import { PizzaImage } from "@/components/menu/pizza-image";
+import { getCategoryLabel } from "@/lib/category-labels";
+
+// Flag de debug - désactiver en production
+const DEBUG_MENU = import.meta.env.DEV;
 
 interface Pizza {
   id: string;
@@ -44,12 +49,10 @@ export default function Menu() {
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [isSizeDialogOpen, setIsSizeDialogOpen] = useState(false);
   const { addItem } = useCart();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const firstSizeButtonRef = useRef<HTMLButtonElement>(null);
   
   const restaurantId = params.restaurantId;
-
-  // Les fonctions parseOpeningHours, isRestaurantOpen et getRestaurantCloseReason 
-  // sont maintenant importées depuis @/lib/restaurant-status
 
   useEffect(() => {
     const loadData = async () => {
@@ -68,37 +71,23 @@ export default function Menu() {
           
           if (menuRes.ok) {
             const menuData = await menuRes.json();
-            console.log(`[Menu] ${menuData.length} produits chargés pour le restaurant ${restaurantId}`);
-            
-            // Log détaillé des images - TRÈS VISIBLE
-            console.log(`%c[MENU] 🔍 VÉRIFICATION DES IMAGES DES PRODUITS`, 'background: #ff6b6b; color: white; font-size: 14px; font-weight: bold; padding: 4px;');
-            let withImages = 0;
-            let withoutImages = 0;
-            menuData.forEach((pizza: Pizza) => {
-              const hasImage = pizza.imageUrl && pizza.imageUrl.trim() !== '';
-              if (hasImage) {
-                withImages++;
-                console.log(`%c[MENU] ✅ ${pizza.name}`, 'color: green; font-weight: bold;');
-                console.log(`   📷 imageUrl: ${pizza.imageUrl}`);
-              } else {
-                withoutImages++;
-                console.log(`%c[MENU] ❌ ${pizza.name}`, 'color: red; font-weight: bold;');
-                console.log(`   ⚠️  Pas d'imageUrl ou vide`);
-                console.log(`   imageUrl: ${pizza.imageUrl || 'null/undefined'}`);
-                console.log(`   type: ${typeof pizza.imageUrl}`);
-              }
-            });
-            console.log(`%c[MENU] 📊 RÉSUMÉ: ${withImages} avec images, ${withoutImages} sans images`, 'background: #4ecdc4; color: white; font-size: 12px; padding: 4px;');
-            
+            if (DEBUG_MENU) {
+              console.log(`[Menu] ${menuData.length} produits chargés pour le restaurant ${restaurantId}`);
+              const withImages = menuData.filter((p: Pizza) => p.imageUrl && p.imageUrl.trim() !== '').length;
+              const withoutImages = menuData.length - withImages;
+              console.log(`[Menu] 📊 RÉSUMÉ: ${withImages} avec images, ${withoutImages} sans images`);
+            }
             setPizzas(menuData);
           } else {
-            console.error(`[Menu] Erreur lors du chargement du menu: ${menuRes.status} ${menuRes.statusText}`);
-            const errorData = await menuRes.json().catch(() => ({}));
-            console.error("[Menu] Détails de l'erreur:", errorData);
+            if (DEBUG_MENU) {
+              console.error(`[Menu] Erreur lors du chargement du menu: ${menuRes.status} ${menuRes.statusText}`);
+            }
           }
         }
       } catch (error) {
-        console.error("Failed to load data:", error);
+        if (DEBUG_MENU) {
+          console.error("Failed to load data:", error);
+        }
       } finally {
         setLoading(false);
       }
@@ -106,16 +95,29 @@ export default function Menu() {
     loadData();
   }, [restaurantId]);
 
-  const filteredPizzas = pizzas.filter(pizza => {
-    if (category === "all") return true;
-    return pizza.category === category;
-  });
+  // Mémoïsation des catégories
+  const categories = useMemo(() => {
+    return Array.from(new Set(pizzas.map(p => p.category).filter(Boolean)));
+  }, [pizzas]);
 
-  const categories = Array.from(new Set(pizzas.map(p => p.category).filter(Boolean)));
-  
-  console.log(`[Menu] Filtrage: catégorie="${category}", ${pizzas.length} produits totaux, ${filteredPizzas.length} produits filtrés`);
-  console.log(`[Menu] Catégories disponibles:`, categories);
-  console.log(`[Menu] Produits:`, pizzas.map(p => ({ name: p.name, category: p.category, prices: p.prices?.length || 0 })));
+  // Mémoïsation des pizzas filtrées
+  const filteredPizzas = useMemo(() => {
+    return pizzas.filter(pizza => {
+      if (category === "all") return true;
+      return pizza.category === category;
+    });
+  }, [pizzas, category]);
+
+  if (DEBUG_MENU) {
+    console.log(`[Menu] Filtrage: catégorie="${category}", ${pizzas.length} produits totaux, ${filteredPizzas.length} produits filtrés`);
+  }
+
+  // Focus sur le premier bouton de taille quand le dialog s'ouvre
+  useEffect(() => {
+    if (isSizeDialogOpen && firstSizeButtonRef.current) {
+      firstSizeButtonRef.current.focus();
+    }
+  }, [isSizeDialogOpen]);
 
   const handleAddToCart = (pizza: Pizza, e?: React.MouseEvent) => {
     e?.preventDefault();
@@ -194,24 +196,6 @@ export default function Menu() {
     return labels[size.toLowerCase()] || size;
   };
 
-  const getCategoryLabel = (cat: string) => {
-    const labels: Record<string, string> = {
-      classic: t('cat.classic'),
-      special: t('cat.special'),
-      speciale: t('cat.special'),
-      vegetarian: t('cat.vegetarian'),
-      vegetarien: t('cat.vegetarian'),
-      all: t('menu.category.all'),
-      pizza: t('menu.category.pizza'),
-      burger: t('menu.category.burger'),
-      salade: t('menu.category.salade'),
-      grill: t('menu.category.grill'),
-      drink: t('menu.category.drink'),
-      dessert: t('menu.category.dessert'),
-    };
-    return labels[cat] || cat.charAt(0).toUpperCase() + cat.slice(1);
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
@@ -234,21 +218,24 @@ export default function Menu() {
     );
   }
 
+  const closeReason = getRestaurantCloseReason(restaurant);
+  const isTemporarilyClosed = closeReason === 'toggle';
+  const { hours, closedDay } = parseOpeningHours(restaurant?.openingHours || "");
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20 md:pb-24">
       {/* Hero Image Section */}
       <div className="relative h-48 sm:h-64 md:h-80 overflow-hidden">
-        {restaurant.imageUrl && restaurant.imageUrl.trim() !== "" ? (
-          <img
-            src={restaurant.imageUrl}
-            alt={restaurant.name}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-orange-200 to-red-200 flex items-center justify-center">
-            <span className="text-8xl">🍕</span>
-          </div>
-        )}
+        <PizzaImage
+          src={restaurant.imageUrl}
+          alt={restaurant.name}
+          className="w-full h-full"
+          fallback={
+            <div className="w-full h-full bg-gradient-to-br from-orange-200 to-red-200 flex items-center justify-center">
+              <span className="text-8xl">🍕</span>
+            </div>
+          }
+        />
         
         {/* Back Button */}
         <div className="absolute top-4 left-4">
@@ -257,6 +244,7 @@ export default function Menu() {
             size="icon"
             onClick={() => setLocation("/")}
             className="rounded-full bg-white/90 backdrop-blur-sm hover:bg-white shadow-md"
+            aria-label={t('common.back') || "Retour"}
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
@@ -264,26 +252,19 @@ export default function Menu() {
 
         {/* Status Badge */}
         <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
-          {(() => {
-            const closeReason = getRestaurantCloseReason(restaurant);
-            const isTemporarilyClosed = closeReason === 'toggle';
-            
-            return (
           <span className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-semibold ${
-                restaurantIsOpen 
+            restaurantIsOpen 
               ? "bg-green-500 text-white" 
-                  : isTemporarilyClosed
-                  ? "bg-orange-500 text-white"
+              : isTemporarilyClosed
+              ? "bg-orange-500 text-white"
               : "bg-gray-500 text-white"
           }`}>
-                {restaurantIsOpen 
-                  ? t('menu.status.open') 
-                  : isTemporarilyClosed
-                  ? "🔒 Fermé temporairement"
-                  : t('menu.status.closed')}
+            {restaurantIsOpen 
+              ? t('menu.status.open') 
+              : isTemporarilyClosed
+              ? t('menu.status.temporarilyClosed') || "🔒 Fermé temporairement"
+              : t('menu.status.closed')}
           </span>
-            );
-          })()}
         </div>
       </div>
 
@@ -334,10 +315,7 @@ export default function Menu() {
                   key={cat}
                   className="px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm"
                 >
-                  {cat === "pizza" ? "Pizza" : 
-                   cat === "burger" ? "Burger" :
-                   cat === "salade" ? "Salade" :
-                     cat === "grill" ? "Grillades" : cat}
+                  {getCategoryLabel(cat, t)}
                 </span>
               ))}
             </div>
@@ -345,46 +323,40 @@ export default function Menu() {
           })()}
 
           {/* Alert if closed */}
-          {!restaurantIsOpen && (() => {
-            const closeReason = getRestaurantCloseReason(restaurant);
-            const isTemporarilyClosed = closeReason === 'toggle';
-            const { hours, closedDay } = parseOpeningHours(restaurant?.openingHours);
-            
-            return (
-              <div className={`mt-4 p-4 rounded-lg border-l-4 ${
-                isTemporarilyClosed
-                  ? "bg-orange-50 border-orange-500"
-                  : "bg-gray-50 border-gray-500"
+          {!restaurantIsOpen && (
+            <div className={`mt-4 p-4 rounded-lg border-l-4 ${
+              isTemporarilyClosed
+                ? "bg-orange-50 border-orange-500"
+                : "bg-gray-50 border-gray-500"
+            }`}>
+              <p className={`font-semibold ${
+                isTemporarilyClosed ? "text-orange-800" : "text-gray-800"
               }`}>
-                <p className={`font-semibold ${
-                  isTemporarilyClosed ? "text-orange-800" : "text-gray-800"
-                }`}>
-                  {isTemporarilyClosed 
-                    ? "⚠️ Restaurant fermé temporairement" 
-                    : "Fermé"}
-                </p>
-                <div className={`text-sm mt-2 space-y-1 ${
-                  isTemporarilyClosed ? "text-orange-600" : "text-gray-600"
-                }`}>
-                  {isTemporarilyClosed ? (
-                    <p>Le restaurant est fermé temporairement. Veuillez réessayer plus tard.</p>
-                  ) : (
-                    <>
-                      {hours && (
-                        <p><span className="font-semibold">Horaires d'ouverture :</span> {hours}</p>
-                      )}
-                      {closedDay && (
-                        <p><span className="font-semibold">Jour de repos :</span> {closedDay}</p>
-                      )}
-                      {!hours && !closedDay && (
-                        <p>Le restaurant est fermé selon les horaires d'ouverture.</p>
-                      )}
-                    </>
-                  )}
-                </div>
+                {isTemporarilyClosed 
+                  ? t('menu.status.temporarilyClosedMessage') || "⚠️ Restaurant fermé temporairement"
+                  : t('menu.status.closed')}
+              </p>
+              <div className={`text-sm mt-2 space-y-1 ${
+                isTemporarilyClosed ? "text-orange-600" : "text-gray-600"
+              }`}>
+                {isTemporarilyClosed ? (
+                  <p>{t('menu.status.temporarilyClosedDesc') || "Le restaurant est fermé temporairement. Veuillez réessayer plus tard."}</p>
+                ) : (
+                  <>
+                    {hours && (
+                      <p><span className="font-semibold">{t('menu.status.openingHours') || "Horaires d'ouverture :"}</span> {hours}</p>
+                    )}
+                    {closedDay && (
+                      <p><span className="font-semibold">{t('menu.status.closedDay') || "Jour de repos :"}</span> {closedDay}</p>
+                    )}
+                    {!hours && !closedDay && (
+                      <p>{t('menu.status.closedBySchedule') || "Le restaurant est fermé selon les horaires d'ouverture."}</p>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
-            );
-          })()}
+          )}
         </div>
       </div>
 
@@ -401,6 +373,7 @@ export default function Menu() {
                 ? "bg-orange-500 text-white"
                 : "bg-gray-100 text-gray-700"
             }`}
+            aria-label={t('menu.category.all')}
           >
             {t('menu.category.all')}
           </button>
@@ -413,8 +386,9 @@ export default function Menu() {
                   ? "bg-orange-500 text-white"
                   : "bg-gray-100 text-gray-700"
               }`}
+              aria-label={getCategoryLabel(cat, t)}
             >
-              {getCategoryLabel(cat)}
+              {getCategoryLabel(cat, t)}
             </button>
           ))}
         </div>
@@ -425,7 +399,7 @@ export default function Menu() {
             <div className="text-4xl mb-4">🍕</div>
             <p className="text-gray-600 font-medium mb-2">
               {category !== "all" 
-                ? `${t('menu.noProducts.category')} "${getCategoryLabel(category)}"`
+                ? `${t('menu.noProducts.category')} "${getCategoryLabel(category, t)}"`
                 : t('menu.noProducts.restaurant')}
             </p>
             <p className="text-sm text-gray-500">
@@ -439,7 +413,9 @@ export default function Menu() {
             {filteredPizzas.map((pizza) => {
               // Vérifier que le produit a des prix
               if (!pizza.prices || pizza.prices.length === 0) {
-                console.warn(`[Menu] Produit ${pizza.name} n'a pas de prix`);
+                if (DEBUG_MENU) {
+                  console.warn(`[Menu] Produit ${pizza.name} n'a pas de prix`);
+                }
               }
               
               const defaultPrice = pizza.prices?.find(p => p.size === "medium") || pizza.prices?.[0];
@@ -452,53 +428,11 @@ export default function Menu() {
                 >
                   {/* Image en haut - plus grande et attirante */}
                   <div className="w-full h-48 md:h-56 lg:h-64 relative overflow-hidden bg-gradient-to-br from-orange-100 to-red-100">
-                    {(() => {
-                      const hasImageUrl = pizza.imageUrl && pizza.imageUrl.trim() !== "";
-                      
-                      // Log très visible pour chaque rendu d'image
-                      if (hasImageUrl) {
-                        console.log(`%c[MENU] 🖼️  RENDU IMAGE: "${pizza.name}"`, 'background: #95e1d3; color: #000; font-weight: bold; padding: 2px;');
-                        console.log(`   📷 URL: ${pizza.imageUrl}`);
-                        console.log(`   🔗 URL complète: ${window.location.origin}${pizza.imageUrl}`);
-                      } else {
-                        console.log(`%c[MENU] ⚠️  PAS D'IMAGE: "${pizza.name}"`, 'background: #f38181; color: white; font-weight: bold; padding: 2px;');
-                        console.log(`   imageUrl: ${pizza.imageUrl || 'null/undefined'}`);
-                      }
-                      
-                      return hasImageUrl ? (
-                      <img
-                        src={pizza.imageUrl}
-                        alt={pizza.name}
-                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                          onLoad={() => {
-                            console.log(`%c[MENU] ✅✅✅ IMAGE CHARGÉE: ${pizza.imageUrl}`, 'background: #00b894; color: white; font-size: 12px; font-weight: bold; padding: 4px;');
-                            console.log(`   Produit: "${pizza.name}"`);
-                          }}
-                          onError={(e) => {
-                            console.error(`%c[MENU] ❌❌❌ ERREUR CHARGEMENT IMAGE`, 'background: #d63031; color: white; font-size: 12px; font-weight: bold; padding: 4px;');
-                            console.error(`   Produit: "${pizza.name}"`);
-                            console.error(`   URL tentée: ${pizza.imageUrl}`);
-                            console.error(`   URL complète: ${window.location.origin}${pizza.imageUrl}`);
-                            console.error(`   Erreur: L'image n'existe pas ou n'est pas accessible`);
-                            
-                            // Si l'image ne charge pas, remplacer par le fallback
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
-                            const parent = target.parentElement;
-                            if (parent && !parent.querySelector('.image-fallback')) {
-                              const fallback = document.createElement('div');
-                              fallback.className = 'image-fallback w-full h-full flex items-center justify-center';
-                              fallback.innerHTML = '<span class="text-6xl md:text-7xl">🍕</span>';
-                              parent.appendChild(fallback);
-                            }
-                          }}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-6xl md:text-7xl">🍕</span>
-                      </div>
-                      );
-                    })()}
+                    <PizzaImage
+                      src={pizza.imageUrl}
+                      alt={pizza.name}
+                      className="w-full h-full"
+                    />
                     {/* Overlay subtil pour améliorer la lisibilité */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 hover:opacity-100 transition-opacity" />
                   </div>
@@ -533,6 +467,7 @@ export default function Menu() {
                           onClick={(e) => handleAddToCart(pizza, e)}
                           disabled={!restaurantIsOpen}
                           className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-6 md:px-8 py-2.5 md:py-3 h-auto flex items-center justify-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                          aria-label={`${t('menu.add')} ${pizza.name}`}
                         >
                           <Plus className="w-5 h-5 md:w-6 md:h-6" />
                           <span className="font-medium text-sm md:text-base">{t('menu.add')}</span>
@@ -558,15 +493,17 @@ export default function Menu() {
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            {selectedPizza?.prices?.map((priceOption) => (
+            {selectedPizza?.prices?.map((priceOption, index) => (
               <button
                 key={priceOption.size}
+                ref={index === 0 ? firstSizeButtonRef : null}
                 onClick={() => setSelectedSize(priceOption.size)}
                 className={`w-full p-4 rounded-lg border-2 transition-all ${
                   selectedSize === priceOption.size
                     ? 'border-orange-500 bg-orange-50'
                     : 'border-gray-200 hover:border-orange-300'
                 }`}
+                aria-label={`${getSizeLabel(priceOption.size)} - ${parseFloat(priceOption.price).toFixed(2)} ${t('common.currency')}`}
               >
                 <div className="flex items-center justify-between">
                   <div className="text-left">

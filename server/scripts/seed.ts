@@ -31,7 +31,7 @@ export async function seedDatabase(): Promise<boolean> {
         address: "Avenue Habib Bourguiba, Tataouine",
         description: "Les meilleures pizzas de Tataouine avec des recettes traditionnelles tunisiennes",
         imageUrl: null,
-        category: "pizza",
+        categories: ["pizza"],
       });
       
       const restaurant2 = await storage.createRestaurant({
@@ -40,7 +40,7 @@ export async function seedDatabase(): Promise<boolean> {
         address: "Rue de la Liberté, Tataouine",
         description: "Pizzas italiennes authentiques cuites au feu de bois",
         imageUrl: null,
-        category: "pizza",
+        categories: ["pizza"],
       });
       
       const restaurant3 = await storage.createRestaurant({
@@ -49,33 +49,38 @@ export async function seedDatabase(): Promise<boolean> {
         address: "Boulevard de l'Environnement, Tataouine",
         description: "Grillades et spécialités du sud tunisien",
         imageUrl: null,
-        category: "grill",
+        categories: ["grill"],
       });
       
       // Pizzas for restaurant 1
       const pizzas1 = [
-        { name: "Margherita", description: "Sauce tomate, mozzarella di bufala, basilic frais", category: "classic", restaurantId: restaurant1.id },
-        { name: "La Tunisienne", description: "Thon, olives, œuf, harissa, fromage", category: "special", restaurantId: restaurant1.id },
-        { name: "Tataouine Spéciale", description: "Merguez, poivrons grillés, œuf, olives", category: "special", restaurantId: restaurant1.id },
+        { name: "Margherita", description: "Sauce tomate, mozzarella di bufala, basilic frais", category: "classic", restaurantId: restaurant1.id, productType: "pizza" as const, available: true },
+        { name: "La Tunisienne", description: "Thon, olives, œuf, harissa, fromage", category: "special", restaurantId: restaurant1.id, productType: "pizza" as const, available: true },
+        { name: "Tataouine Spéciale", description: "Merguez, poivrons grillés, œuf, olives", category: "special", restaurantId: restaurant1.id, productType: "pizza" as const, available: true },
       ];
       
       // Pizzas for restaurant 2
       const pizzas2 = [
-        { name: "Pepperoni", description: "Double pepperoni, mozzarella, origan", category: "classic", restaurantId: restaurant2.id },
-        { name: "4 Fromages", description: "Mozzarella, Gorgonzola, Parmesan, Chèvre", category: "classic", restaurantId: restaurant2.id },
-        { name: "Vegetarian", description: "Poivrons, champignons, olives, tomates", category: "vegetarian", restaurantId: restaurant2.id },
+        { name: "Pepperoni", description: "Double pepperoni, mozzarella, origan", category: "classic", restaurantId: restaurant2.id, productType: "pizza" as const, available: true },
+        { name: "4 Fromages", description: "Mozzarella, Gorgonzola, Parmesan, Chèvre", category: "classic", restaurantId: restaurant2.id, productType: "pizza" as const, available: true },
+        { name: "Vegetarian", description: "Poivrons, champignons, olives, tomates", category: "vegetarian", restaurantId: restaurant2.id, productType: "pizza" as const, available: true },
       ];
       
       // Pizzas for restaurant 3 (grill items)
       const pizzas3 = [
-        { name: "Mechoui", description: "Agneau grillé aux épices du sud", category: "special", restaurantId: restaurant3.id },
-        { name: "Brochettes Mixtes", description: "Bœuf, poulet, merguez grillés", category: "special", restaurantId: restaurant3.id },
+        { name: "Mechoui", description: "Agneau grillé aux épices du sud", category: "special", restaurantId: restaurant3.id, productType: "other" as const, available: true },
+        { name: "Brochettes Mixtes", description: "Bœuf, poulet, merguez grillés", category: "special", restaurantId: restaurant3.id, productType: "other" as const, available: true },
       ];
       
       for (const pizza of [...pizzas1, ...pizzas2, ...pizzas3]) {
         const created = await storage.createPizza(pizza);
-        for (const [size, price] of [["small", "10"], ["medium", "15"], ["large", "18"]]) {
-          await storage.createPizzaPrice({ pizzaId: created.id, size, price });
+        const priceEntries: Array<{ size: "small" | "medium" | "large"; price: number }> = [
+          { size: "small", price: 10 },
+          { size: "medium", price: 15 },
+          { size: "large", price: 18 }
+        ];
+        for (const entry of priceEntries) {
+          await storage.createPizzaPrice({ pizzaId: created.id, size: entry.size, price: entry.price });
         }
       }
       

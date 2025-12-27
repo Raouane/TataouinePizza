@@ -31,7 +31,16 @@ export function usePizzas(token: string | null, restaurants: any[] = []) {
     }
   }, [token]);
 
-  const create = useCallback(async (data: Partial<Pizza>) => {
+  const create = useCallback(async (data: {
+    restaurantId: string;
+    name: string;
+    description?: string;
+    productType?: string;
+    category: string;
+    imageUrl?: string;
+    available?: boolean;
+    prices: Array<{ size: string; price: number }>;
+  }) => {
     if (!token) throw new Error("Non authentifié");
     
     try {
@@ -45,7 +54,15 @@ export function usePizzas(token: string | null, restaurants: any[] = []) {
     }
   }, [token]);
 
-  const update = useCallback(async (id: string, data: Partial<Pizza>) => {
+  const update = useCallback(async (id: string, data: {
+    name?: string;
+    description?: string;
+    productType?: string;
+    category?: string;
+    imageUrl?: string;
+    available?: boolean;
+    prices?: Array<{ size: string; price: number }>;
+  }) => {
     if (!token) throw new Error("Non authentifié");
     
     try {

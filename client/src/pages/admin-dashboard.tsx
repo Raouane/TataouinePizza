@@ -87,12 +87,31 @@ export default function AdminDashboard() {
   }, [token, refetchOrders, fetchRestaurants, fetchDrivers, fetchPizzas]);
 
   const handleCreateRestaurant = useCallback(async (data: Partial<Restaurant>) => {
-    await createRestaurant(data);
+    if (!data.name || !data.phone || !data.address) {
+      throw new Error("Les champs nom, téléphone et adresse sont requis");
+    }
+    await createRestaurant({
+      name: data.name,
+      phone: data.phone,
+      address: data.address,
+      description: data.description,
+      imageUrl: data.imageUrl,
+      categories: data.categories,
+      openingHours: data.openingHours ?? undefined,
+      deliveryTime: data.deliveryTime,
+      minOrder: typeof data.minOrder === 'string' ? data.minOrder : data.minOrder?.toString(),
+      rating: typeof data.rating === 'string' ? data.rating : data.rating?.toString(),
+    });
     await fetchRestaurants();
   }, [createRestaurant, fetchRestaurants]);
 
   const handleUpdateRestaurant = useCallback(async (id: string, data: Partial<Restaurant>) => {
-    await updateRestaurant(id, data);
+    await updateRestaurant(id, {
+      ...data,
+      openingHours: data.openingHours === null ? undefined : data.openingHours,
+      minOrder: typeof data.minOrder === 'string' ? data.minOrder : data.minOrder?.toString(),
+      rating: typeof data.rating === 'string' ? data.rating : data.rating?.toString(),
+    });
     await fetchRestaurants();
   }, [updateRestaurant, fetchRestaurants]);
 
@@ -124,7 +143,14 @@ export default function AdminDashboard() {
   }, [updateRestaurant, fetchRestaurants]);
 
   const handleCreateDriver = useCallback(async (data: Partial<Driver>) => {
-    await createDriver(data);
+    if (!data.name || !data.phone || !(data as any).password) {
+      throw new Error("Les champs nom, téléphone et mot de passe sont requis");
+    }
+    await createDriver({
+      name: data.name,
+      phone: data.phone,
+      password: (data as any).password,
+    });
     await fetchDrivers();
   }, [createDriver, fetchDrivers]);
 
@@ -148,12 +174,27 @@ export default function AdminDashboard() {
   }, [driverToDelete, deleteDriver, fetchDrivers]);
 
   const handleCreatePizza = useCallback(async (data: Partial<Pizza>) => {
-    await createPizza(data);
+    if (!data.restaurantId || !data.name || !data.category || !data.prices) {
+      throw new Error("Les champs restaurant, nom, catégorie et prix sont requis");
+    }
+    await createPizza({
+      restaurantId: data.restaurantId,
+      name: data.name,
+      description: data.description,
+      productType: data.productType,
+      category: data.category,
+      imageUrl: data.imageUrl,
+      available: data.available ?? true,
+      prices: data.prices.map(p => ({ size: p.size, price: typeof p.price === 'string' ? parseFloat(p.price) : p.price })),
+    });
     await fetchPizzas();
   }, [createPizza, fetchPizzas]);
 
   const handleUpdatePizza = useCallback(async (id: string, data: Partial<Pizza>) => {
-    await updatePizza(id, data);
+    await updatePizza(id, {
+      ...data,
+      prices: data.prices ? data.prices.map(p => ({ size: p.size, price: typeof p.price === 'string' ? parseFloat(p.price) : p.price })) : undefined,
+    });
     await fetchPizzas();
   }, [updatePizza, fetchPizzas]);
 

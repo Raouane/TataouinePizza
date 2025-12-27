@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link } from "wouter";
 import { User, Phone, MapPin, History, Globe, ArrowLeft, ShoppingBag, CreditCard, Home, Gift, HelpCircle, Settings, LogOut, ChevronRight, Download, Star, Trash2, Plus, X } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
@@ -17,11 +17,31 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 type SavedAddress = {
-  id: string;
+  readonly id: string;
   label: string;
   street: string;
   details?: string;
   isDefault?: boolean;
+};
+
+// Fonction pour générer un ID unique
+const generateAddressId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback pour les navigateurs plus anciens
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
+// Fonction helper pour la pluralisation des adresses
+const formatAddressCount = (count: number, language: string): string => {
+  if (language === 'ar') {
+    return `${count} عنوان محفوظ`;
+  }
+  if (language === 'en') {
+    return `${count} saved ${count === 1 ? 'address' : 'addresses'}`;
+  }
+  return `${count} ${count === 1 ? 'adresse sauvegardée' : 'adresses sauvegardées'}`;
 };
 
 export default function Profile() {
@@ -35,9 +55,37 @@ export default function Profile() {
   const [newAddressStreet, setNewAddressStreet] = useState("");
   const [newAddressDetails, setNewAddressDetails] = useState("");
 
-  // Charger les adresses sauvegardées
+  // Fonction pour réinitialiser le formulaire d'ajout d'adresse
+  const resetNewAddressForm = useCallback(() => {
+    setNewAddressLabel("");
+    setNewAddressStreet("");
+    setNewAddressDetails("");
+  }, []);
+
+  // Charger les adresses sauvegardées - optimisé pour ne dépendre que du téléphone
   useEffect(() => {
-    if (onboardingData?.phone) {
+    if (!onboardingData?.phone) {
+      setSavedAddresses([]);
+      return;
+    }
+    
+    const saved = localStorage.getItem(`savedAddresses_${onboardingData.phone}`);
+    if (saved) {
+      try {
+        const addresses = JSON.parse(saved) as SavedAddress[];
+        setSavedAddresses(addresses);
+      } catch (e) {
+        console.error("Erreur chargement adresses:", e);
+        setSavedAddresses([]);
+      }
+    } else {
+      setSavedAddresses([]);
+    }
+  }, [onboardingData?.phone]);
+
+  // Recharger les adresses quand le dialog s'ouvre (pour synchronisation)
+  useEffect(() => {
+    if (showAddressDialog && onboardingData?.phone) {
       const saved = localStorage.getItem(`savedAddresses_${onboardingData.phone}`);
       if (saved) {
         try {
@@ -48,75 +96,99 @@ export default function Profile() {
         }
       }
     }
-  }, [onboardingData?.phone, showAddressDialog]);
+  }, [showAddressDialog, onboardingData?.phone]);
 
-  const handleSetDefault = (id: string) => {
+  // Sauvegarder les adresses dans localStorage
+  const saveAddressesToStorage = useCallback((addresses: SavedAddress[]) => {
+    if (onboardingData?.phone) {
+      localStorage.setItem(`savedAddresses_${onboardingData.phone}`, JSON.stringify(addresses));
+    }
+  }, [onboardingData?.phone]);
+
+  const handleSetDefault = useCallback((id: string) => {
     const updated = savedAddresses.map(addr => ({
       ...addr,
       isDefault: addr.id === id,
     }));
     setSavedAddresses(updated);
-    if (onboardingData?.phone) {
-      localStorage.setItem(`savedAddresses_${onboardingData.phone}`, JSON.stringify(updated));
-    }
+    saveAddressesToStorage(updated);
     toast({ 
-      title: language === 'ar' ? "تم تحديث العنوان الافتراضي" : language === 'en' ? "Default address updated" : "Adresse par défaut mise à jour" 
+      title: t('profile.address.defaultUpdated') || (language === 'ar' ? "تم تحديث العنوان الافتراضي" : language === 'en' ? "Default address updated" : "Adresse par défaut mise à jour")
     });
-  };
+  }, [savedAddresses, saveAddressesToStorage, toast, t, language]);
 
-  const handleDeleteAddress = (id: string) => {
+  const handleDeleteAddress = useCallback((id: string) => {
     if (savedAddresses.length <= 1) {
       toast({ 
-        title: language === 'ar' ? "خطأ" : language === 'en' ? "Error" : "Erreur", 
-        description: language === 'ar' ? "يجب أن يكون لديك عنوان واحد على الأقل" : language === 'en' ? "You must have at least one address" : "Vous devez avoir au moins une adresse", 
+        title: t('profile.address.error') || (language === 'ar' ? "خطأ" : language === 'en' ? "Error" : "Erreur"), 
+        description: t('profile.address.minOneRequired') || (language === 'ar' ? "يجب أن يكون لديك عنوان واحد على الأقل" : language === 'en' ? "You must have at least one address" : "Vous devez avoir au moins une adresse"), 
         variant: "destructive" 
       });
       return;
     }
     const updated = savedAddresses.filter(addr => addr.id !== id);
     setSavedAddresses(updated);
-    if (onboardingData?.phone) {
-      localStorage.setItem(`savedAddresses_${onboardingData.phone}`, JSON.stringify(updated));
-    }
+    saveAddressesToStorage(updated);
     toast({ 
-      title: language === 'ar' ? "تم حذف العنوان" : language === 'en' ? "Address deleted" : "Adresse supprimée" 
+      title: t('profile.address.deleted') || (language === 'ar' ? "تم حذف العنوان" : language === 'en' ? "Address deleted" : "Adresse supprimée")
     });
-  };
+  }, [savedAddresses, saveAddressesToStorage, toast, t, language]);
 
-  const handleSaveAddress = () => {
-    if (!newAddressStreet.trim() || newAddressStreet.trim().length < 5) {
+  const handleSaveAddress = useCallback(() => {
+    const trimmedStreet = newAddressStreet.trim();
+    
+    // Validation de longueur
+    if (!trimmedStreet || trimmedStreet.length < 5) {
       toast({ 
-        title: language === 'ar' ? "خطأ" : language === 'en' ? "Error" : "Erreur", 
-        description: language === 'ar' ? "يجب أن يحتوي العنوان على 5 أحرف على الأقل" : language === 'en' ? "Address must be at least 5 characters" : "L'adresse doit contenir au moins 5 caractères", 
+        title: t('profile.address.error') || (language === 'ar' ? "خطأ" : language === 'en' ? "Error" : "Erreur"), 
+        description: t('profile.address.minLength') || (language === 'ar' ? "يجب أن يحتوي العنوان على 5 أحرف على الأقل" : language === 'en' ? "Address must be at least 5 characters" : "L'adresse doit contenir au moins 5 caractères"), 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    // Vérification des doublons
+    const isDuplicate = savedAddresses.some(
+      addr => addr.street.trim().toLowerCase() === trimmedStreet.toLowerCase()
+    );
+    
+    if (isDuplicate) {
+      toast({ 
+        title: t('profile.address.error') || (language === 'ar' ? "خطأ" : language === 'en' ? "Error" : "Erreur"), 
+        description: t('profile.address.duplicate') || (language === 'ar' ? "هذا العنوان موجود بالفعل" : language === 'en' ? "This address already exists" : "Cette adresse existe déjà"), 
         variant: "destructive" 
       });
       return;
     }
 
     const newAddress: SavedAddress = {
-      id: Date.now().toString(),
+      id: generateAddressId(),
       label: newAddressLabel.trim() || (language === 'ar' ? "آخر" : language === 'en' ? "Other" : "Autre"),
-      street: newAddressStreet.trim(),
+      street: trimmedStreet,
       details: newAddressDetails.trim() || undefined,
       isDefault: savedAddresses.length === 0,
     };
 
     const updated = [...savedAddresses, newAddress];
     setSavedAddresses(updated);
-    if (onboardingData?.phone) {
-      localStorage.setItem(`savedAddresses_${onboardingData.phone}`, JSON.stringify(updated));
-    }
+    saveAddressesToStorage(updated);
     
-    setNewAddressLabel("");
-    setNewAddressStreet("");
-    setNewAddressDetails("");
+    resetNewAddressForm();
     setShowAddForm(false);
     
     toast({ 
-      title: language === 'ar' ? "تم حفظ العنوان" : language === 'en' ? "Address saved" : "Adresse sauvegardée", 
-      description: language === 'ar' ? "سيكون هذا العنوان متاحًا لطلباتك القادمة" : language === 'en' ? "This address will be available for your next orders" : "Cette adresse sera disponible pour vos prochaines commandes" 
+      title: t('profile.address.saved') || (language === 'ar' ? "تم حفظ العنوان" : language === 'en' ? "Address saved" : "Adresse sauvegardée"), 
+      description: t('profile.address.savedDesc') || (language === 'ar' ? "سيكون هذا العنوان متاحًا لطلباتك القادمة" : language === 'en' ? "This address will be available for your next orders" : "Cette adresse sera disponible pour vos prochaines commandes")
     });
-  };
+  }, [newAddressStreet, newAddressLabel, newAddressDetails, savedAddresses, language, saveAddressesToStorage, resetNewAddressForm, toast, t]);
+
+  // Mémoïsation du nombre d'adresses formaté
+  const addressCountText = useMemo(() => {
+    if (savedAddresses.length > 0) {
+      return formatAddressCount(savedAddresses.length, language);
+    }
+    return onboardingData?.address || (language === 'ar' ? 'لا توجد عناوين محفوظة' : language === 'en' ? 'No saved addresses' : 'Aucune adresse enregistrée');
+  }, [savedAddresses.length, language, onboardingData?.address]);
 
   if (!onboardingData) {
     return (
@@ -135,7 +207,7 @@ export default function Profile() {
   }
 
   // Générer les initiales pour l'avatar
-  const getInitials = (name: string | undefined) => {
+  const getInitials = useCallback((name: string | undefined) => {
     if (!name || typeof name !== 'string') return 'U';
     return name
       .split(' ')
@@ -143,7 +215,7 @@ export default function Profile() {
       .join('')
       .toUpperCase()
       .slice(0, 2);
-  };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
@@ -151,13 +223,23 @@ export default function Profile() {
       <div className="bg-primary text-primary-foreground sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-4">
           <Link href="/">
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 md:hidden">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-white hover:bg-white/20 md:hidden"
+              aria-label={t('common.back') || "Retour"}
+            >
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
           <h1 className="text-xl font-bold flex-1">{t('profile.title')}</h1>
           <Link href="/cart">
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-white hover:bg-white/20"
+              aria-label={t('nav.cart') || "Panier"}
+            >
               <ShoppingBag className="h-5 w-5" />
             </Button>
           </Link>
@@ -183,7 +265,7 @@ export default function Profile() {
           {/* Badge membre (optionnel - peut être ajouté plus tard) */}
           <div className="flex items-center gap-2 text-sm">
             <span className="text-primary">★</span>
-            <span className="font-medium">Membre</span>
+            <span className="font-medium">{t('profile.member') || "Membre"}</span>
           </div>
         </Card>
 
@@ -210,8 +292,8 @@ export default function Profile() {
                 <CreditCard className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="font-semibold">Méthodes de paiement</p>
-                <p className="text-xs text-muted-foreground">Gérer vos moyens de paiement</p>
+                <p className="font-semibold">{t('profile.paymentMethods') || "Méthodes de paiement"}</p>
+                <p className="text-xs text-muted-foreground">{t('profile.paymentMethods.desc') || "Gérer vos moyens de paiement"}</p>
               </div>
             </div>
             <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -220,6 +302,15 @@ export default function Profile() {
           <div 
             className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors cursor-pointer border-b"
             onClick={() => setShowAddressDialog(true)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setShowAddressDialog(true);
+              }
+            }}
+            aria-label={t('profile.actions.addresses') || (language === 'ar' ? "العناوين" : language === 'en' ? "Addresses" : "Adresses")}
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
@@ -227,13 +318,10 @@ export default function Profile() {
               </div>
               <div className="flex-1">
                 <p className="font-semibold">
-                  {language === 'ar' ? "العناوين" : language === 'en' ? "Addresses" : "Adresses"}
+                  {t('profile.actions.addresses') || (language === 'ar' ? "العناوين" : language === 'en' ? "Addresses" : "Adresses")}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {savedAddresses.length > 0 
-                    ? `${savedAddresses.length} ${language === 'ar' ? 'عنوان محفوظ' : language === 'en' ? 'saved address' : savedAddresses.length === 1 ? 'adresse sauvegardée' : 'adresses sauvegardées'}`
-                    : (onboardingData.address || (language === 'ar' ? 'لا توجد عناوين محفوظة' : language === 'en' ? 'No saved addresses' : 'Aucune adresse enregistrée'))
-                  }
+                  {addressCountText}
                 </p>
               </div>
             </div>
@@ -248,8 +336,8 @@ export default function Profile() {
                 <Gift className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="font-semibold">Cartes cadeaux & crédits</p>
-                <p className="text-xs text-muted-foreground">Gérer vos crédits</p>
+                <p className="font-semibold">{t('profile.giftCards') || "Cartes cadeaux & crédits"}</p>
+                <p className="text-xs text-muted-foreground">{t('profile.giftCards.desc') || "Gérer vos crédits"}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -264,8 +352,8 @@ export default function Profile() {
                 <HelpCircle className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="font-semibold">Centre d'aide</p>
-                <p className="text-xs text-muted-foreground">FAQ et support</p>
+                <p className="font-semibold">{t('profile.helpCenter') || "Centre d'aide"}</p>
+                <p className="text-xs text-muted-foreground">{t('profile.helpCenter.desc') || "FAQ et support"}</p>
               </div>
             </div>
             <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -274,7 +362,7 @@ export default function Profile() {
 
         {/* Bouton Inviter des amis */}
         <Button className="w-full bg-primary hover:bg-primary/90 text-white h-12 text-base font-semibold">
-          Inviter des amis - Obtenez 10€ de réduction
+          {t('profile.inviteFriends') || "Inviter des amis - Obtenez 10€ de réduction"}
         </Button>
 
         {/* Langue */}
@@ -292,6 +380,7 @@ export default function Profile() {
               size="sm"
               className="w-full justify-start"
               onClick={() => setLanguage('fr')}
+              aria-label={language === 'fr' ? `${t('profile.actions.language')} - Français (sélectionné)` : `${t('profile.actions.language')} - Français`}
             >
               Français {language === 'fr' && '✓'}
             </Button>
@@ -300,6 +389,7 @@ export default function Profile() {
               size="sm"
               className="w-full justify-start"
               onClick={() => setLanguage('en')}
+              aria-label={language === 'en' ? `${t('profile.actions.language')} - English (selected)` : `${t('profile.actions.language')} - English`}
             >
               English {language === 'en' && '✓'}
             </Button>
@@ -308,6 +398,7 @@ export default function Profile() {
               size="sm"
               className="w-full justify-start font-sans"
               onClick={() => setLanguage('ar')}
+              aria-label={language === 'ar' ? `${t('profile.actions.language')} - العربية (محدد)` : `${t('profile.actions.language')} - العربية`}
             >
               العربية {language === 'ar' && '✓'}
             </Button>
@@ -319,25 +410,25 @@ export default function Profile() {
           <Link href="/onboarding">
             <Button variant="ghost" className="text-primary hover:bg-primary/10">
               <Settings className="h-4 w-4 mr-2" />
-              Paramètres
+              {t('profile.settings') || "Paramètres"}
             </Button>
           </Link>
           <Button variant="ghost" className="text-primary hover:bg-primary/10">
             <LogOut className="h-4 w-4 mr-2" />
-            Déconnexion
+            {t('profile.logout') || "Déconnexion"}
           </Button>
         </div>
       </div>
 
       {/* Dialog de gestion des adresses */}
       <Dialog open={showAddressDialog} onOpenChange={setShowAddressDialog}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" role="dialog" aria-modal="true">
           <DialogHeader>
             <DialogTitle>
-              {language === 'ar' ? "إدارة العناوين" : language === 'en' ? "Manage Addresses" : "Gérer les adresses"}
+              {t('profile.address.manage') || (language === 'ar' ? "إدارة العناوين" : language === 'en' ? "Manage Addresses" : "Gérer les adresses")}
             </DialogTitle>
             <DialogDescription>
-              {language === 'ar' ? "إضافة أو تعديل أو حذف عناوينك المحفوظة" : language === 'en' ? "Add, edit or delete your saved addresses" : "Ajouter, modifier ou supprimer vos adresses sauvegardées"}
+              {t('profile.address.manageDesc') || (language === 'ar' ? "إضافة أو تعديل أو حذف عناوينك المحفوظة" : language === 'en' ? "Add, edit or delete your saved addresses" : "Ajouter, modifier ou supprimer vos adresses sauvegardées")}
             </DialogDescription>
           </DialogHeader>
 
@@ -353,7 +444,7 @@ export default function Profile() {
                           <span className="font-semibold">{addr.label}</span>
                           {addr.isDefault && (
                             <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                              {language === 'ar' ? "افتراضي" : language === 'en' ? "Default" : "Par défaut"}
+                              {t('profile.address.default') || (language === 'ar' ? "افتراضي" : language === 'en' ? "Default" : "Par défaut")}
                             </span>
                           )}
                         </div>
@@ -369,7 +460,8 @@ export default function Profile() {
                             size="icon"
                             className="h-8 w-8"
                             onClick={() => handleSetDefault(addr.id)}
-                            title={language === 'ar' ? "تعيين كافتراضي" : language === 'en' ? "Set as default" : "Définir par défaut"}
+                            aria-label={t('profile.address.setDefault') || (language === 'ar' ? "تعيين كافتراضي" : language === 'en' ? "Set as default" : "Définir par défaut")}
+                            title={t('profile.address.setDefault') || (language === 'ar' ? "تعيين كافتراضي" : language === 'en' ? "Set as default" : "Définir par défaut")}
                           >
                             <Star className="h-4 w-4" />
                           </Button>
@@ -380,7 +472,8 @@ export default function Profile() {
                             size="icon"
                             className="h-8 w-8 text-red-500 hover:text-red-700"
                             onClick={() => handleDeleteAddress(addr.id)}
-                            title={language === 'ar' ? "حذف" : language === 'en' ? "Delete" : "Supprimer"}
+                            aria-label={`${t('profile.address.delete') || (language === 'ar' ? "حذف" : language === 'en' ? "Delete" : "Supprimer")} ${addr.label}`}
+                            title={t('profile.address.delete') || (language === 'ar' ? "حذف" : language === 'en' ? "Delete" : "Supprimer")}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -393,7 +486,7 @@ export default function Profile() {
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <Home className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>{language === 'ar' ? "لا توجد عناوين محفوظة" : language === 'en' ? "No saved addresses" : "Aucune adresse sauvegardée"}</p>
+                <p>{t('profile.address.none') || (language === 'ar' ? "لا توجد عناوين محفوظة" : language === 'en' ? "No saved addresses" : "Aucune adresse sauvegardée")}</p>
               </div>
             )}
 
@@ -403,7 +496,7 @@ export default function Profile() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between mb-2">
                     <Label className="font-semibold">
-                      {language === 'ar' ? "إضافة عنوان جديد" : language === 'en' ? "Add New Address" : "Ajouter une nouvelle adresse"}
+                      {t('profile.address.addNew') || (language === 'ar' ? "إضافة عنوان جديد" : language === 'en' ? "Add New Address" : "Ajouter une nouvelle adresse")}
                     </Label>
                     <Button
                       variant="ghost"
@@ -411,31 +504,56 @@ export default function Profile() {
                       className="h-6 w-6"
                       onClick={() => {
                         setShowAddForm(false);
-                        setNewAddressLabel("");
-                        setNewAddressStreet("");
-                        setNewAddressDetails("");
+                        resetNewAddressForm();
                       }}
+                      aria-label={t('common.cancel') || "Annuler"}
                     >
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
-                  <Input
-                    placeholder={language === 'ar' ? "الاسم (مثل: منزل، عمل)" : language === 'en' ? "Label (e.g., Home, Work)" : "Nom (ex: Domicile, Travail)"}
-                    value={newAddressLabel}
-                    onChange={(e) => setNewAddressLabel(e.target.value)}
-                  />
-                  <Input
-                    placeholder={language === 'ar' ? "العنوان الكامل" : language === 'en' ? "Full address" : "Adresse complète"}
-                    value={newAddressStreet}
-                    onChange={(e) => setNewAddressStreet(e.target.value)}
-                  />
-                  <Input
-                    placeholder={language === 'ar' ? "تفاصيل إضافية (اختياري)" : language === 'en' ? "Additional details (optional)" : "Détails supplémentaires (optionnel)"}
-                    value={newAddressDetails}
-                    onChange={(e) => setNewAddressDetails(e.target.value)}
-                  />
-                  <Button onClick={handleSaveAddress} className="w-full">
-                    {language === 'ar' ? "حفظ العنوان" : language === 'en' ? "Save Address" : "Enregistrer l'adresse"}
+                  <div className="space-y-2">
+                    <Label htmlFor="address-label" className="sr-only">
+                      {t('profile.address.label') || (language === 'ar' ? "الاسم" : language === 'en' ? "Label" : "Nom")}
+                    </Label>
+                    <Input
+                      id="address-label"
+                      placeholder={t('profile.address.labelPlaceholder') || (language === 'ar' ? "الاسم (مثل: منزل، عمل)" : language === 'en' ? "Label (e.g., Home, Work)" : "Nom (ex: Domicile, Travail)")}
+                      value={newAddressLabel}
+                      onChange={(e) => setNewAddressLabel(e.target.value)}
+                      aria-label={t('profile.address.label') || (language === 'ar' ? "الاسم" : language === 'en' ? "Label" : "Nom")}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="address-street" className="sr-only">
+                      {t('profile.address.street') || (language === 'ar' ? "العنوان" : language === 'en' ? "Address" : "Adresse")}
+                    </Label>
+                    <Input
+                      id="address-street"
+                      placeholder={t('profile.address.streetPlaceholder') || (language === 'ar' ? "العنوان الكامل" : language === 'en' ? "Full address" : "Adresse complète")}
+                      value={newAddressStreet}
+                      onChange={(e) => setNewAddressStreet(e.target.value)}
+                      aria-label={t('profile.address.street') || (language === 'ar' ? "العنوان" : language === 'en' ? "Address" : "Adresse")}
+                      aria-required="true"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="address-details" className="sr-only">
+                      {t('profile.address.details') || (language === 'ar' ? "التفاصيل" : language === 'en' ? "Details" : "Détails")}
+                    </Label>
+                    <Input
+                      id="address-details"
+                      placeholder={t('profile.address.detailsPlaceholder') || (language === 'ar' ? "تفاصيل إضافية (اختياري)" : language === 'en' ? "Additional details (optional)" : "Détails supplémentaires (optionnel)")}
+                      value={newAddressDetails}
+                      onChange={(e) => setNewAddressDetails(e.target.value)}
+                      aria-label={t('profile.address.details') || (language === 'ar' ? "التفاصيل" : language === 'en' ? "Details" : "Détails")}
+                    />
+                  </div>
+                  <Button 
+                    onClick={handleSaveAddress} 
+                    className="w-full"
+                    aria-label={t('profile.address.save') || (language === 'ar' ? "حفظ العنوان" : language === 'en' ? "Save Address" : "Enregistrer l'adresse")}
+                  >
+                    {t('profile.address.save') || (language === 'ar' ? "حفظ العنوان" : language === 'en' ? "Save Address" : "Enregistrer l'adresse")}
                   </Button>
                 </div>
               </Card>
@@ -444,9 +562,10 @@ export default function Profile() {
                 variant="outline"
                 onClick={() => setShowAddForm(true)}
                 className="w-full"
+                aria-label={t('profile.address.addNew') || (language === 'ar' ? "إضافة عنوان جديد" : language === 'en' ? "Add New Address" : "Ajouter une nouvelle adresse")}
               >
                 <Plus className="h-4 w-4 mr-2" />
-                {language === 'ar' ? "إضافة عنوان جديد" : language === 'en' ? "Add New Address" : "Ajouter une nouvelle adresse"}
+                {t('profile.address.addNew') || (language === 'ar' ? "إضافة عنوان جديد" : language === 'en' ? "Add New Address" : "Ajouter une nouvelle adresse")}
               </Button>
             )}
           </div>
@@ -455,4 +574,3 @@ export default function Profile() {
     </div>
   );
 }
-

@@ -1,5 +1,7 @@
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
+import helmet from "helmet";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -28,12 +30,19 @@ const httpServer = createServer(app);
 
 declare module "http" {
   interface IncomingMessage {
-    rawBody: unknown;
+    rawBody?: Buffer;
   }
 }
 
+// Sécurité : Helmet pour les headers HTTP sécurisés
+app.use(helmet());
+
+// CORS : Permet les requêtes cross-origin (peut être restreint plus tard)
+app.use(cors());
+
 app.use(
   express.json({
+    limit: "1mb",
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
@@ -68,11 +77,13 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      if (capturedJsonResponse && process.env.NODE_ENV !== "production") {
+        const jsonString = JSON.stringify(capturedJsonResponse);
+        // Limiter la taille du log à 500 caractères pour éviter les logs trop volumineux
+        logLine += ` :: ${jsonString.slice(0, 500)}${jsonString.length > 500 ? "..." : ""}`;
       }
 
-      log(logLine);
+      log(logLine, "api");
     }
   });
 
@@ -86,8 +97,11 @@ app.use((req, res, next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
+    if (process.env.NODE_ENV !== "production") {
+      console.error(err);
+    }
+
     res.status(status).json({ message });
-    throw err;
   });
 
   // importantly only setup vite in development and after

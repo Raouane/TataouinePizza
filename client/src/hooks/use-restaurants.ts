@@ -24,7 +24,18 @@ export function useRestaurants(token: string | null) {
     }
   }, [token]);
 
-  const create = useCallback(async (data: Partial<Restaurant>) => {
+  const create = useCallback(async (data: {
+    name: string;
+    phone: string;
+    address: string;
+    description?: string;
+    imageUrl?: string;
+    categories?: string[];
+    openingHours?: string;
+    deliveryTime?: number;
+    minOrder?: string;
+    rating?: string;
+  }) => {
     if (!token) throw new Error("Non authentifié");
     
     try {
@@ -38,7 +49,19 @@ export function useRestaurants(token: string | null) {
     }
   }, [token]);
 
-  const update = useCallback(async (id: string, data: Partial<Restaurant>) => {
+  const update = useCallback(async (id: string, data: {
+    name?: string;
+    phone?: string;
+    address?: string;
+    description?: string;
+    imageUrl?: string;
+    categories?: string[];
+    isOpen?: boolean;
+    openingHours?: string;
+    deliveryTime?: number;
+    minOrder?: string;
+    rating?: string;
+  }) => {
     if (!token) throw new Error("Non authentifié");
     
     try {

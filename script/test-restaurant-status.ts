@@ -66,3 +66,4 @@ console.log("  Résultat:", test5);
 console.log("  Attendu: fermé (jour de repos)");
 console.log("\n");
 
+

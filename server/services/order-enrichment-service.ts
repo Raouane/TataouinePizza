@@ -10,12 +10,12 @@ import type { Order } from "@shared/schema";
 import type { Restaurant } from "@shared/schema";
 import type { Driver } from "@shared/schema";
 
-export interface EnrichedOrder extends Order {
+export interface EnrichedOrder extends Omit<Order, 'customerLat' | 'customerLng'> {
   restaurantName?: string;
   restaurantAddress?: string;
   driverName?: string;
-  customerLat?: number | null;
-  customerLng?: number | null;
+  customerLat?: number | null | undefined;
+  customerLng?: number | null | undefined;
 }
 
 /**
@@ -73,7 +73,7 @@ export class OrderEnrichmentService {
     let restaurant = restaurantCache.get(order.restaurantId);
     
     if (!restaurant) {
-      restaurant = await storage.getRestaurantById(order.restaurantId);
+      restaurant = (await storage.getRestaurantById(order.restaurantId)) || null;
       if (restaurant) {
         restaurantCache.set(order.restaurantId, restaurant);
       }
@@ -134,14 +134,14 @@ export class OrderEnrichmentService {
    */
   static async enrichOrders(orders: Order[]): Promise<EnrichedOrder[]> {
     // Récupérer tous les restaurants nécessaires (avec cache)
-    const restaurantIds = [...new Set(orders.map(o => o.restaurantId).filter(Boolean))];
+    const restaurantIds = Array.from(new Set(orders.map(o => o.restaurantId).filter(Boolean) as string[]));
     const restaurantsMap = new Map<string, Restaurant>();
 
     // Récupérer les restaurants (en utilisant le cache quand possible)
     for (const restaurantId of restaurantIds) {
       let restaurant = restaurantCache.get(restaurantId);
       if (!restaurant) {
-        restaurant = await storage.getRestaurantById(restaurantId);
+        restaurant = (await storage.getRestaurantById(restaurantId)) || null;
         if (restaurant) {
           restaurantCache.set(restaurantId, restaurant);
         }

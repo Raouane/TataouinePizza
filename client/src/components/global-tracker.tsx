@@ -32,13 +32,17 @@ export function GlobalTrackerWidget() {
     console.log('[GlobalTracker] Masquage car statut réel:', realStatus);
     return null;
   }
-  if (status === 'delivered') {
-    console.log('[GlobalTracker] Masquage car status calculé:', status);
+  // Ne pas afficher si la commande est livrée (vérifier le statut réel)
+  // Le statut calculé peut être 'received' | 'accepted' | 'ready' | 'delivery' | 'delivered'
+  // mais TypeScript ne le voit pas toujours, donc on vérifie aussi le statut réel
+  const calculatedStatus = status as string;
+  if (calculatedStatus === 'delivered' || calculatedStatus === 'delivery') {
+    console.log('[GlobalTracker] Masquage car status calculé:', calculatedStatus);
     return null;
   }
   
   // Ne pas afficher si ETA est 0 (livraison terminée)
-  if (eta === 0 && status === 'delivered') {
+  if (eta === 0 && (calculatedStatus === 'delivered' || calculatedStatus === 'delivery')) {
     console.log('[GlobalTracker] Masquage car ETA=0 et delivered');
     return null;
   }
