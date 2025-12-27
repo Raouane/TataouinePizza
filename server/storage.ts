@@ -1,8 +1,8 @@
 import { db } from "./db.js";
 import { 
-  adminUsers, pizzas, pizzaPrices, otpCodes, orders, orderItems, drivers, restaurants,
+  adminUsers, pizzas, pizzaPrices, otpCodes, orders, orderItems, drivers, restaurants, customers,
   type Pizza, type InsertAdminUser, type AdminUser, type Order, type OrderItem, type OtpCode, type Driver, type InsertDriver, type Restaurant, type InsertRestaurant,
-  type PizzaPrice, type InsertOrder,
+  type PizzaPrice, type InsertOrder, type Customer, type InsertCustomer,
   insertPizzaSchema, insertPizzaPriceSchema
 } from "@shared/schema";
 import type { z } from "zod";
@@ -13,6 +13,11 @@ export interface IStorage {
   // Admin Users
   getAdminByEmail(email: string): Promise<AdminUser | undefined>;
   createAdminUser(user: InsertAdminUser): Promise<AdminUser>;
+
+  // Customers (simple auth - MVP)
+  getCustomerByPhone(phone: string): Promise<Customer | undefined>;
+  createCustomer(customer: InsertCustomer): Promise<Customer>;
+  updateCustomer(id: string, data: Partial<Customer>): Promise<Customer>;
 
   // Restaurants
   getAllRestaurants(): Promise<Restaurant[]>;
@@ -209,6 +214,57 @@ export class DatabaseStorage implements IStorage {
       return result[0];
     } catch (e) {
       this.log('error', 'Select admin user failed', e);
+      throw e;
+    }
+  }
+
+  // ============ CUSTOMERS (Simple Auth - MVP) ============
+  async getCustomerByPhone(phone: string): Promise<Customer | undefined> {
+    try {
+      const result = await db.select().from(customers).where(eq(customers.phone, phone)).limit(1);
+      return result[0];
+    } catch (e) {
+      this.log('error', 'getCustomerByPhone failed', e);
+      throw e;
+    }
+  }
+
+  async createCustomer(customer: InsertCustomer): Promise<Customer> {
+    const customerId = randomUUID();
+    const customerWithId = { ...customer, id: customerId };
+    
+    try {
+      await db.insert(customers).values(customerWithId);
+    } catch (e) {
+      this.log('error', 'Insert customer failed', e);
+      throw e;
+    }
+    
+    try {
+      const result = await db.select().from(customers).where(eq(customers.id, customerId));
+      if (!Array.isArray(result) || result.length === 0) {
+        throw new Error("Select returned empty result");
+      }
+      return result[0];
+    } catch (e) {
+      this.log('error', 'Select customer failed', e);
+      throw e;
+    }
+  }
+
+  async updateCustomer(id: string, data: Partial<Customer>): Promise<Customer> {
+    try {
+      await db.update(customers)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(customers.id, id));
+      
+      const result = await db.select().from(customers).where(eq(customers.id, id));
+      if (!Array.isArray(result) || result.length === 0) {
+        throw new Error("Customer not found");
+      }
+      return result[0];
+    } catch (e) {
+      this.log('error', 'updateCustomer failed', e);
       throw e;
     }
   }

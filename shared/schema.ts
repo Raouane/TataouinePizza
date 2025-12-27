@@ -43,6 +43,15 @@ export const restaurants = pgTable("restaurants", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Customers (for simple authentication - MVP)
+export const customers = pgTable("customers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  firstName: text("first_name").notNull(), // Prénom uniquement
+  phone: text("phone").notNull().unique(), // Numéro de téléphone unique
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Delivery Drivers
 export const drivers = pgTable("drivers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -181,6 +190,12 @@ export const sendOtpSchema = z.object({
   phone: z.string().min(8, "Téléphone invalide"),
 });
 
+// Customer authentication schemas (simple login without OTP)
+export const customerLoginSchema = z.object({
+  firstName: z.string().min(2, "Prénom min 2 caractères"),
+  phone: z.string().min(8, "Téléphone invalide"),
+});
+
 export const updateOrderStatusSchema = z.object({
   status: z.enum(["pending", "accepted", "preparing", "baking", "ready", "delivery", "delivered", "rejected"]),
 });
@@ -238,6 +253,8 @@ export const assignDriverSchema = z.object({
 // Types
 export type InsertAdminUser = z.infer<typeof insertAdminUserSchema>;
 export type AdminUser = typeof adminUsers.$inferSelect;
+export type Customer = typeof customers.$inferSelect;
+export type InsertCustomer = typeof customers.$inferInsert;
 export type Restaurant = typeof restaurants.$inferSelect;
 export type InsertRestaurant = z.infer<typeof insertRestaurantSchema>;
 export type Driver = typeof drivers.$inferSelect;
@@ -252,3 +269,4 @@ export type UpdateRestaurant = z.infer<typeof updateRestaurantSchema>;
 export type UpdateDriver = z.infer<typeof updateDriverSchema>;
 export type UpdatePizza = z.infer<typeof updatePizzaSchema>;
 export type AssignDriver = z.infer<typeof assignDriverSchema>;
+export type CustomerLogin = z.infer<typeof customerLoginSchema>;

@@ -35,6 +35,18 @@ export async function runMigrationsOnStartup() {
     `);
     console.log("[DB] ✅ Table admin_users créée/vérifiée");
 
+    // Créer la table customers si elle n'existe pas (authentification simple - MVP)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS customers (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        first_name TEXT NOT NULL,
+        phone TEXT NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    console.log("[DB] ✅ Table customers créée/vérifiée");
+
     // Créer la table restaurants si elle n'existe pas
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS restaurants (

@@ -1,10 +1,11 @@
 import type { Express, Request, Response } from "express";
 import rateLimit from "express-rate-limit";
 import { storage } from "../storage";
-import { verifyOtpSchema, sendOtpSchema, insertAdminUserSchema } from "@shared/schema";
+import { verifyOtpSchema, sendOtpSchema, insertAdminUserSchema, customerLoginSchema } from "@shared/schema";
 import { z } from "zod";
 import { authenticateAdmin, generateToken, hashPassword, comparePassword, type AuthRequest } from "../auth";
 import { errorHandler } from "../errors";
+import { authenticateCustomerSimple, isOtpEnabled } from "../services/customer-auth-service";
 
 function validate<T>(schema: z.ZodSchema<T>, data: any): { success: true; data: T } | { success: false; error: z.ZodError } {
   const result = schema.safeParse(data);
@@ -36,9 +37,64 @@ export function registerAuthRoutes(app: Express): void {
     legacyHeaders: false,
   });
 
-  // ============ OTP ============
+  // ============ CUSTOMER AUTHENTICATION (Simple - MVP) ============
+  // OTP DISABLED FOR MVP – ENABLE VIA ENABLE_SMS_OTP ENV FLAG
+  
+  /**
+   * POST /api/auth/login
+   * Authentification simple pour les clients (prénom + téléphone)
+   * 
+   * Mode simple (ENABLE_SMS_OTP=false) :
+   * - Crée ou récupère le client par téléphone
+   * - Retourne un token JWT immédiatement
+   * 
+   * Mode OTP (ENABLE_SMS_OTP=true) :
+   * - Redirige vers le flow OTP classique
+   */
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      // Vérifier si l'OTP est activé
+      if (isOtpEnabled()) {
+        return res.status(400).json({
+          error: "OTP authentication is enabled. Please use /api/otp/send and /api/otp/verify endpoints.",
+        });
+      }
+
+      // Mode simple : validation prénom + téléphone
+      const validation = validate(customerLoginSchema, req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          error: "Invalid request",
+          details: process.env.NODE_ENV === "development" ? validation.error.errors : undefined,
+        });
+      }
+
+      const data = validation.data;
+
+      // Authentifier le client (création automatique si n'existe pas)
+      const authResult = await authenticateCustomerSimple(data);
+
+      res.json({
+        token: authResult.token,
+        customer: authResult.customer,
+      });
+    } catch (error: any) {
+      console.error("[AUTH] Erreur lors de l'authentification:", error);
+      errorHandler.sendError(res, error);
+    }
+  });
+
+  // ============ OTP (Conditional - only if ENABLE_SMS_OTP=true) ============
+  // OTP DISABLED FOR MVP – ENABLE VIA ENABLE_SMS_OTP ENV FLAG
   
   app.post("/api/otp/send", otpLimiter, async (req, res) => {
+    // Vérifier si l'OTP est activé
+    if (!isOtpEnabled()) {
+      return res.status(400).json({
+        error: "OTP authentication is disabled. Please use /api/auth/login endpoint.",
+        message: "OTP désactivé pour le MVP. Utilisez /api/auth/login avec prénom + téléphone.",
+      });
+    }
     try {
       const validation = validate(sendOtpSchema, req.body);
       if (!validation.success) {
@@ -68,6 +124,14 @@ export function registerAuthRoutes(app: Express): void {
   });
   
   app.post("/api/otp/verify", async (req, res) => {
+    // Vérifier si l'OTP est activé
+    if (!isOtpEnabled()) {
+      return res.status(400).json({
+        error: "OTP authentication is disabled. Please use /api/auth/login endpoint.",
+        message: "OTP désactivé pour le MVP. Utilisez /api/auth/login avec prénom + téléphone.",
+      });
+    }
+
     try {
       const validation = validate(verifyOtpSchema, req.body);
       if (!validation.success) {
