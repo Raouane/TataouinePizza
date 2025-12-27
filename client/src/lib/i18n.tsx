@@ -90,6 +90,11 @@ const translations: Translations = {
   'cart.error.name': { fr: "Veuillez entrer votre prénom", en: "Please enter your first name", ar: "الرجاء إدخال الاسم الأول" },
   'cart.error.code': { fr: "Code incorrect", en: "Incorrect code", ar: "الرمز غير صحيح" },
   'cart.error.address': { fr: "Veuillez entrer une adresse valide", en: "Please enter a valid address", ar: "الرجاء إدخال عنوان صحيح" },
+  'cart.error.nameMin': { fr: "Le nom doit contenir au moins 2 caractères", en: "Name must contain at least 2 characters", ar: "يجب أن يحتوي الاسم على حرفين على الأقل" },
+  'cart.error.phoneMin': { fr: "Le téléphone doit contenir au moins 8 caractères", en: "Phone must contain at least 8 characters", ar: "يجب أن يحتوي الهاتف على 8 أحرف على الأقل" },
+  'cart.error.addressMin': { fr: "L'adresse doit contenir au moins 5 caractères", en: "Address must contain at least 5 characters", ar: "يجب أن يحتوي العنوان على 5 أحرف على الأقل" },
+  'cart.error.emptyCart': { fr: "Le panier est vide", en: "Cart is empty", ar: "السلة فارغة" },
+  'cart.error.sendOtp': { fr: "Impossible d'envoyer le code", en: "Unable to send code", ar: "تعذر إرسال الرمز" },
 
   // Success
   'success.title': { fr: "Commande Reçue !", en: "Order Received!", ar: "تم استلام الطلب!" },
@@ -161,6 +166,12 @@ const translations: Translations = {
   'menu.backHome': { fr: "Retour à l'accueil", en: "Back to home", ar: "العودة للرئيسية" },
   'menu.status.open': { fr: "Ouvert", en: "Open", ar: "مفتوح" },
   'menu.status.closed': { fr: "Fermé", en: "Closed", ar: "مغلق" },
+  'menu.status.temporarilyClosed': { fr: "🔒 Fermé temporairement", en: "🔒 Temporarily closed", ar: "🔒 مغلق مؤقتاً" },
+  'menu.status.temporarilyClosedMessage': { fr: "⚠️ Restaurant fermé temporairement", en: "⚠️ Restaurant temporarily closed", ar: "⚠️ المطعم مغلق مؤقتاً" },
+  'menu.status.temporarilyClosedDesc': { fr: "Le restaurant est fermé temporairement. Veuillez réessayer plus tard.", en: "The restaurant is temporarily closed. Please try again later.", ar: "المطعم مغلق مؤقتاً. يرجى المحاولة مرة أخرى لاحقاً." },
+  'menu.status.openingHours': { fr: "Horaires d'ouverture :", en: "Opening hours:", ar: "ساعات العمل:" },
+  'menu.status.closedDay': { fr: "Jour de repos :", en: "Closed day:", ar: "يوم الراحة:" },
+  'menu.status.closedBySchedule': { fr: "Le restaurant est fermé selon les horaires d'ouverture.", en: "The restaurant is closed according to opening hours.", ar: "المطعم مغلق حسب ساعات العمل." },
   'menu.deliveryFee': { fr: "livraison", en: "delivery", ar: "توصيل" },
   'menu.reviews': { fr: "avis", en: "reviews", ar: "تقييم" },
   'menu.restaurantClosed': { fr: "Restaurant fermé", en: "Restaurant closed", ar: "المطعم مغلق" },
@@ -183,6 +194,7 @@ const translations: Translations = {
   'common.loading': { fr: "Chargement...", en: "Loading...", ar: "جاري التحميل..." },
   'common.currency': { fr: "DT", en: "TND", ar: "د.ت" },
   'common.min': { fr: "min", en: "min", ar: "دقيقة" },
+  'common.back': { fr: "Retour", en: "Back", ar: "رجوع" },
   
   // Menu product
   'menu.product.defaultDescription': { fr: "Délicieux plat préparé avec soin", en: "Delicious dish prepared with care", ar: "طبق لذيذ محضر بعناية" },
@@ -263,6 +275,39 @@ const translations: Translations = {
   'profile.notFound.title': { fr: "Profil non trouvé", en: "Profile not found", ar: "الملف الشخصي غير موجود" },
   'profile.notFound.desc': { fr: "Vous devez compléter l'onboarding pour accéder à votre profil.", en: "You must complete onboarding to access your profile.", ar: "يجب إكمال الإعداد للوصول إلى ملفك الشخصي." },
   'profile.notFound.action': { fr: "Compléter l'onboarding", en: "Complete onboarding", ar: "إكمال الإعداد" },
+  'profile.member': { fr: "Membre", en: "Member", ar: "عضو" },
+  'profile.actions.addresses': { fr: "Adresses", en: "Addresses", ar: "العناوين" },
+  'profile.paymentMethods': { fr: "Méthodes de paiement", en: "Payment Methods", ar: "طرق الدفع" },
+  'profile.paymentMethods.desc': { fr: "Gérer vos moyens de paiement", en: "Manage your payment methods", ar: "إدارة طرق الدفع الخاصة بك" },
+  'profile.giftCards': { fr: "Cartes cadeaux & crédits", en: "Gift Cards & Credits", ar: "بطاقات الهدايا والائتمانات" },
+  'profile.giftCards.desc': { fr: "Gérer vos crédits", en: "Manage your credits", ar: "إدارة رصيدك" },
+  'profile.helpCenter': { fr: "Centre d'aide", en: "Help Center", ar: "مركز المساعدة" },
+  'profile.helpCenter.desc': { fr: "FAQ et support", en: "FAQ and support", ar: "الأسئلة الشائعة والدعم" },
+  'profile.inviteFriends': { fr: "Inviter des amis - Obtenez 10€ de réduction", en: "Invite friends - Get 10€ discount", ar: "دعوة الأصدقاء - احصل على خصم 10 يورو" },
+  'profile.settings': { fr: "Paramètres", en: "Settings", ar: "الإعدادات" },
+  'profile.logout': { fr: "Déconnexion", en: "Logout", ar: "تسجيل الخروج" },
+  'profile.address.manage': { fr: "Gérer les adresses", en: "Manage Addresses", ar: "إدارة العناوين" },
+  'profile.address.manageDesc': { fr: "Ajouter, modifier ou supprimer vos adresses sauvegardées", en: "Add, edit or delete your saved addresses", ar: "إضافة أو تعديل أو حذف عناوينك المحفوظة" },
+  'profile.address.default': { fr: "Par défaut", en: "Default", ar: "افتراضي" },
+  'profile.address.setDefault': { fr: "Définir par défaut", en: "Set as default", ar: "تعيين كافتراضي" },
+  'profile.address.delete': { fr: "Supprimer", en: "Delete", ar: "حذف" },
+  'profile.address.none': { fr: "Aucune adresse sauvegardée", en: "No saved addresses", ar: "لا توجد عناوين محفوظة" },
+  'profile.address.addNew': { fr: "Ajouter une nouvelle adresse", en: "Add New Address", ar: "إضافة عنوان جديد" },
+  'profile.address.label': { fr: "Nom", en: "Label", ar: "الاسم" },
+  'profile.address.labelPlaceholder': { fr: "Nom (ex: Domicile, Travail)", en: "Label (e.g., Home, Work)", ar: "الاسم (مثل: منزل، عمل)" },
+  'profile.address.street': { fr: "Adresse", en: "Address", ar: "العنوان" },
+  'profile.address.streetPlaceholder': { fr: "Adresse complète", en: "Full address", ar: "العنوان الكامل" },
+  'profile.address.details': { fr: "Détails", en: "Details", ar: "التفاصيل" },
+  'profile.address.detailsPlaceholder': { fr: "Détails supplémentaires (optionnel)", en: "Additional details (optional)", ar: "تفاصيل إضافية (اختياري)" },
+  'profile.address.save': { fr: "Enregistrer l'adresse", en: "Save Address", ar: "حفظ العنوان" },
+  'profile.address.saved': { fr: "Adresse sauvegardée", en: "Address saved", ar: "تم حفظ العنوان" },
+  'profile.address.savedDesc': { fr: "Cette adresse sera disponible pour vos prochaines commandes", en: "This address will be available for your next orders", ar: "سيكون هذا العنوان متاحًا لطلباتك القادمة" },
+  'profile.address.defaultUpdated': { fr: "Adresse par défaut mise à jour", en: "Default address updated", ar: "تم تحديث العنوان الافتراضي" },
+  'profile.address.deleted': { fr: "Adresse supprimée", en: "Address deleted", ar: "تم حذف العنوان" },
+  'profile.address.error': { fr: "Erreur", en: "Error", ar: "خطأ" },
+  'profile.address.minOneRequired': { fr: "Vous devez avoir au moins une adresse", en: "You must have at least one address", ar: "يجب أن يكون لديك عنوان واحد على الأقل" },
+  'profile.address.minLength': { fr: "L'adresse doit contenir au moins 5 caractères", en: "Address must be at least 5 characters", ar: "يجب أن يحتوي العنوان على 5 أحرف على الأقل" },
+  'profile.address.duplicate': { fr: "Cette adresse existe déjà", en: "This address already exists", ar: "هذا العنوان موجود بالفعل" },
 };
 
 type LanguageContextType = {
@@ -274,9 +319,55 @@ type LanguageContextType = {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguage] = useState<Language>('fr');
+const STORAGE_KEY = 'tataouine-pizza-language';
 
+/**
+ * Détecte la langue du navigateur/téléphone
+ * Règles :
+ * - Si la langue commence par 'fr' → français
+ * - Si la langue commence par 'ar' → arabe
+ * - Sinon → anglais par défaut
+ */
+function detectLanguage(): Language {
+  // 1. Vérifier si une langue est déjà sauvegardée dans localStorage
+  const savedLanguage = localStorage.getItem(STORAGE_KEY);
+  if (savedLanguage === 'fr' || savedLanguage === 'en' || savedLanguage === 'ar') {
+    return savedLanguage as Language;
+  }
+
+  // 2. Détecter depuis le navigateur
+  if (typeof navigator !== 'undefined') {
+    // navigator.language : langue principale (ex: 'fr-FR', 'ar-DZ', 'en-US')
+    // navigator.languages : liste des langues préférées
+    const browserLanguages = navigator.languages || [navigator.language];
+    
+    for (const lang of browserLanguages) {
+      const langCode = lang.toLowerCase().split('-')[0]; // Extraire 'fr' de 'fr-FR'
+      
+      if (langCode === 'fr') {
+        return 'fr';
+      }
+      if (langCode === 'ar') {
+        return 'ar';
+      }
+    }
+  }
+
+  // 3. Fallback : anglais par défaut
+  return 'en';
+}
+
+export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  // Détecter la langue au chargement (une seule fois)
+  const [language, setLanguageState] = useState<Language>(() => detectLanguage());
+
+  // Sauvegarder la langue dans localStorage quand elle change
+  const setLanguage = (lang: Language) => {
+    setLanguageState(lang);
+    localStorage.setItem(STORAGE_KEY, lang);
+  };
+
+  // Appliquer RTL/LTR et lang au document
   useEffect(() => {
     document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
     document.documentElement.lang = language;

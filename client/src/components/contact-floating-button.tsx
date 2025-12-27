@@ -2,8 +2,8 @@ import { Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 
-// Numéro de téléphone de support (à configurer selon vos besoins)
-const PHONE_NUMBER = "21612345678"; // Remplacez par votre numéro de téléphone
+// Numéro de téléphone de support
+const PHONE_NUMBER = "21653666945"; // +216 53 666 945
 
 export function ContactFloatingButton() {
   const handlePhone = () => {
