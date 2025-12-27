@@ -53,7 +53,11 @@ export function RestaurantCard({ restaurant, getCategoryLabel }: RestaurantCardP
               src={restaurant.imageUrl}
               alt={restaurant.name}
               className={`w-full h-full object-cover ${!isActuallyOpen ? 'grayscale' : ''}`}
-              fallback={<span className={`text-6xl ${!isActuallyOpen ? 'opacity-50' : ''}`}>🍕</span>}
+              fallback={
+                <div className="w-full h-full flex items-center justify-center">
+                  <span className={`text-6xl ${!isActuallyOpen ? 'opacity-50' : ''}`}>🍕</span>
+                </div>
+              }
             />
             
             {/* Status Badge */}
