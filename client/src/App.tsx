@@ -26,12 +26,28 @@ import RestaurantLogin from "@/pages/restaurant-login";
 import RestaurantDashboard from "@/pages/restaurant-dashboard";
 import OnboardingPage, { getOnboarding } from "@/pages/onboarding";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
+import { isOnboardingEnabled, shouldSkipOnboarding } from "@/lib/onboarding-config";
 
 // Hook pour vérifier l'onboarding avec réactivité
+// ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG
 function useOnboarding() {
-  const [isOnboarded, setIsOnboarded] = useState(() => !!getOnboarding());
+  const onboardingEnabled = isOnboardingEnabled();
+  
+  // Si l'onboarding est désactivé, toujours retourner true (accès direct)
+  const [isOnboarded, setIsOnboarded] = useState(() => {
+    if (!onboardingEnabled) {
+      return true; // Onboarding désactivé → accès direct
+    }
+    return !!getOnboarding();
+  });
 
   useEffect(() => {
+    // Si l'onboarding est désactivé, ne pas écouter les changements
+    if (!onboardingEnabled) {
+      setIsOnboarded(true);
+      return;
+    }
+
     // Vérifier l'onboarding au montage
     setIsOnboarded(!!getOnboarding());
 
@@ -55,7 +71,7 @@ function useOnboarding() {
       window.removeEventListener("storage", handleStorageChange);
       clearInterval(interval);
     };
-  }, [isOnboarded]);
+  }, [isOnboarded, onboardingEnabled]);
 
   return isOnboarded;
 }
@@ -88,6 +104,8 @@ function Router() {
 
   return (
     <Switch>
+      {/* Route onboarding toujours accessible (même si désactivé, pour accès manuel) */}
+      {/* ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG */}
       <Route path="/onboarding" component={OnboardingPage} />
       <Route path="/admin" component={AdminRedirect} />
       <Route path="/admin/login" component={AdminLogin} />
@@ -99,6 +117,8 @@ function Router() {
       <Route>
         <Layout>
           <Switch>
+            {/* ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG */}
+            {/* Si onboarding désactivé, isOnboarded = true → accès direct à Home */}
             <Route
               path="/"
               component={() => (isOnboarded ? <Home /> : <OnboardingPage />)}
