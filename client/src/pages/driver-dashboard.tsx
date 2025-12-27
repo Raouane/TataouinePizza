@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { OrderDetailsDialog } from "@/components/order-details-dialog";
 import { AudioPermissionBanner } from "@/components/audio-permission-banner";
-import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { playOrderNotificationSound, startNotificationRepeatViaSW, stopNotificationRepeatViaSW } from "@/lib/sound-utils";
 import { stopCustomSound } from "@/lib/pwa-sound-manager";
 
@@ -1366,7 +1366,7 @@ export default function DriverDashboard() {
       <AudioPermissionBanner />
       
       {/* Prompt d'installation PWA */}
-      <PWAInstallPrompt />
+      <PwaInstallPrompt />
     </div>
   );
 }

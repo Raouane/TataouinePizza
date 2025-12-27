@@ -308,6 +308,12 @@ const translations: Translations = {
   'profile.address.minOneRequired': { fr: "Vous devez avoir au moins une adresse", en: "You must have at least one address", ar: "يجب أن يكون لديك عنوان واحد على الأقل" },
   'profile.address.minLength': { fr: "L'adresse doit contenir au moins 5 caractères", en: "Address must be at least 5 characters", ar: "يجب أن يحتوي العنوان على 5 أحرف على الأقل" },
   'profile.address.duplicate': { fr: "Cette adresse existe déjà", en: "This address already exists", ar: "هذا العنوان موجود بالفعل" },
+
+  // PWA Install Prompt
+  'pwa.install.message': { fr: "Profitez de nos commandes en un clic ! Installez notre app maintenant 😊", en: "Enjoy ordering in one click! Install our app now 😊", ar: "إستمتع بالطلبات متاعك بكليك وحدة! ركّب التطبيق تاو 😊" },
+  'pwa.install.button': { fr: "Installer", en: "Install", ar: "تثبيت" },
+  'pwa.install.later': { fr: "Plus tard", en: "Later", ar: "لاحقاً" },
+  'pwa.install.instructions': { fr: "Voir instructions", en: "See instructions", ar: "عرض التعليمات" },
 };
 
 type LanguageContextType = {

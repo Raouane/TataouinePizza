@@ -25,7 +25,7 @@ import DriverDashboard from "@/pages/driver-dashboard";
 import RestaurantLogin from "@/pages/restaurant-login";
 import RestaurantDashboard from "@/pages/restaurant-dashboard";
 import OnboardingPage, { getOnboarding } from "@/pages/onboarding";
-import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { isOnboardingEnabled, shouldSkipOnboarding } from "@/lib/onboarding-config";
 
 // Hook pour vérifier l'onboarding avec réactivité
@@ -175,7 +175,7 @@ function App() {
                   <CartConfirmDialog />
                   <Toaster />
                   <Router />
-                  <PWAInstallPrompt />
+                  <PwaInstallPrompt />
             </CartProvider>
           </OrderProvider>
         </LanguageProvider>
