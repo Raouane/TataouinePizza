@@ -4,6 +4,8 @@ import { rm, readFile } from "fs/promises";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
+// Note: express-rate-limit est marqué comme external car c'est un package ESM pur
+// qui peut causer des problèmes de résolution avec esbuild
 const allowlist = [
   "@google/generative-ai",
   "@neondatabase/serverless",
@@ -14,7 +16,7 @@ const allowlist = [
   "drizzle-orm",
   "drizzle-zod",
   "express",
-  "express-rate-limit",
+  // "express-rate-limit", // External - package ESM pur
   "express-session",
   "jsonwebtoken",
   "memorystore",
