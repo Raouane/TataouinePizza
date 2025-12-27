@@ -144,14 +144,38 @@ export default function OrderHistory() {
           <p className="text-sm text-muted-foreground">
             {orders.length} {t('history.ordersFound')}
           </p>
-          {orders.map((order) => (
-            <Card key={order.id} className="p-4 space-y-3">
+          {orders.map((order, index) => {
+            // Vérifier si cette commande fait partie d'un groupe (même date/heure)
+            const orderDate = order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : null;
+            const previousOrder = index > 0 ? orders[index - 1] : null;
+            const previousOrderDate = previousOrder?.createdAt ? new Date(previousOrder.createdAt).toISOString().split('T')[0] : null;
+            const isPartOfGroup = index > 0 && 
+              previousOrder?.createdAt && 
+              order.createdAt &&
+              previousOrderDate === orderDate &&
+              Math.abs(new Date(order.createdAt).getTime() - new Date(previousOrder.createdAt).getTime()) < 60000; // Moins d'1 minute de différence
+            
+            return (
+            <Card key={order.id} className={`p-4 space-y-3 ${isPartOfGroup ? 'border-l-4 border-l-orange-500' : ''}`}>
+              {isPartOfGroup && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 mb-2">
+                  <p className="text-xs text-orange-800 font-medium">
+                    ⚠️ {language === 'ar' ? 'جزء من طلب متعدد المطاعم' : language === 'en' ? 'Part of multi-restaurant order' : 'Partie d\'une commande multi-restaurants'}
+                  </p>
+                </div>
+              )}
               <div className="flex justify-between items-start gap-4">
                 <div className="flex-1">
                   <p className="font-semibold text-sm text-muted-foreground">
                     Commande {order.id.slice(0, 8)}
                   </p>
-                  <p className="text-lg font-bold text-foreground">{order.customerName}</p>
+                  {order.restaurantName && (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <Store className="w-3 h-3 text-orange-500" />
+                      <p className="text-xs text-muted-foreground">{order.restaurantName}</p>
+                    </div>
+                  )}
+                  <p className="text-lg font-bold text-foreground mt-1">{order.customerName}</p>
                 </div>
                 <span
                   className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
@@ -217,7 +241,8 @@ export default function OrderHistory() {
                 </Button>
               </div>
             </Card>
-          ))}
+          );
+          })}
         </div>
       )}
     </div>

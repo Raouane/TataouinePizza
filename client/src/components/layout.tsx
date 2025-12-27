@@ -6,6 +6,7 @@ import { useLanguage } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { GlobalTrackerWidget } from "@/components/global-tracker";
+import { ContactFloatingButton } from "@/components/contact-floating-button";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -94,6 +95,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Global Order Tracker Widget - Masqué sur la page de succès */}
       {showGlobalTracker && <GlobalTrackerWidget />}
+
+      {/* Contact Floating Button - Visible sur toutes les pages */}
+      <ContactFloatingButton />
 
       {/* Mobile Bottom Nav */}
       <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur px-3 py-2 md:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">

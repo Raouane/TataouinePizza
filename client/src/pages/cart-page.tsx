@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Trash2, Plus, Minus, ArrowRight, MapPin, Phone, CheckCircle2, ChevronLeft, User, Store, AlertTriangle } from "lucide-react";
+import { Trash2, Plus, Minus, ArrowRight, MapPin, Phone, CheckCircle2, ChevronLeft, User, Store, AlertTriangle, Star } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -24,6 +24,14 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type Step = "cart" | "phone" | "verify" | "address" | "summary";
+
+type SavedAddress = {
+  id: string;
+  label: string; // "Domicile", "Travail", etc.
+  street: string;
+  details?: string;
+  isDefault?: boolean;
+};
 
 const DELIVERY_FEE = 2.00; // Prix de livraison fixe en TND
 
@@ -44,6 +52,33 @@ export default function CartPage() {
   const [hasActiveOrder, setHasActiveOrder] = useState(false);
   const [showActiveOrderDialog, setShowActiveOrderDialog] = useState(false);
   const [checkingActiveOrder, setCheckingActiveOrder] = useState(false);
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [showAddAddressForm, setShowAddAddressForm] = useState(false);
+  const [newAddressLabel, setNewAddressLabel] = useState("");
+  const [newAddressStreet, setNewAddressStreet] = useState("");
+  const [newAddressDetails, setNewAddressDetails] = useState("");
+
+  // Charger les adresses sauvegardées au montage
+  useEffect(() => {
+    if (!phone || phone.length < 8) return;
+    
+    const saved = localStorage.getItem(`savedAddresses_${phone}`);
+    if (saved) {
+      try {
+        const addresses = JSON.parse(saved) as SavedAddress[];
+        setSavedAddresses(addresses);
+        // Sélectionner l'adresse par défaut ou la première
+        const defaultAddress = addresses.find(a => a.isDefault) || addresses[0];
+        if (defaultAddress) {
+          setSelectedAddressId(defaultAddress.id);
+          setAddress(defaultAddress.street);
+        }
+      } catch (e) {
+        console.error("Erreur chargement adresses:", e);
+      }
+    }
+  }, [phone]);
 
   // Vérifier si le client a une commande active
   useEffect(() => {
@@ -136,6 +171,24 @@ export default function CartPage() {
   };
 
   const proceedWithOrderCreation = async () => {
+    // Récupérer les détails de l'adresse sélectionnée si elle existe
+    const selectedAddress = savedAddresses.find(addr => addr.id === selectedAddressId);
+    const finalAddressDetails = selectedAddress?.details || onboarding?.addressDetails || "";
+    
+    // Sauvegarder l'adresse actuelle si elle n'est pas dans les adresses sauvegardées
+    if (address.trim() && !selectedAddress && address.trim().length >= 5) {
+      const newAddress: SavedAddress = {
+        id: Date.now().toString(),
+        label: language === 'ar' ? "آخر" : language === 'en' ? "Other" : "Autre",
+        street: address.trim(),
+        details: finalAddressDetails,
+        isDefault: savedAddresses.length === 0,
+      };
+      const updated = [...savedAddresses, newAddress];
+      setSavedAddresses(updated);
+      localStorage.setItem(`savedAddresses_${phone}`, JSON.stringify(updated));
+    }
+    
     // Créer une commande par restaurant
     console.log(`[Cart] Création de ${restaurants.length} commande(s)...`);
     
@@ -156,7 +209,7 @@ export default function CartPage() {
         customerName: name.trim(),
         phone: phone.trim(),
         address: address.trim(),
-        addressDetails: onboarding?.addressDetails || "",
+        addressDetails: finalAddressDetails,
         customerLat: onboarding?.lat, // Optionnel
         customerLng: onboarding?.lng, // Optionnel
         items: orderItems,
@@ -188,6 +241,85 @@ export default function CartPage() {
         variant: "destructive" 
       });
     }
+  };
+
+  // Fonction pour sauvegarder une nouvelle adresse
+  const handleSaveAddress = () => {
+    if (!newAddressStreet.trim() || newAddressStreet.trim().length < 5) {
+      toast({ title: t('cart.error.address'), variant: "destructive" });
+      return;
+    }
+
+    const newAddress: SavedAddress = {
+      id: Date.now().toString(),
+      label: newAddressLabel.trim() || (language === 'ar' ? "آخر" : language === 'en' ? "Other" : "Autre"),
+      street: newAddressStreet.trim(),
+      details: newAddressDetails.trim() || undefined,
+      isDefault: savedAddresses.length === 0, // Première adresse = par défaut
+    };
+
+    const updated = [...savedAddresses, newAddress];
+    setSavedAddresses(updated);
+    localStorage.setItem(`savedAddresses_${phone}`, JSON.stringify(updated));
+    
+    // Sélectionner la nouvelle adresse
+    setSelectedAddressId(newAddress.id);
+    setAddress(newAddress.street);
+    
+    // Réinitialiser le formulaire
+    setNewAddressLabel("");
+    setNewAddressStreet("");
+    setNewAddressDetails("");
+    setShowAddAddressForm(false);
+    
+    toast({ 
+      title: language === 'ar' ? "تم حفظ العنوان" : language === 'en' ? "Address saved" : "Adresse sauvegardée", 
+      description: language === 'ar' ? "سيكون هذا العنوان متاحًا لطلباتك القادمة" : language === 'en' ? "This address will be available for your next orders" : "Cette adresse sera disponible pour vos prochaines commandes" 
+    });
+  };
+
+  // Fonction pour sélectionner une adresse existante
+  const handleSelectAddress = (addr: SavedAddress) => {
+    setSelectedAddressId(addr.id);
+    setAddress(addr.street);
+  };
+
+  // Fonction pour définir une adresse par défaut
+  const handleSetDefault = (id: string) => {
+    const updated = savedAddresses.map(addr => ({
+      ...addr,
+      isDefault: addr.id === id,
+    }));
+    setSavedAddresses(updated);
+    localStorage.setItem(`savedAddresses_${phone}`, JSON.stringify(updated));
+    toast({ 
+      title: language === 'ar' ? "تم تحديث العنوان الافتراضي" : language === 'en' ? "Default address updated" : "Adresse par défaut mise à jour" 
+    });
+  };
+
+  // Fonction pour supprimer une adresse
+  const handleDeleteAddress = (id: string) => {
+    if (savedAddresses.length <= 1) {
+      toast({ 
+        title: language === 'ar' ? "خطأ" : language === 'en' ? "Error" : "Erreur", 
+        description: language === 'ar' ? "يجب أن يكون لديك عنوان واحد على الأقل" : language === 'en' ? "You must have at least one address" : "Vous devez avoir au moins une adresse", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    const updated = savedAddresses.filter(addr => addr.id !== id);
+    setSavedAddresses(updated);
+    localStorage.setItem(`savedAddresses_${phone}`, JSON.stringify(updated));
+    
+    if (selectedAddressId === id) {
+      const first = updated[0];
+      setSelectedAddressId(first.id);
+      setAddress(first.street);
+    }
+    
+    toast({ 
+      title: language === 'ar' ? "تم حذف العنوان" : language === 'en' ? "Address deleted" : "Adresse supprimée" 
+    });
   };
 
   const handleConfirmOrder = async () => {
@@ -473,15 +605,150 @@ export default function CartPage() {
                             <p className="text-xs md:text-sm text-muted-foreground">{t('cart.address.subtitle')}</p>
                         </div>
                     </div>
-                    
+
+                    {/* Adresses sauvegardées */}
+                    {savedAddresses.length > 0 && (
+                      <div className="space-y-3 mb-6">
+                        <Label className="text-sm font-semibold">
+                          {language === 'ar' ? "العناوين المحفوظة" : language === 'en' ? "Saved Addresses" : "Adresses sauvegardées"}
+                        </Label>
+                        <div className="space-y-2">
+                          {savedAddresses.map((addr) => (
+                            <div
+                              key={addr.id}
+                              className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                                selectedAddressId === addr.id
+                                  ? 'border-primary bg-primary/5'
+                                  : 'border-gray-200 hover:border-gray-300'
+                              }`}
+                              onClick={() => handleSelectAddress(addr)}
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-semibold text-sm">{addr.label}</span>
+                                    {addr.isDefault && (
+                                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                                        {language === 'ar' ? "افتراضي" : language === 'en' ? "Default" : "Par défaut"}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-gray-700">{addr.street}</p>
+                                  {addr.details && (
+                                    <p className="text-xs text-gray-500 mt-1">{addr.details}</p>
+                                  )}
+                                </div>
+                                <div className="flex gap-1">
+                                  {!addr.isDefault && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSetDefault(addr.id);
+                                      }}
+                                      title={language === 'ar' ? "تعيين كافتراضي" : language === 'en' ? "Set as default" : "Définir par défaut"}
+                                    >
+                                      <Star className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                  {savedAddresses.length > 1 && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-red-500 hover:text-red-700"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteAddress(addr.id);
+                                      }}
+                                      title={language === 'ar' ? "حذف" : language === 'en' ? "Delete" : "Supprimer"}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Formulaire pour ajouter une nouvelle adresse */}
+                    {showAddAddressForm ? (
+                      <div className="space-y-3 mb-6 p-4 bg-muted/50 rounded-lg border">
+                        <div className="flex items-center justify-between mb-2">
+                          <Label className="text-sm font-semibold">
+                            {language === 'ar' ? "إضافة عنوان جديد" : language === 'en' ? "Add New Address" : "Ajouter une nouvelle adresse"}
+                          </Label>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => {
+                              setShowAddAddressForm(false);
+                              setNewAddressLabel("");
+                              setNewAddressStreet("");
+                              setNewAddressDetails("");
+                            }}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="space-y-2">
+                          <Input
+                            placeholder={language === 'ar' ? "الاسم (مثل: منزل، عمل)" : language === 'en' ? "Label (e.g., Home, Work)" : "Nom (ex: Domicile, Travail)"}
+                            value={newAddressLabel}
+                            onChange={(e) => setNewAddressLabel(e.target.value)}
+                            className="text-sm"
+                          />
+                          <Input
+                            placeholder={t('cart.address.street.ph')}
+                            value={newAddressStreet}
+                            onChange={(e) => setNewAddressStreet(e.target.value)}
+                            className="text-sm"
+                          />
+                          <Input
+                            placeholder={t('cart.address.details.ph')}
+                            value={newAddressDetails}
+                            onChange={(e) => setNewAddressDetails(e.target.value)}
+                            className="text-sm"
+                          />
+                          <Button
+                            onClick={handleSaveAddress}
+                            className="w-full"
+                            size="sm"
+                          >
+                            {language === 'ar' ? "حفظ العنوان" : language === 'en' ? "Save Address" : "Enregistrer l'adresse"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowAddAddressForm(true)}
+                        className="w-full mb-6"
+                      >
+                        <Plus className={`h-4 w-4 ${isRtl ? 'ml-2' : 'mr-2'}`} />
+                        {language === 'ar' ? "إضافة عنوان آخر" : language === 'en' ? "Add Another Address" : "Ajouter une autre adresse ?"}
+                      </Button>
+                    )}
+
+                    {/* Champ adresse principal */}
                     <div className="space-y-3 md:space-y-4">
                         <div className="space-y-2">
-                            <Label className="text-sm md:text-base">{t('cart.address.street')}</Label>
+                            <Label className="text-sm md:text-base">
+                              {savedAddresses.length > 0 
+                                ? (language === 'ar' ? "أو إدخال عنوان جديد" : language === 'en' ? "Or enter a new address" : "Ou saisir une nouvelle adresse")
+                                : t('cart.address.street')
+                              }
+                            </Label>
                             <Input 
                                 placeholder={t('cart.address.street.ph')}
                                 value={address}
                                 onChange={(e) => setAddress(e.target.value)}
-                                autoFocus
+                                autoFocus={savedAddresses.length === 0}
                                 className="text-sm md:text-base"
                             />
                         </div>

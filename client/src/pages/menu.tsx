@@ -269,19 +269,19 @@ export default function Menu() {
             const isTemporarilyClosed = closeReason === 'toggle';
             
             return (
-              <span className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-semibold ${
+          <span className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-semibold ${
                 restaurantIsOpen 
-                  ? "bg-green-500 text-white" 
+              ? "bg-green-500 text-white" 
                   : isTemporarilyClosed
                   ? "bg-orange-500 text-white"
-                  : "bg-gray-500 text-white"
-              }`}>
+              : "bg-gray-500 text-white"
+          }`}>
                 {restaurantIsOpen 
                   ? t('menu.status.open') 
                   : isTemporarilyClosed
                   ? "🔒 Fermé temporairement"
                   : t('menu.status.closed')}
-              </span>
+          </span>
             );
           })()}
         </div>
@@ -328,19 +328,19 @@ export default function Menu() {
             );
             
             return filteredCategories.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
                 {filteredCategories.map((cat) => (
-                  <span
-                    key={cat}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm"
-                  >
-                    {cat === "pizza" ? "Pizza" : 
-                     cat === "burger" ? "Burger" :
-                     cat === "salade" ? "Salade" :
+                <span
+                  key={cat}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm"
+                >
+                  {cat === "pizza" ? "Pizza" : 
+                   cat === "burger" ? "Burger" :
+                   cat === "salade" ? "Salade" :
                      cat === "grill" ? "Grillades" : cat}
-                  </span>
-                ))}
-              </div>
+                </span>
+              ))}
+            </div>
             ) : null;
           })()}
 
@@ -382,7 +382,7 @@ export default function Menu() {
                     </>
                   )}
                 </div>
-              </div>
+            </div>
             );
           })()}
         </div>
@@ -466,10 +466,10 @@ export default function Menu() {
                       }
                       
                       return hasImageUrl ? (
-                        <img
-                          src={pizza.imageUrl}
-                          alt={pizza.name}
-                          className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                      <img
+                        src={pizza.imageUrl}
+                        alt={pizza.name}
+                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                           onLoad={() => {
                             console.log(`%c[MENU] ✅✅✅ IMAGE CHARGÉE: ${pizza.imageUrl}`, 'background: #00b894; color: white; font-size: 12px; font-weight: bold; padding: 4px;');
                             console.log(`   Produit: "${pizza.name}"`);
@@ -492,11 +492,11 @@ export default function Menu() {
                               parent.appendChild(fallback);
                             }
                           }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-6xl md:text-7xl">🍕</span>
-                        </div>
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-6xl md:text-7xl">🍕</span>
+                      </div>
                       );
                     })()}
                     {/* Overlay subtil pour améliorer la lisibilité */}
