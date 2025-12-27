@@ -1,8 +1,11 @@
 import { db } from "./db.js";
 import { 
   adminUsers, pizzas, pizzaPrices, otpCodes, orders, orderItems, drivers, restaurants,
-  type Pizza, type InsertAdminUser, type AdminUser, type Order, type OrderItem, type OtpCode, type Driver, type InsertDriver, type Restaurant, type InsertRestaurant
+  type Pizza, type InsertAdminUser, type AdminUser, type Order, type OrderItem, type OtpCode, type Driver, type InsertDriver, type Restaurant, type InsertRestaurant,
+  type PizzaPrice, type InsertOrder,
+  insertPizzaSchema, insertPizzaPriceSchema
 } from "@shared/schema";
+import type { z } from "zod";
 import { eq, and, desc, sql, inArray, or, isNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
@@ -33,14 +36,16 @@ export interface IStorage {
   // Pizzas
   getAllPizzas(): Promise<Pizza[]>;
   getPizzaById(id: string): Promise<Pizza | undefined>;
+  getPizzasByIds(ids: string[]): Promise<Pizza[]>;
   getPizzasByRestaurant(restaurantId: string): Promise<Pizza[]>;
-  createPizza(pizza: any): Promise<Pizza>;
-  updatePizza(id: string, pizza: any): Promise<Pizza>;
+  createPizza(pizza: z.infer<typeof insertPizzaSchema>): Promise<Pizza>;
+  updatePizza(id: string, pizza: Partial<z.infer<typeof insertPizzaSchema>>): Promise<Pizza>;
   deletePizza(id: string): Promise<void>;
 
   // Pizza Prices
-  getPizzaPrices(pizzaId: string): Promise<any[]>;
-  createPizzaPrice(price: any): Promise<any>;
+  getPizzaPrices(pizzaId: string): Promise<PizzaPrice[]>;
+  getPizzaPricesByPizzaIds(pizzaIds: string[]): Promise<PizzaPrice[]>;
+  createPizzaPrice(price: z.infer<typeof insertPizzaPriceSchema>): Promise<PizzaPrice>;
 
   // OTP
   createOtpCode(phone: string, code: string, expiresAt: Date): Promise<OtpCode>;
@@ -48,17 +53,137 @@ export interface IStorage {
   verifyOtpCode(phone: string, code: string): Promise<boolean>;
 
   // Orders
-  createOrder(order: any): Promise<Order>;
+  // Note: createOrder attend les données de la table orders (sans items)
+  // La transformation InsertOrder -> Order doit être faite dans le service
+  createOrder(order: typeof orders.$inferInsert): Promise<Order>;
+  // Transactional method to create order with items atomically
+  // Items should not include orderId or id (they are set automatically)
+  // If checkDuplicate is provided, checks for duplicates within the transaction (prevents race conditions)
+  createOrderWithItems(
+    order: typeof orders.$inferInsert,
+    items: Array<Omit<typeof orderItems.$inferInsert, 'orderId' | 'id'>>,
+    checkDuplicate?: { phone: string; restaurantId: string; totalPrice: string; withinSeconds: number }
+  ): Promise<Order | null>;
   getOrderById(id: string): Promise<Order | undefined>;
+  getOrderByClientOrderId(clientOrderId: string): Promise<Order | undefined>;
+  getRecentDuplicateOrder(phone: string, restaurantId: string, totalPrice: string, withinSeconds?: number): Promise<Order | undefined>;
   getAllOrders(): Promise<Order[]>;
   getOrdersByPhone(phone: string): Promise<Order[]>;
   getReadyOrders(): Promise<Order[]>;
   updateOrderStatus(id: string, status: string): Promise<Order>;
   getOrderItems(orderId: string): Promise<OrderItem[]>;
-  createOrderItem(item: any): Promise<OrderItem>;
+  createOrderItem(item: typeof orderItems.$inferInsert): Promise<OrderItem>;
 }
 
 export class DatabaseStorage implements IStorage {
+  // ============ HELPER METHODS ============
+  
+  /**
+   * Logger avec niveaux (skip debug en production)
+   */
+  private log(level: 'debug' | 'info' | 'error', message: string, data?: any): void {
+    if (process.env.NODE_ENV === "production" && level === 'debug') {
+      return; // Skip debug logs in production
+    }
+    const prefix = `[DB] ${level.toUpperCase()}`;
+    if (data) {
+      console[level === 'error' ? 'error' : 'log'](`${prefix} ${message}`, data);
+    } else {
+      console[level === 'error' ? 'error' : 'log'](`${prefix} ${message}`);
+    }
+  }
+
+  /**
+   * Parse isOpen depuis raw SQL (gère bug Neon HTTP)
+   */
+  private parseIsOpen(rawValue: any, restaurantName?: string): boolean {
+    try {
+      if (rawValue === 'true' || rawValue === 't' || rawValue === true || rawValue === 1) {
+        return true;
+      } else if (rawValue === 'false' || rawValue === 'f' || rawValue === false || rawValue === 0) {
+        return false;
+      } else {
+        if (process.env.NODE_ENV !== "production") {
+          this.log('debug', `Valeur is_open_text inattendue${restaurantName ? ` pour ${restaurantName}` : ''}: "${rawValue}", défaut à true`);
+        }
+        return true;
+      }
+    } catch (e) {
+      this.log('error', `Erreur parsing is_open${restaurantName ? ` pour ${restaurantName}` : ''}`, e);
+      return true; // Par défaut, considérer ouvert
+    }
+  }
+
+  /**
+   * Parse categories depuis raw SQL (support JSONB + string JSON)
+   */
+  private parseCategories(rawCategories: any, restaurantName?: string): string[] | null {
+    try {
+      if (!rawCategories) return null;
+      
+      if (Array.isArray(rawCategories)) {
+        return rawCategories;
+      } else if (typeof rawCategories === 'string') {
+        const parsed = JSON.parse(rawCategories);
+        return Array.isArray(parsed) ? parsed : null;
+      } else if (typeof rawCategories === 'object') {
+        return Array.isArray(rawCategories) ? rawCategories : null;
+      }
+      
+      return null;
+    } catch (e) {
+      if (process.env.NODE_ENV !== "production") {
+        this.log('debug', `Erreur parsing categories${restaurantName ? ` pour ${restaurantName}` : ''}`, e);
+      }
+      return null;
+    }
+  }
+
+  /**
+   * Parse openingHours depuis raw SQL
+   */
+  private parseOpeningHours(rawValue: any): string | null {
+    try {
+      if (!rawValue) return null;
+      
+      if (typeof rawValue === 'string') {
+        const trimmed = rawValue.trim();
+        return trimmed === '' ? null : trimmed;
+      } else {
+        const str = String(rawValue).trim();
+        return str === '' ? null : str;
+      }
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Construire un Restaurant depuis raw SQL row
+   */
+  private buildRestaurantFromRow(row: any): Restaurant {
+    const categories = this.parseCategories(row.categories, row.name);
+    const isOpen = this.parseIsOpen(row.is_open_text, row.name);
+    const openingHours = this.parseOpeningHours(row.opening_hours);
+
+    return {
+      id: row.id,
+      name: row.name,
+      phone: row.phone,
+      address: row.address,
+      description: row.description || null,
+      imageUrl: row.image_url || null,
+      categories: categories || null,
+      isOpen: Boolean(isOpen),
+      openingHours: openingHours,
+      deliveryTime: row.delivery_time || 30,
+      minOrder: row.min_order || "0",
+      rating: row.rating || "4.5",
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    } as Restaurant;
+  }
+
   // ============ ADMIN ============
   async getAdminByEmail(email: string): Promise<AdminUser | undefined> {
     const result = await db.select().from(adminUsers).where(eq(adminUsers.email, email));
@@ -72,7 +197,7 @@ export class DatabaseStorage implements IStorage {
     try {
       await db.insert(adminUsers).values(adminWithId);
     } catch (e) {
-      console.error("[DB] Insert failed:", e);
+      this.log('error', 'Insert admin user failed', e);
       throw e;
     }
     
@@ -83,25 +208,16 @@ export class DatabaseStorage implements IStorage {
       }
       return result[0];
     } catch (e) {
-      console.error("[DB] Select failed:", e);
+      this.log('error', 'Select admin user failed', e);
       throw e;
     }
-  }
-
-  // Helper to fix boolean parsing (neon-http returns 'false' instead of 'f')
-  private fixRestaurantBooleans(restaurant: Restaurant): Restaurant {
-    return {
-      ...restaurant,
-      isOpen: restaurant.isOpen === true || (restaurant.isOpen as any) === 't' || (restaurant.isOpen as any) === 'true',
-    };
   }
 
   // ============ RESTAURANTS ============
   async getAllRestaurants(): Promise<Restaurant[]> {
     try {
-      console.log("[DB] getAllRestaurants - Début");
+      this.log('debug', 'getAllRestaurants - Début');
       // Use raw SQL with text cast to bypass Neon HTTP boolean parsing bug
-      // Convertir categories JSONB en texte pour compatibilité (sera reparsé après)
       const rawResult = await db.execute(sql`
         SELECT id, name, phone, address, description, image_url, 
                COALESCE(categories::text, NULL) as categories,
@@ -110,110 +226,34 @@ export class DatabaseStorage implements IStorage {
         FROM restaurants ORDER BY name
       `);
       
-      console.log("[DB] getAllRestaurants - Nombre de restaurants:", rawResult.rows?.length || 0);
+      this.log('debug', 'getAllRestaurants - Nombre de restaurants', rawResult.rows?.length || 0);
       
       if (!rawResult.rows || rawResult.rows.length === 0) {
         return [];
       }
       
       const restaurants = rawResult.rows.map((row: any) => {
-        // Parser categories : toujours retourner un tableau ou null
-        // Supporte JSONB (objet PostgreSQL) et TEXT (string JSON)
-        let categories: string[] | null = null;
-        try {
-          if (row.categories) {
-            if (Array.isArray(row.categories)) {
-              // Déjà un tableau (JSONB PostgreSQL)
-              categories = row.categories;
-            } else if (typeof row.categories === 'string') {
-              // String JSON à parser
-              const parsed = JSON.parse(row.categories);
-              categories = Array.isArray(parsed) ? parsed : null;
-            } else if (typeof row.categories === 'object') {
-              // Objet JSONB PostgreSQL, convertir en tableau si possible
-              categories = Array.isArray(row.categories) ? row.categories : null;
-            }
-          }
-          // S'assurer que c'est un tableau
-          if (categories && !Array.isArray(categories)) {
-            categories = null;
-          }
-        } catch (e) {
-          console.warn(`[DB] Erreur parsing categories pour ${row.name}:`, e);
-          categories = null;
-        }
-
-        // Parser isOpen : TOUJOURS un boolean
-        let isOpen: boolean = false;
-        try {
-          const isOpenValue = row.is_open_text;
-          if (isOpenValue === 'true' || isOpenValue === 't' || isOpenValue === true || isOpenValue === 1) {
-            isOpen = true;
-          } else if (isOpenValue === 'false' || isOpenValue === 'f' || isOpenValue === false || isOpenValue === 0) {
-            isOpen = false;
-          } else {
-            // Fallback: si la valeur n'est pas claire, considérer comme ouvert par défaut
-            console.warn(`[DB] Valeur is_open_text inattendue pour ${row.name}: "${isOpenValue}", défaut à true`);
-            isOpen = true;
-          }
-        } catch (e) {
-          console.error(`[DB] Erreur parsing is_open pour ${row.name}:`, e);
-          isOpen = true; // Par défaut, considérer ouvert
-        }
-
-        // Parser openingHours : toujours une string propre ou null
-        let openingHours: string | null = null;
-        try {
-          if (row.opening_hours) {
-            if (typeof row.opening_hours === 'string') {
-              openingHours = row.opening_hours.trim();
-            } else {
-              openingHours = String(row.opening_hours).trim();
-            }
-            if (openingHours === '') {
-              openingHours = null;
-            }
-          }
-        } catch (e) {
-          console.warn(`[DB] Erreur parsing opening_hours pour ${row.name}:`, e);
-          openingHours = null;
-        }
-
-        const restaurant = {
-          id: row.id,
-          name: row.name,
-          phone: row.phone,
-          address: row.address,
-          description: row.description || null,
-          imageUrl: row.image_url || null,
-          categories: categories || null, // Toujours null ou un tableau
-          isOpen: Boolean(isOpen), // FORCER boolean
-          openingHours: openingHours,
-          deliveryTime: row.delivery_time || 30,
-          minOrder: row.min_order || "0",
-          rating: row.rating || "4.5",
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-        } as Restaurant;
+        const restaurant = this.buildRestaurantFromRow(row);
         
-        // Log pour BOUBA uniquement
-        if (restaurant.name && restaurant.name.toLowerCase().includes('bouba')) {
-          console.log(`[DB] Restaurant ${restaurant.name} - isOpen: ${restaurant.isOpen} (raw: ${row.is_open_text}), openingHours: ${restaurant.openingHours} (raw: ${row.opening_hours})`);
+        // Log pour debug spécifique (uniquement en dev)
+        if (process.env.NODE_ENV !== "production" && restaurant.name && restaurant.name.toLowerCase().includes('bouba')) {
+          this.log('debug', `Restaurant ${restaurant.name} - isOpen: ${restaurant.isOpen} (raw: ${row.is_open_text}), openingHours: ${restaurant.openingHours} (raw: ${row.opening_hours})`);
         }
+        
         return restaurant;
       });
       
-      console.log("[DB] getAllRestaurants - Restaurants retournés:", restaurants.map(r => ({ name: r.name, isOpen: r.isOpen })));
+      this.log('debug', 'getAllRestaurants - Restaurants retournés', restaurants.map(r => ({ name: r.name, isOpen: r.isOpen })));
       return restaurants;
     } catch (e) {
-      console.error("[DB] getAllRestaurants error:", e);
+      this.log('error', 'getAllRestaurants error', e);
       return [];
     }
   }
 
   async getRestaurantById(id: string): Promise<Restaurant | undefined> {
     try {
-      console.log("[DB] getRestaurantById - ID:", id);
+      this.log('debug', 'getRestaurantById - ID', id);
       const rawResult = await db.execute(sql`
         SELECT id, name, phone, address, description, image_url, categories, 
                is_open::text as is_open_text, opening_hours, delivery_time, 
@@ -222,49 +262,16 @@ export class DatabaseStorage implements IStorage {
       `);
       
       if (!rawResult.rows || rawResult.rows.length === 0) {
-        console.log("[DB] getRestaurantById - Aucun restaurant trouvé");
+        this.log('debug', 'getRestaurantById - Aucun restaurant trouvé');
         return undefined;
       }
       
       const row = rawResult.rows[0] as any;
-      console.log("[DB] getRestaurantById - is_open_text brut:", row.is_open_text, "type:", typeof row.is_open_text);
+      this.log('debug', 'getRestaurantById - is_open_text brut', { value: row.is_open_text, type: typeof row.is_open_text });
       
-      // Parser isOpen de manière plus robuste (comme dans getAllRestaurants)
-      let isOpen = false;
-      try {
-        if (row.is_open_text === 'true' || row.is_open_text === 't' || row.is_open_text === true) {
-          isOpen = true;
-        } else if (row.is_open_text === 'false' || row.is_open_text === 'f' || row.is_open_text === false) {
-          isOpen = false;
-        } else {
-          console.warn(`[DB] Valeur is_open_text inattendue pour ${row.name}: "${row.is_open_text}", défaut à true`);
-          isOpen = true;
-        }
-      } catch (e) {
-        console.error(`[DB] Erreur parsing is_open pour ${row.name}:`, e);
-        isOpen = true; // Par défaut, considérer ouvert
-      }
-      
-      console.log("[DB] getRestaurantById - isOpen parsé:", isOpen);
-      
-      return {
-        id: row.id,
-        name: row.name,
-        phone: row.phone,
-        address: row.address,
-        description: row.description,
-        imageUrl: row.image_url,
-        categories: row.categories ? (typeof row.categories === 'string' ? JSON.parse(row.categories) : row.categories) : [],
-        isOpen,
-        openingHours: row.opening_hours,
-        deliveryTime: row.delivery_time,
-        minOrder: row.min_order,
-        rating: row.rating,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      } as Restaurant;
+      return this.buildRestaurantFromRow(row);
     } catch (e) {
-      console.error("[DB] getRestaurantById error:", e);
+      this.log('error', 'getRestaurantById error', e);
       return undefined;
     }
   }
@@ -283,24 +290,9 @@ export class DatabaseStorage implements IStorage {
       }
       
       const row = rawResult.rows[0] as any;
-      return {
-        id: row.id,
-        name: row.name,
-        phone: row.phone,
-        address: row.address,
-        description: row.description,
-        imageUrl: row.image_url,
-        categories: row.categories ? (typeof row.categories === 'string' ? JSON.parse(row.categories) : row.categories) : [],
-        isOpen: row.is_open_text === 'true',
-        openingHours: row.opening_hours,
-        deliveryTime: row.delivery_time,
-        minOrder: row.min_order,
-        rating: row.rating,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      } as Restaurant;
+      return this.buildRestaurantFromRow(row);
     } catch (e) {
-      console.error("[DB] getRestaurantByPhone error:", e);
+      this.log('error', 'getRestaurantByPhone error', e);
       return undefined;
     }
   }
@@ -321,12 +313,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateRestaurant(id: string, data: Partial<Restaurant>): Promise<Restaurant> {
-    console.log("[DB] updateRestaurant - ID:", id);
-    console.log("[DB] updateRestaurant - Données à mettre à jour:", data);
-    console.log("[DB] updateRestaurant - isOpen dans data:", data.isOpen, "type:", typeof data.isOpen);
+    this.log('debug', 'updateRestaurant - ID', id);
+    this.log('debug', 'updateRestaurant - Données à mettre à jour', data);
     
     // Préparer les données pour la mise à jour
-    const updateData: any = {
+    const updateData: Partial<Restaurant> = {
       updatedAt: new Date()
     };
     
@@ -334,10 +325,10 @@ export class DatabaseStorage implements IStorage {
     let isOpenValue: boolean | undefined = undefined;
     if (data.isOpen !== undefined) {
       isOpenValue = Boolean(data.isOpen);
-      console.log("[DB] updateRestaurant - isOpen à mettre à jour:", isOpenValue, "type:", typeof isOpenValue);
-      // Ne pas inclure isOpen dans updateData pour éviter les conflits
+      this.log('debug', 'updateRestaurant - isOpen à mettre à jour', { value: isOpenValue, type: typeof isOpenValue });
     }
     
+    // Ajouter les autres champs
     if (data.name !== undefined) updateData.name = data.name;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.address !== undefined) updateData.address = data.address;
@@ -346,71 +337,43 @@ export class DatabaseStorage implements IStorage {
     if (data.categories !== undefined) {
       updateData.categories = Array.isArray(data.categories) ? JSON.stringify(data.categories) : data.categories;
     }
-    console.log("[DB] updateRestaurant - Données reçues (data.openingHours):", data.openingHours, "type:", typeof data.openingHours, "présent:", 'openingHours' in data);
     if (data.openingHours !== undefined) {
       updateData.openingHours = data.openingHours === "" ? null : data.openingHours;
-      console.log("[DB] updateRestaurant - openingHours à sauvegarder:", updateData.openingHours, "type:", typeof updateData.openingHours);
-    } else {
-      console.log("[DB] updateRestaurant - openingHours NON inclus dans data (undefined)");
     }
     if (data.deliveryTime !== undefined) updateData.deliveryTime = data.deliveryTime;
     if (data.minOrder !== undefined) updateData.minOrder = data.minOrder;
     if (data.rating !== undefined) updateData.rating = data.rating;
     
-    console.log("[DB] updateRestaurant - Données préparées pour Drizzle (sans isOpen):", updateData);
-    
     // Mettre à jour isOpen AVANT la mise à jour Drizzle pour éviter les conflits
     if (isOpenValue !== undefined) {
-      console.log("[DB] updateRestaurant - Exécution SQL brut pour isOpen EN PREMIER:", isOpenValue);
+      this.log('debug', 'updateRestaurant - Exécution SQL brut pour isOpen', isOpenValue);
       try {
-        const sqlResult = await db.execute(sql`
+        await db.execute(sql`
           UPDATE restaurants 
           SET is_open = ${isOpenValue}::boolean, updated_at = NOW()
           WHERE id = ${id}
         `);
-        console.log("[DB] updateRestaurant - SQL brut exécuté, lignes affectées:", sqlResult.rowCount);
-        
-        // Vérifier directement dans la DB que la valeur a été mise à jour
-        const verifyResult = await db.execute(sql`
-          SELECT is_open::text as is_open_text FROM restaurants WHERE id = ${id}
-        `);
-        if (verifyResult.rows && verifyResult.rows.length > 0) {
-          const row = verifyResult.rows[0] as any;
-          console.log("[DB] updateRestaurant - Vérification DB immédiate - is_open_text:", row.is_open_text);
-        }
       } catch (sqlError) {
-        console.error("[DB] updateRestaurant - Erreur SQL brut pour isOpen:", sqlError);
+        this.log('error', 'updateRestaurant - Erreur SQL brut pour isOpen', sqlError);
         throw sqlError;
       }
     }
     
     // Utiliser Drizzle pour la mise à jour des autres champs (sans isOpen)
     if (Object.keys(updateData).length > 1) { // Plus que juste updatedAt
-      console.log("[DB] updateRestaurant - Données Drizzle complètes:", JSON.stringify(updateData, null, 2));
-      console.log("[DB] updateRestaurant - openingHours dans updateData avant Drizzle:", updateData.openingHours, "présent:", 'openingHours' in updateData);
       await db.update(restaurants)
         .set(updateData)
         .where(eq(restaurants.id, id));
-      console.log("[DB] updateRestaurant - Mise à jour Drizzle effectuée");
-      
-      // Vérifier immédiatement après la mise à jour
-      const verifyResult = await db.execute(sql`
-        SELECT opening_hours FROM restaurants WHERE id = ${id}
-      `);
-      if (verifyResult.rows && verifyResult.rows.length > 0) {
-        const verifyRow = verifyResult.rows[0] as any;
-        console.log("[DB] updateRestaurant - Vérification opening_hours après Drizzle:", verifyRow.opening_hours);
-      }
+      this.log('debug', 'updateRestaurant - Mise à jour Drizzle effectuée');
     }
     
     // Récupérer le restaurant mis à jour
-    console.log("[DB] updateRestaurant - Récupération du restaurant mis à jour...");
     const result = await this.getRestaurantById(id);
     if (!result) {
       throw new Error("Failed to retrieve updated restaurant");
     }
     
-    console.log("[DB] updateRestaurant - Restaurant récupéré - isOpen:", result.isOpen, "type:", typeof result.isOpen);
+    this.log('debug', 'updateRestaurant - Restaurant récupéré', { isOpen: result.isOpen, type: typeof result.isOpen });
     return result;
   }
 
@@ -499,6 +462,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Atomic driver acceptance - prevents race condition
+  // Uses .returning() to ensure atomicity: UPDATE returns the row only if it was actually updated
   async acceptOrderByDriver(orderId: string, driverId: string): Promise<Order | null> {
     // Accept if order is accepted or ready AND not assigned to anyone
     // Driver can accept early to prepare for pickup (MVP: simplified workflow)
@@ -511,19 +475,16 @@ export class DatabaseStorage implements IStorage {
         eq(orders.id, orderId),
         sql`${orders.status} IN ('accepted', 'ready')`,
         sql`(${orders.driverId} IS NULL OR ${orders.driverId} = '')`
-      ));
+      ))
+      .returning();
     
-    // Check if update was successful
-    const order = await db.select().from(orders).where(eq(orders.id, orderId));
-    if (!order[0]) return null;
-    
-    // If the order now belongs to this driver, success!
-    if (order[0].driverId === driverId) {
-      return order[0];
+    // If result is empty, the WHERE conditions were not met (order already assigned or wrong status)
+    if (!result || result.length === 0) {
+      return null;
     }
     
-    // Someone else got it first
-    return null;
+    // The UPDATE succeeded, return the updated order
+    return result[0];
   }
 
   // ============ PIZZAS ============
@@ -537,6 +498,14 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  /**
+   * Batch fetch pizzas by IDs to avoid N+1 queries
+   */
+  async getPizzasByIds(ids: string[]): Promise<Pizza[]> {
+    if (ids.length === 0) return [];
+    return await db.select().from(pizzas).where(inArray(pizzas.id, ids));
+  }
+
   async getPizzasByRestaurant(restaurantId: string): Promise<Pizza[]> {
     try {
       // Ne retourner que les produits disponibles (available = true)
@@ -546,15 +515,15 @@ export class DatabaseStorage implements IStorage {
           eq(pizzas.restaurantId, restaurantId),
           eq(pizzas.available, true)
         ));
-      console.log(`[DB] getPizzasByRestaurant(${restaurantId}): ${result.length} produits disponibles trouvés`);
+      this.log('debug', `getPizzasByRestaurant(${restaurantId}): ${result.length} produits disponibles trouvés`);
       return result;
     } catch (error) {
-      console.error(`[DB] Erreur getPizzasByRestaurant(${restaurantId}):`, error);
+      this.log('error', `Erreur getPizzasByRestaurant(${restaurantId})`, error);
       return [];
     }
   }
 
-  async createPizza(pizza: any): Promise<Pizza> {
+  async createPizza(pizza: z.infer<typeof insertPizzaSchema>): Promise<Pizza> {
     const pizzaId = randomUUID();
     const pizzaWithId = { ...pizza, id: pizzaId };
     
@@ -567,7 +536,7 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  async updatePizza(id: string, pizza: any): Promise<Pizza> {
+  async updatePizza(id: string, pizza: Partial<z.infer<typeof insertPizzaSchema>>): Promise<Pizza> {
     await db.update(pizzas).set({ ...pizza, updatedAt: new Date() }).where(eq(pizzas.id, id));
     const result = await db.select().from(pizzas).where(eq(pizzas.id, id));
     if (!result || !result[0]) {
@@ -582,13 +551,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ============ PIZZA PRICES ============
-  async getPizzaPrices(pizzaId: string): Promise<any[]> {
+  async getPizzaPrices(pizzaId: string): Promise<PizzaPrice[]> {
     return await db.select().from(pizzaPrices).where(eq(pizzaPrices.pizzaId, pizzaId));
   }
 
-  async createPizzaPrice(price: any): Promise<any> {
+  /**
+   * Batch fetch pizza prices by pizza IDs to avoid N+1 queries
+   * Returns all prices for the given pizza IDs
+   */
+  async getPizzaPricesByPizzaIds(pizzaIds: string[]): Promise<PizzaPrice[]> {
+    if (pizzaIds.length === 0) return [];
+    return await db.select().from(pizzaPrices).where(inArray(pizzaPrices.pizzaId, pizzaIds));
+  }
+
+  async createPizzaPrice(price: z.infer<typeof insertPizzaPriceSchema>): Promise<PizzaPrice> {
     const priceId = randomUUID();
-    const priceWithId = { ...price, id: priceId };
+    // Convertir price en string car la DB attend numeric (string)
+    const priceWithId = { 
+      ...price, 
+      id: priceId,
+      price: typeof price.price === 'number' ? price.price.toString() : price.price
+    };
     
     await db.insert(pizzaPrices).values(priceWithId);
     
@@ -627,8 +610,10 @@ export class DatabaseStorage implements IStorage {
     if (new Date() > otpRecord.expiresAt) return false;
     if ((otpRecord.attempts || 0) >= 3) return false;
     
-    // Accept demo code "1234" for testing OR the actual stored code
-    const isValidCode = code === "1234" || otpRecord.code === code;
+    // Code de test via variable d'environnement (uniquement en dev)
+    const DEMO_OTP_CODE = process.env.DEMO_OTP_CODE;
+    const isDemoCode = DEMO_OTP_CODE && code === DEMO_OTP_CODE && process.env.NODE_ENV !== "production";
+    const isValidCode = isDemoCode || otpRecord.code === code;
     
     if (!isValidCode) {
       await db.update(otpCodes).set({ attempts: (otpRecord.attempts || 0) + 1 }).where(eq(otpCodes.id, otpRecord.id));
@@ -639,7 +624,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ============ ORDERS ============
-  async createOrder(order: any): Promise<Order> {
+  async createOrder(order: typeof orders.$inferInsert): Promise<Order> {
     const orderId = randomUUID();
     const orderWithId = { ...order, id: orderId };
     
@@ -652,8 +637,139 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  /**
+   * Create order with items in a single transaction
+   * Ensures atomicity: if any item creation fails, the entire order is rolled back
+   * Items should not include orderId or id (they are set automatically)
+   * If checkDuplicate is provided, checks for duplicates WITHIN the transaction using FOR UPDATE lock
+   * This prevents race conditions when multiple requests arrive simultaneously
+   */
+  async createOrderWithItems(
+    order: typeof orders.$inferInsert,
+    items: Array<{
+      pizzaId: string;
+      size: "small" | "medium" | "large";
+      quantity: number;
+      pricePerUnit: string;
+    }>,
+    checkDuplicate?: { phone: string; restaurantId: string; totalPrice: string; withinSeconds: number }
+  ): Promise<Order | null> {
+    return await db.transaction(async (tx) => {
+      // CRITICAL: Use PostgreSQL advisory lock to prevent concurrent duplicate creation
+      // This is the ONLY way to guarantee no duplicates when multiple requests arrive simultaneously
+      const lockKey = order.clientOrderId 
+        ? `client_order_${order.clientOrderId}`.substring(0, 50) // Advisory lock key (max 50 chars)
+        : `order_${checkDuplicate?.phone}_${checkDuplicate?.restaurantId}_${checkDuplicate?.totalPrice}`.substring(0, 50);
+      
+      // Acquire advisory lock (blocks until available, prevents concurrent execution)
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`);
+      
+      // Priority 1: Check by clientOrderId if provided (most reliable idempotency)
+      // This check is done WITHIN the transaction AFTER acquiring the lock
+      if (order.clientOrderId) {
+        try {
+          const existingByClientId = await tx.execute(sql`
+            SELECT id FROM orders
+            WHERE client_order_id = ${order.clientOrderId}
+            LIMIT 1
+          `);
+          
+          if (existingByClientId.rows && existingByClientId.rows.length > 0) {
+            // Order with this clientOrderId already exists, return null
+            // Advisory lock will be released automatically when transaction ends
+            return null;
+          }
+        } catch (error: any) {
+          // If column doesn't exist yet (migration not run), log and continue with fallback check
+          if (error?.message?.includes('client_order_id') || error?.message?.includes('column')) {
+            this.log('error', 'Column client_order_id does not exist yet. Run migration: migrations/add_client_order_id.sql', error);
+            // Continue with fallback duplicate check below
+          } else {
+            throw error; // Re-throw if it's a different error
+          }
+        }
+      }
+      
+      // Priority 2: If duplicate check is requested, verify within transaction
+      // Advisory lock already prevents race conditions, but we still check for duplicates
+      if (checkDuplicate) {
+        const duplicateResult = await tx.execute(sql`
+          SELECT id FROM orders
+          WHERE phone = ${checkDuplicate.phone}
+            AND restaurant_id = ${checkDuplicate.restaurantId}
+            AND total_price = ${checkDuplicate.totalPrice}
+            AND created_at > NOW() - INTERVAL '${checkDuplicate.withinSeconds} seconds'
+          LIMIT 1
+        `);
+        
+        if (duplicateResult.rows && duplicateResult.rows.length > 0) {
+          // Duplicate found, return null to signal duplicate
+          return null;
+        }
+      }
+      
+      // Create order
+      const orderId = randomUUID();
+      const orderWithId = { ...order, id: orderId };
+      
+      const orderResult = await tx.insert(orders)
+        .values(orderWithId)
+        .returning();
+      
+      if (!orderResult || !orderResult[0]) {
+        throw new Error("Failed to create order");
+      }
+      
+      // Create all order items
+      if (items.length > 0) {
+        const itemsWithOrderId = items.map(item => ({
+          ...item,
+          id: randomUUID(),
+          orderId: orderId,
+        }));
+        
+        await tx.insert(orderItems).values(itemsWithOrderId);
+      }
+      
+      // Return the created order
+      return orderResult[0];
+    });
+  }
+
   async getOrderById(id: string): Promise<Order | undefined> {
     const result = await db.select().from(orders).where(eq(orders.id, id));
+    return result[0];
+  }
+
+  /**
+   * Get order by clientOrderId (for idempotency)
+   * Returns the existing order if clientOrderId was already used
+   */
+  async getOrderByClientOrderId(clientOrderId: string): Promise<Order | undefined> {
+    const result = await db.select().from(orders).where(eq(orders.clientOrderId, clientOrderId));
+    return result[0];
+  }
+
+  /**
+   * Check for recent duplicate order to prevent duplicate submissions
+   * Checks if an order with same phone, restaurant, and total was created recently
+   */
+  async getRecentDuplicateOrder(
+    phone: string,
+    restaurantId: string,
+    totalPrice: string,
+    withinSeconds: number = 10
+  ): Promise<Order | undefined> {
+    const result = await db.select().from(orders)
+      .where(and(
+        eq(orders.phone, phone),
+        eq(orders.restaurantId, restaurantId),
+        eq(orders.totalPrice, totalPrice),
+        sql`created_at > NOW() - INTERVAL '${withinSeconds} seconds'`
+      ))
+      .orderBy(desc(orders.createdAt))
+      .limit(1);
+    
     return result[0];
   }
 
@@ -693,7 +809,7 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
   }
 
-  async createOrderItem(item: any): Promise<any> {
+  async createOrderItem(item: typeof orderItems.$inferInsert): Promise<OrderItem> {
     const itemId = randomUUID();
     const itemWithId = { ...item, id: itemId };
     

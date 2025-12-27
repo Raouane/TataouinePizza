@@ -1,42 +1,15 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { insertPizzaSchema, insertOrderSchema, verifyOtpSchema, sendOtpSchema, updateOrderStatusSchema, insertAdminUserSchema, insertDriverSchema, driverLoginSchema, insertRestaurantSchema, restaurants, drivers, pizzaPrices, type Order } from "@shared/schema";
-import { z } from "zod";
-import { authenticateAdmin, authenticateN8nWebhook, generateToken, hashPassword, comparePassword, type AuthRequest } from "./auth";
-import { errorHandler, AppError } from "./errors";
-import { getAuthenticatedDriverId, getAuthenticatedRestaurantId, getAuthenticatedAdminId } from "./middleware/auth-helpers";
-import { handleOtpLogin } from "./middleware/otp-login-helper";
+import { setupWebSocket } from "./websocket";
 import { registerAdminCrudRoutes } from "./routes/admin-crud";
-import { setupWebSocket, notifyDriversOfNewOrder } from "./websocket";
-import { db } from "./db";
-import { eq } from "drizzle-orm";
-import { OrderService } from "./services/order-service";
-import { OrderAcceptanceService } from "./services/order-acceptance-service";
-import { OrderEnrichmentService } from "./services/order-enrichment-service";
-import { CommissionService } from "./services/commission-service";
-import { sendN8nWebhook } from "./webhooks/n8n-webhook";
-import { isRestaurantOpenNow, checkRestaurantStatus } from "./utils/restaurant-status";
-
-declare global {
-  namespace Express {
-    interface Request {
-      admin?: { id: string; email: string };
-    }
-  }
-}
-
-function generateOtp(): string {
-  return Math.floor(1000 + Math.random() * 9000).toString();
-}
-
-function validate<T>(schema: z.ZodSchema<T>, data: any): T | null {
-  try {
-    return schema.parse(data) as T;
-  } catch (error) {
-    return null;
-  }
-}
+import { registerPublicRoutes } from "./routes/public";
+import { registerAuthRoutes } from "./routes/auth";
+import { registerRestaurantDashboardRoutes } from "./routes/restaurant-dashboard";
+import { registerDriverDashboardRoutes } from "./routes/driver-dashboard";
+import { registerWebhookRoutes } from "./routes/webhooks";
+import { authenticateAdmin, type AuthRequest } from "./auth";
+import { storage } from "./storage";
+import { insertPizzaPriceSchema } from "@shared/schema";
 
 let seeded = false;
 
@@ -79,754 +52,15 @@ export async function registerRoutes(
     }
   }
   
-  // ============ RESTAURANTS (PUBLIC) ============
-  
-  app.get("/api/restaurants", async (req, res) => {
-    try {
-      const restaurants = await storage.getAllRestaurants();
-      
-      // Enrichir avec le statut calculé côté serveur pour cohérence
-      // ET normaliser le format pour garantir la cohérence
-      const restaurantsWithStatus = restaurants.map(restaurant => {
-        const status = checkRestaurantStatus(restaurant);
-        
-        // Normaliser le format de retour : UN SEUL format partout
-        const normalized = {
-          id: restaurant.id,
-          name: restaurant.name,
-          phone: restaurant.phone,
-          address: restaurant.address,
-          description: restaurant.description || null,
-          imageUrl: restaurant.imageUrl || null,
-          // categories : toujours un tableau ou null
-          categories: Array.isArray(restaurant.categories) 
-            ? restaurant.categories 
-            : (typeof restaurant.categories === 'string' 
-                ? (() => { try { return JSON.parse(restaurant.categories); } catch { return null; } })()
-                : null),
-          // isOpen : TOUJOURS un boolean
-          isOpen: Boolean(restaurant.isOpen),
-          openingHours: restaurant.openingHours || null,
-          deliveryTime: restaurant.deliveryTime || 30,
-          minOrder: restaurant.minOrder || "0",
-          rating: restaurant.rating || "4.5",
-          createdAt: restaurant.createdAt,
-          updatedAt: restaurant.updatedAt,
-          computedStatus: status
-        };
-        
-        return normalized;
-      });
-      
-      res.json(restaurantsWithStatus);
-    } catch (error) {
-      console.error("[API] Erreur GET /api/restaurants:", error);
-      res.status(500).json({ error: "Failed to fetch restaurants" });
-    }
-  });
-  
-  app.get("/api/restaurants/:id", async (req, res) => {
-    try {
-      const restaurant = await storage.getRestaurantById(req.params.id);
-      if (!restaurant) return res.status(404).json({ error: "Restaurant not found" });
-      
-      // Enrichir avec le statut calculé pour cohérence
-      const restaurantWithStatus = {
-        ...restaurant,
-        computedStatus: checkRestaurantStatus(restaurant)
-      };
-      
-      res.json(restaurantWithStatus);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch restaurant" });
-    }
-  });
-  
-  app.get("/api/restaurants/:id/menu", async (req, res) => {
-    try {
-      const restaurantId = req.params.id;
-      console.log(`[API] Récupération du menu pour le restaurant: ${restaurantId}`);
-      
-      const pizzas = await storage.getPizzasByRestaurant(restaurantId);
-      console.log(`[API] ${pizzas.length} produits trouvés pour le restaurant ${restaurantId}`);
-      
-      const pizzasWithPrices = await Promise.all(
-        pizzas.map(async (pizza) => {
-          const prices = await storage.getPizzaPrices(pizza.id);
-          const productWithPrices = { ...pizza, prices };
-          
-          // Log détaillé des images - TRÈS VISIBLE
-          const hasImage = !!(pizza.imageUrl && pizza.imageUrl.trim() !== '');
-          if (hasImage) {
-            console.log(`[API] ✅ Produit "${pizza.name}" - imageUrl: ${pizza.imageUrl}`);
-          } else {
-            console.log(`[API] ❌ Produit "${pizza.name}" - PAS D'IMAGE (imageUrl: ${pizza.imageUrl || 'null'})`);
-          }
-          
-          return productWithPrices;
-        })
-      );
-      
-      const withImages = pizzasWithPrices.filter(p => p.imageUrl && p.imageUrl.trim() !== '').length;
-      const withoutImages = pizzasWithPrices.filter(p => !p.imageUrl || p.imageUrl.trim() === '').length;
-      
-      console.log(`[API] ========================================`);
-      console.log(`[API] 📊 MENU ENVOYÉ: ${pizzasWithPrices.length} produits`);
-      console.log(`[API] ✅ Avec images: ${withImages}`);
-      console.log(`[API] ❌ Sans images: ${withoutImages}`);
-      console.log(`[API] ========================================`);
-      
-      res.json(pizzasWithPrices);
-    } catch (error) {
-      console.error("[API] Erreur lors de la récupération du menu:", error);
-      res.status(500).json({ error: "Failed to fetch menu" });
-    }
-  });
-  
-  // ============ PIZZAS (PUBLIC) ============
-  
-  app.get("/api/pizzas", async (req, res) => {
-    try {
-      const allPizzas = await storage.getAllPizzas();
-      const pizzasWithPrices = await Promise.all(
-        allPizzas.map(async (pizza) => {
-          const prices = await storage.getPizzaPrices(pizza.id);
-          return { ...pizza, prices };
-        })
-      );
-      res.json(pizzasWithPrices);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch pizzas" });
-    }
-  });
-  
-  app.get("/api/pizzas/:id", async (req, res) => {
-    try {
-      const pizza = await storage.getPizzaById(req.params.id);
-      if (!pizza) return res.status(404).json({ error: "Pizza not found" });
-      const prices = await storage.getPizzaPrices(pizza.id);
-      res.json({ ...pizza, prices });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch pizza" });
-    }
-  });
-  
-  // ============ OTP ============
-  
-  app.post("/api/otp/send", async (req, res) => {
-    try {
-      const data = validate(sendOtpSchema, req.body);
-      if (!data) return res.status(400).json({ error: "Invalid phone number" });
-      
-      const code = generateOtp();
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-      await storage.createOtpCode(data.phone, code, expiresAt);
-      
-      console.log(`[OTP] Code for ${data.phone}: ${code}`);
-      res.json({ message: "OTP sent", code });
-    } catch (error: any) {
-      console.error("[OTP] Erreur lors de l'envoi:", error);
-      res.status(500).json({ 
-        error: "Failed to send OTP",
-        details: process.env.NODE_ENV === "development" ? error.message : undefined
-      });
-    }
-  });
-  
-  app.post("/api/otp/verify", async (req, res) => {
-    try {
-      const data = validate(verifyOtpSchema, req.body);
-      if (!data) return res.status(400).json({ error: "Invalid request" });
-      
-      const verified = await storage.verifyOtpCode(data.phone, data.code);
-      res.json({ verified });
-    } catch (error) {
-      res.status(500).json({ error: "Verification failed" });
-    }
-  });
-  
-  // ============ ORDERS (PUBLIC) ============
-  
-  // La fonction isRestaurantOpenNow est maintenant importée depuis utils/restaurant-status.ts
-  
-  app.post("/api/orders", async (req, res) => {
-    try {
-      const data = validate(insertOrderSchema, req.body);
-      if (!data) return res.status(400).json({ error: "Invalid order data" });
-      
-      // Verify restaurant exists
-      const restaurant = await storage.getRestaurantById(data.restaurantId);
-      if (!restaurant) return res.status(404).json({ error: "Restaurant not found" });
-      
-      // Check if restaurant is open
-      if (!isRestaurantOpenNow(restaurant)) {
-        return res.status(400).json({
-          error: "Le restaurant est actuellement fermé. Merci de commander pendant les horaires d'ouverture.",
-        });
-      }
-      
-      // Calculate total price and validate pizzas belong to restaurant
-      let totalPrice = 0;
-      const orderItemsDetails: Array<{ name: string; size: string; quantity: number }> = [];
-      
-      for (const item of data.items) {
-        const pizza = await storage.getPizzaById(item.pizzaId);
-        if (!pizza) return res.status(404).json({ error: `Pizza ${item.pizzaId} not found` });
-        if (pizza.restaurantId !== data.restaurantId) {
-          return res.status(400).json({ error: "All pizzas must be from the same restaurant" });
-        }
-        
-        const prices = await storage.getPizzaPrices(item.pizzaId);
-        const sizePrice = prices.find((p: any) => p.size === item.size);
-        if (!sizePrice) return res.status(400).json({ error: `Invalid size for pizza ${pizza.name}` });
-        totalPrice += Number(sizePrice.price) * item.quantity;
-        
-        orderItemsDetails.push({
-          name: pizza.name,
-          size: item.size,
-          quantity: item.quantity,
-        });
-      }
-      
-      // Add delivery fee (2 TND)
-      const deliveryFee = 2.0;
-      totalPrice += deliveryFee;
-      
-      // Feature flag: Force order to READY status for testing
-      const FORCE_RESTAURANT_READY = process.env.FORCE_RESTAURANT_READY === 'true';
-      const isProduction = process.env.NODE_ENV === 'production';
-      
-      if (FORCE_RESTAURANT_READY && isProduction) {
-        console.error("[ORDER] ⚠️ ATTENTION: FORCE_RESTAURANT_READY activé en PRODUCTION !");
-        // Optionnel: désactiver automatiquement en prod pour sécurité
-        // FORCE_RESTAURANT_READY = false;
-      }
-      
-      const initialStatus = FORCE_RESTAURANT_READY ? "ready" : "accepted";
-      
-      if (FORCE_RESTAURANT_READY) {
-        console.log("[ORDER] ⚠️ FORCE_RESTAURANT_READY activé - Commande forcée à READY");
-      }
-      
-      // Create order with status "accepted" if restaurant is open (or "ready" if flag is active)
-      console.log("[ORDER] Création commande avec coordonnées GPS:", {
-        customerLat: data.customerLat,
-        customerLng: data.customerLng,
-        address: data.address,
-        status: initialStatus,
-      });
-      
-      const order = await storage.createOrder({
-        restaurantId: data.restaurantId,
-        customerName: data.customerName,
-        phone: data.phone,
-        address: data.address,
-        addressDetails: data.addressDetails,
-        customerLat: data.customerLat?.toString(),
-        customerLng: data.customerLng?.toString(),
-        totalPrice: totalPrice.toString(),
-        status: initialStatus, // "ready" si flag activé, sinon "accepted"
-      });
-      
-      console.log("[ORDER] Commande créée:", {
-        id: order.id,
-        customerLat: order.customerLat,
-        customerLng: order.customerLng,
-      });
-      
-      for (const item of data.items) {
-        const prices = await storage.getPizzaPrices(item.pizzaId);
-        const sizePrice = prices.find((p: any) => p.size === item.size);
-        await storage.createOrderItem({
-          orderId: order.id,
-          pizzaId: item.pizzaId,
-          size: item.size,
-          quantity: item.quantity,
-          pricePerUnit: sizePrice.price,
-        });
-      }
-      
-      // Notify drivers via WebSocket
-      try {
-        await notifyDriversOfNewOrder({
-          type: "new_order",
-          orderId: order.id,
-          restaurantName: restaurant.name,
-          customerName: data.customerName,
-          address: data.address,
-          customerLat: data.customerLat,
-          customerLng: data.customerLng,
-          totalPrice: totalPrice.toString(),
-          items: orderItemsDetails,
-        });
-      } catch (wsError) {
-        console.error("[ORDER] Erreur notification WebSocket:", wsError);
-        // Continue même si WebSocket échoue
-      }
-      
-      // Envoyer aussi des SMS aux livreurs (déjà fait dans notifyDriversOfNewOrder, mais on peut aussi le faire ici pour être sûr)
-      // Note: Les SMS sont déjà envoyés dans notifyDriversOfNewOrder, donc cette ligne est optionnelle
-      // try {
-      //   const { sendSMSToDrivers } = await import('./services/sms-service.js');
-      //   await sendSMSToDrivers(order.id, restaurant.name, data.customerName, totalPrice.toString());
-      // } catch (smsError) {
-      //   console.error("[ORDER] Erreur envoi SMS:", smsError);
-      // }
-      
-      // Send webhook to n8n
-      try {
-        await sendN8nWebhook("order-created", {
-          orderId: order.id,
-          restaurantId: restaurant.id,
-          restaurantName: restaurant.name,
-          restaurantPhone: restaurant.phone,
-          customerName: data.customerName,
-          customerPhone: data.phone,
-          address: data.address,
-          addressDetails: data.addressDetails,
-          totalPrice: totalPrice.toString(),
-          items: orderItemsDetails,
-          status: order.status,
-          createdAt: order.createdAt,
-        });
-        console.log(`[ORDER] Webhook n8n envoyé pour commande ${order.id}`);
-      } catch (webhookError) {
-        console.error("[ORDER] Erreur webhook n8n:", webhookError);
-        // Continue même si webhook échoue
-      }
-      
-      res.status(201).json({ orderId: order.id, totalPrice });
-    } catch (error) {
-      console.error("[ORDER] Error:", error);
-      res.status(500).json({ error: "Failed to create order" });
-    }
-  });
-
-  // Endpoint pour générer une facture HTML (doit être AVANT /api/orders/:id pour éviter les conflits)
-  app.get("/api/orders/:id/invoice", async (req, res) => {
-    try {
-      const order = await storage.getOrderById(req.params.id);
-      if (!order) return res.status(404).json({ error: "Order not found" });
-      
-      const items = await storage.getOrderItems(order.id);
-      const itemsWithDetails = await Promise.all(
-        items.map(async (item) => {
-          const pizza = await storage.getPizzaById(item.pizzaId);
-          return { ...item, pizza };
-        })
-      );
-      
-      // Enrichir avec les informations du restaurant
-      let restaurantName = "Restaurant";
-      let restaurantAddress = "";
-      if (order.restaurantId) {
-        const restaurant = await storage.getRestaurantById(order.restaurantId);
-        if (restaurant) {
-          restaurantName = restaurant.name;
-          restaurantAddress = restaurant.address || "";
-        }
-      }
-
-      // Générer le HTML de la facture
-      const invoiceHTML = `
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Facture ${order.id.slice(0, 8)}</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      padding: 20px 10px;
-      background: #f5f5f5;
-      color: #333;
-    }
-    .invoice {
-      max-width: 800px;
-      margin: 0 auto;
-      background: white;
-      padding: 20px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-    .header {
-      border-bottom: 3px solid #f97316;
-      padding-bottom: 15px;
-      margin-bottom: 20px;
-    }
-    .header h1 {
-      color: #f97316;
-      font-size: 24px;
-      margin-bottom: 8px;
-    }
-    .header p {
-      color: #666;
-      font-size: 12px;
-    }
-    .info-section {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 20px;
-      margin-bottom: 20px;
-    }
-    .info-box h3 {
-      color: #f97316;
-      font-size: 12px;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-    }
-    .info-box p {
-      color: #333;
-      margin: 4px 0;
-      font-size: 13px;
-      word-break: break-word;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 20px;
-      font-size: 12px;
-      overflow-x: auto;
-      display: block;
-    }
-    thead {
-      background: #f97316;
-      color: white;
-      display: table-header-group;
-    }
-    tbody {
-      display: table-row-group;
-    }
-    tr {
-      display: table-row;
-    }
-    th, td {
-      padding: 8px 4px;
-      text-align: left;
-      border-bottom: 1px solid #eee;
-      display: table-cell;
-    }
-    th {
-      font-weight: 600;
-      font-size: 10px;
-      text-transform: uppercase;
-    }
-    td {
-      font-size: 12px;
-    }
-    .total-row {
-      background: #f9f9f9;
-      font-weight: bold;
-    }
-    .total-row td {
-      padding: 12px 4px;
-      font-size: 16px;
-      color: #f97316;
-    }
-    .footer {
-      margin-top: 30px;
-      padding-top: 15px;
-      border-top: 2px solid #eee;
-      text-align: center;
-      color: #666;
-      font-size: 11px;
-    }
-    .download-btn {
-      margin-top: 20px;
-      text-align: center;
-    }
-    .download-btn button {
-      background: #f97316;
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      width: 100%;
-      max-width: 300px;
-    }
-    .download-btn button:hover {
-      background: #ea580c;
-    }
-    .download-btn button:active {
-      transform: scale(0.98);
-    }
-    @media (min-width: 640px) {
-      body {
-        padding: 40px 20px;
-      }
-      .invoice {
-        padding: 40px;
-      }
-      .header h1 {
-        font-size: 32px;
-        margin-bottom: 10px;
-      }
-      .header p {
-        font-size: 14px;
-      }
-      .info-section {
-        grid-template-columns: 1fr 1fr;
-        gap: 30px;
-        margin-bottom: 30px;
-      }
-      .info-box h3 {
-        font-size: 14px;
-        margin-bottom: 10px;
-      }
-      .info-box p {
-        font-size: 14px;
-        margin: 5px 0;
-      }
-      table {
-        font-size: 14px;
-        margin-bottom: 30px;
-        display: table;
-      }
-      th, td {
-        padding: 12px;
-      }
-      th {
-        font-size: 12px;
-      }
-      td {
-        font-size: 14px;
-      }
-      .total-row td {
-        padding: 15px 12px;
-        font-size: 18px;
-      }
-      .footer {
-        margin-top: 40px;
-        padding-top: 20px;
-        font-size: 12px;
-      }
-      .download-btn {
-        margin-top: 30px;
-      }
-      .download-btn button {
-        font-size: 16px;
-        width: auto;
-      }
-    }
-    @media print {
-      body { background: white; padding: 0; }
-      .invoice { box-shadow: none; padding: 20px; }
-      .download-btn { display: none; }
-      table { display: table; }
-    }
-  </style>
-  <script>
-    function downloadInvoice() {
-      const htmlContent = document.documentElement.outerHTML;
-      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'facture-${order.id.slice(0, 8).toUpperCase()}.html';
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    }
-  </script>
-</head>
-<body>
-  <div class="invoice">
-    <div class="header">
-      <h1>FACTURE</h1>
-      <p>Commande #${order.id.slice(0, 8).toUpperCase()}</p>
-      <p>Date: ${order.createdAt ? new Date(order.createdAt).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}</p>
-    </div>
-    
-    <div class="info-section">
-      <div class="info-box">
-        <h3>Restaurant</h3>
-        <p><strong>${restaurantName}</strong></p>
-        ${restaurantAddress ? `<p>${restaurantAddress}</p>` : ''}
-      </div>
-      <div class="info-box">
-        <h3>Client</h3>
-        <p><strong>${order.customerName}</strong></p>
-        <p>${order.phone}</p>
-        <p>${order.address}</p>
-        ${order.addressDetails ? `<p>${order.addressDetails}</p>` : ''}
-      </div>
-    </div>
-    
-    <table>
-      <thead>
-        <tr>
-          <th>Article</th>
-          <th>Taille</th>
-          <th>Quantité</th>
-          <th>Prix unitaire</th>
-          <th>Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${itemsWithDetails.map(item => `
-          <tr>
-            <td>${item.pizza?.name || `Pizza ${item.pizzaId}`}</td>
-            <td>${item.size === 'small' ? 'Petite' : item.size === 'medium' ? 'Moyenne' : 'Grande'}</td>
-            <td>${item.quantity}</td>
-            <td>${Number(item.pricePerUnit).toFixed(2)} TND</td>
-            <td>${(Number(item.pricePerUnit) * item.quantity).toFixed(2)} TND</td>
-          </tr>
-        `).join('')}
-        <tr class="total-row">
-          <td colspan="4" style="text-align: right;">TOTAL</td>
-          <td>${Number(order.totalPrice).toFixed(2)} TND</td>
-        </tr>
-      </tbody>
-    </table>
-    
-    <div class="footer">
-      <p>Merci pour votre commande !</p>
-      <p>Tataouine Pizza - L'authentique goût du désert</p>
-    </div>
-    
-    <div class="download-btn">
-      <button onclick="downloadInvoice()">
-        📥 Télécharger la facture
-      </button>
-    </div>
-  </div>
-</body>
-</html>
-      `;
-
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      // Utiliser "attachment" pour forcer le téléchargement, ou "inline" pour l'affichage
-      // Si le paramètre "download" est présent dans la query string, on force le téléchargement
-      const forceDownload = req.query.download === 'true';
-      res.setHeader('Content-Disposition', `${forceDownload ? 'attachment' : 'inline'}; filename="facture-${order.id.slice(0, 8)}.html"`);
-      res.send(invoiceHTML);
-    } catch (error) {
-      console.error("[INVOICE] Error:", error);
-      res.status(500).json({ error: "Failed to generate invoice" });
-    }
-  });
-
-  app.get("/api/orders/customer/:phone", async (req, res) => {
-    try {
-      const orders = await storage.getOrdersByPhone(req.params.phone);
-      res.json(orders);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch orders" });
-    }
-  });
-  
-  app.get("/api/orders/:id", async (req, res) => {
-    try {
-      const order = await storage.getOrderById(req.params.id);
-      if (!order) return res.status(404).json({ error: "Order not found" });
-      
-      const items = await storage.getOrderItems(order.id);
-      const itemsWithDetails = await Promise.all(
-        items.map(async (item) => {
-          const pizza = await storage.getPizzaById(item.pizzaId);
-          return { ...item, pizza };
-        })
-      );
-      
-      // Enrichir avec les informations du restaurant
-      let enrichedOrder: any = { ...order, items: itemsWithDetails };
-      if (order.restaurantId) {
-        const restaurant = await storage.getRestaurantById(order.restaurantId);
-        if (restaurant) {
-          enrichedOrder = {
-            ...enrichedOrder,
-            restaurantName: restaurant.name,
-            restaurantAddress: restaurant.address,
-          };
-        }
-      }
-      
-      // Enrichir avec les informations du livreur si assigné
-      if (order.driverId) {
-        const driver = await storage.getDriverById(order.driverId);
-        if (driver) {
-          enrichedOrder = {
-            ...enrichedOrder,
-            driverName: driver.name,
-            driverPhone: driver.phone,
-          };
-        }
-      }
-      
-      res.json(enrichedOrder);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch order" });
-    }
-  });
-  
-  // ============ ADMIN AUTH ============
-  
-  app.post("/api/admin/register", async (req, res) => {
-    // Désactiver l'enregistrement en production pour des raisons de sécurité
-    if (process.env.NODE_ENV === "production") {
-      console.log("[ADMIN REGISTER] Tentative d'enregistrement bloquée en production");
-      return res.status(403).json({ 
-        error: "Registration is disabled in production. Use the create-admin script instead." 
-      });
-    }
-    
-    try {
-      const data = validate(insertAdminUserSchema, req.body);
-      if (!data) return res.status(400).json({ error: "Invalid data" });
-      
-      const existing = await storage.getAdminByEmail(data.email);
-      if (existing) return res.status(409).json({ error: "Email already exists" });
-      
-      const hashedPassword = await hashPassword(data.password);
-      const admin = await storage.createAdminUser({ email: data.email, password: hashedPassword });
-      const token = generateToken(admin.id, admin.email);
-      
-      res.status(201).json({ token });
-    } catch (error) {
-      res.status(500).json({ error: "Registration failed" });
-    }
-  });
-  
-  app.post("/api/admin/login", async (req, res) => {
-    try {
-      const { email, password } = req.body;
-      if (!email || !password) {
-        console.log("[ADMIN LOGIN] Tentative de connexion sans email/password");
-        return res.status(400).json({ error: "Email and password required" });
-      }
-      
-      console.log(`[ADMIN LOGIN] Tentative de connexion pour: ${email}`);
-      const admin = await storage.getAdminByEmail(email);
-      if (!admin) {
-        console.log(`[ADMIN LOGIN] Admin non trouvé: ${email}`);
-        return res.status(401).json({ error: "Invalid credentials" });
-      }
-      
-      const valid = await comparePassword(password, admin.password);
-      if (!valid) {
-        console.log(`[ADMIN LOGIN] Mot de passe incorrect pour: ${email}`);
-        return res.status(401).json({ error: "Invalid credentials" });
-      }
-      
-      const token = generateToken(admin.id, admin.email);
-      console.log(`[ADMIN LOGIN] Connexion réussie pour: ${email}`);
-      res.json({ token });
-    } catch (error: any) {
-      console.error("[ADMIN LOGIN] Erreur:", error);
-      res.status(500).json({ error: "Login failed", details: process.env.NODE_ENV === "development" ? error.message : undefined });
-    }
-  });
-  
-  // ============ ADMIN DASHBOARD ============
-  // Routes CRUD admin extraites dans routes/admin-crud.ts
+  // ============ REGISTER ALL ROUTES ============
+  registerPublicRoutes(app);
+  registerAuthRoutes(app);
+  registerRestaurantDashboardRoutes(app);
+  registerDriverDashboardRoutes(app);
+  registerWebhookRoutes(app);
   registerAdminCrudRoutes(app);
+  
+  // ============ ADMIN SEED ROUTES (temporaire, à déplacer vers routes/admin-seed.ts) ============
   
   app.post("/api/admin/restaurants/seed-test-data", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
@@ -845,7 +79,7 @@ export async function registerRoutes(
           deliveryTime: 25,
           minOrder: "10.00",
           rating: "4.6",
-          products: [] // Pas de produits pour Carrefour pour l'instant
+          products: []
         },
         {
           name: "Aziza",
@@ -995,30 +229,29 @@ export async function registerRoutes(
         const { products, ...restaurantInfo } = restaurantData;
         
         try {
-          // Vérifier si le restaurant existe déjà
           const existing = await storage.getRestaurantByPhone(restaurantInfo.phone);
           
           if (existing) {
             console.log(`[ADMIN] Restaurant "${restaurantInfo.name}" existe déjà`);
             restaurantsSkipped++;
             
-            // Si le restaurant existe mais n'a pas de produits, ajouter les produits
             if (products && products.length > 0) {
               for (const product of products) {
                 const { prices, ...productData } = product;
                 try {
                   const newProduct = await storage.createPizza({
                     ...productData,
+                    productType: productData.productType as "pizza" | "burger" | "salade" | "drink" | "dessert" | "other",
                     restaurantId: existing.id,
                   });
                   
-                  // Ajouter les prix
                   for (const price of prices) {
-                    await storage.createPizzaPrice({
+                    const priceData = insertPizzaPriceSchema.parse({
                       pizzaId: newProduct.id,
-                      size: price.size as "small" | "medium" | "large",
+                      size: price.size,
                       price: price.price,
                     });
+                    await storage.createPizzaPrice(priceData);
                   }
                   productsCreated++;
                 } catch (error: any) {
@@ -1031,7 +264,6 @@ export async function registerRoutes(
             continue;
           }
 
-          // Créer le restaurant
           const restaurant = await storage.createRestaurant({
             ...restaurantInfo,
             categories: restaurantInfo.categories,
@@ -1040,23 +272,23 @@ export async function registerRoutes(
           restaurantsCreated++;
           console.log(`[ADMIN] Restaurant créé: ${restaurant.name}`);
 
-          // Ajouter les produits
           if (products && products.length > 0) {
             for (const product of products) {
               const { prices, ...productData } = product;
               try {
                 const newProduct = await storage.createPizza({
                   ...productData,
+                  productType: productData.productType as "pizza" | "burger" | "salade" | "drink" | "dessert" | "other",
                   restaurantId: restaurant.id,
                 });
                 
-                // Ajouter les prix
                 for (const price of prices) {
-                  await storage.createPizzaPrice({
+                  const priceData = insertPizzaPriceSchema.parse({
                     pizzaId: newProduct.id,
-                    size: price.size as "small" | "medium" | "large",
+                    size: price.size,
                     price: price.price,
                   });
+                  await storage.createPizzaPrice(priceData);
                 }
                 productsCreated++;
               } catch (error: any) {
@@ -1091,7 +323,6 @@ export async function registerRoutes(
       let productsAdded = 0;
       let restaurantsProcessed = 0;
 
-      // Images par catégorie
       const restaurantImages: Record<string, string> = {
         pizza: "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800",
         grill: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800",
@@ -1105,7 +336,6 @@ export async function registerRoutes(
         default: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800",
       };
 
-      // Produits par catégorie (simplifié pour l'API)
       const getProductsForCategory = (categories: string[]): any[] => {
         const products: any[] = [];
         
@@ -1188,7 +418,6 @@ export async function registerRoutes(
           });
         }
         
-        // Toujours ajouter des boissons
         products.push({
           name: "Coca Cola",
           description: "Boisson gazeuse 33cl",
@@ -1199,13 +428,12 @@ export async function registerRoutes(
           prices: [{ size: "small", price: "3.00" }],
         });
         
-        return products.slice(0, 5); // Max 5 produits par restaurant
+        return products.slice(0, 5);
       };
 
       for (const restaurant of restaurants) {
         restaurantsProcessed++;
         
-        // 1. Ajouter une image si elle manque
         if (!restaurant.imageUrl) {
           const categories = restaurant.categories || [];
           let imageUrl = restaurantImages.default;
@@ -1219,12 +447,9 @@ export async function registerRoutes(
           imagesUpdated++;
         }
 
-        // 2. Vérifier les produits existants
         const existingProducts = await storage.getPizzasByRestaurant(restaurant.id);
         
-        // 3. Ajouter des produits si nécessaire
         if (existingProducts.length < 5) {
-          // Convertir categories en array si nécessaire
           const categoriesArray = Array.isArray(restaurant.categories) 
             ? restaurant.categories 
             : (typeof restaurant.categories === 'string' ? JSON.parse(restaurant.categories) : []);
@@ -1242,7 +467,6 @@ export async function registerRoutes(
                 restaurantId: restaurant.id,
               });
 
-              // Ajouter les prix
               for (const price of prices) {
                 await storage.createPizzaPrice({
                   pizzaId: newProduct.id,
@@ -1253,7 +477,6 @@ export async function registerRoutes(
 
               productsAdded++;
             } catch (error: any) {
-              // Ignorer les erreurs de doublons
               if (error.code !== '23505') {
                 console.error(`[ADMIN] Erreur produit "${product.name}":`, error.message);
               }
@@ -1273,333 +496,6 @@ export async function registerRoutes(
       console.error("[ADMIN] Erreur enrichissement:", error);
       res.status(500).json({ error: "Failed to enrich restaurants", details: error.message });
     }
-  });
-
-  
-  // ============ RESTAURANT AUTH (OTP) ============
-  
-  app.post("/api/restaurant/login-otp", async (req: Request, res: Response) => {
-    const result = await handleOtpLogin(req, res, {
-      getUserByPhone: async (phone) => {
-        const restaurant = await storage.getRestaurantByPhone(phone);
-        return restaurant ? { id: restaurant.id, name: restaurant.name, phone: restaurant.phone } : null;
-      },
-      userType: "restaurant",
-    });
-    
-    if (result) {
-      res.json({ token: result.token, restaurant: result.user });
-    }
-  });
-  
-  // ============ RESTAURANT DASHBOARD ============
-  
-  app.get("/api/restaurant/orders", authenticateAdmin, async (req: AuthRequest, res: Response) => {
-    try {
-      const restaurantId = getAuthenticatedRestaurantId(req);
-      
-      const orders = await storage.getOrdersByRestaurant(restaurantId);
-      res.json(orders);
-    } catch (error) {
-      errorHandler.sendError(res, error);
-    }
-  });
-  
-  app.patch("/api/restaurant/orders/:id/status", authenticateAdmin, async (req: AuthRequest, res: Response) => {
-    try {
-      const { status } = req.body as { status?: string };
-      if (!status) throw errorHandler.badRequest("Status required");
-      
-      const restaurantId = getAuthenticatedRestaurantId(req);
-      
-      const updatedOrder = await OrderService.updateStatus(
-        req.params.id,
-        status,
-        { type: "restaurant", id: restaurantId }
-      );
-      
-      res.json(updatedOrder);
-    } catch (error) {
-      errorHandler.sendError(res, error);
-    }
-  });
-  
-  // Toggle restaurant open/closed status
-  app.patch("/api/restaurant/toggle-status", authenticateAdmin, async (req: AuthRequest, res: Response) => {
-    try {
-      const restaurantId = getAuthenticatedRestaurantId(req);
-      
-      const restaurant = await storage.getRestaurantById(restaurantId);
-      if (!restaurant) throw errorHandler.notFound("Restaurant not found");
-      
-      const currentStatus = restaurant.isOpen;
-      const newStatus = !currentStatus;
-      const updated = await storage.updateRestaurant(restaurantId, { isOpen: newStatus });
-      res.json({ isOpen: updated.isOpen });
-    } catch (error) {
-      errorHandler.sendError(res, error);
-    }
-  });
-
-  // Get restaurant status
-  app.get("/api/restaurant/status", authenticateAdmin, async (req: AuthRequest, res: Response) => {
-    try {
-      const restaurantId = getAuthenticatedRestaurantId(req);
-      
-      const restaurant = await storage.getRestaurantById(restaurantId);
-      if (!restaurant) throw errorHandler.notFound("Restaurant not found");
-      
-      res.json({ isOpen: restaurant.isOpen });
-    } catch (error) {
-      errorHandler.sendError(res, error);
-    }
-  });
-
-  // ============ DRIVER AUTH (OTP) ============
-  
-  app.post("/api/driver/login-otp", async (req: Request, res: Response) => {
-    const result = await handleOtpLogin(req, res, {
-      getUserByPhone: async (phone) => {
-        const driver = await storage.getDriverByPhone(phone);
-        return driver ? { id: driver.id, name: driver.name, phone: driver.phone } : null;
-      },
-      userType: "driver",
-    });
-    
-    if (result) {
-      res.json({ token: result.token, driver: result.user });
-    }
-  });
-  
-  // ============ DRIVER DASHBOARD ============
-  
-  // Get ready orders available for pickup (for all drivers)
-  app.get("/api/driver/available-orders", authenticateAdmin, async (req: AuthRequest, res: Response) => {
-    try {
-      let readyOrders: Order[] = [];
-      try {
-        readyOrders = await storage.getReadyOrders();
-      } catch (err) {
-        console.error("[DRIVER] Error fetching ready orders:", err);
-        readyOrders = [];
-      }
-      
-      if (!readyOrders || readyOrders.length === 0) {
-        return res.json([]);
-      }
-      
-      // Utiliser le service d'enrichissement pour éviter les duplications
-      const enrichedOrders = await OrderEnrichmentService.enrichOrders(readyOrders);
-      
-      // Log pour debug GPS
-      enrichedOrders.forEach(order => {
-        console.log(`[API] Commande ${order.id} - Coordonnées GPS:`, {
-          customerLat: order.customerLat,
-          customerLng: order.customerLng,
-          address: order.address,
-        });
-      });
-      
-      res.json(enrichedOrders);
-    } catch (error) {
-      errorHandler.sendError(res, error);
-    }
-  });
-  
-  // Get driver's own orders (accepted/in delivery)
-  app.get("/api/driver/orders", authenticateAdmin, async (req: AuthRequest, res: Response) => {
-    try {
-      const driverId = getAuthenticatedDriverId(req);
-      
-      const orders = await storage.getOrdersByDriver(driverId);
-      
-      // Utiliser le service d'enrichissement pour éviter les duplications
-      const enrichedOrders = await OrderEnrichmentService.enrichOrders(orders);
-      
-      res.json(enrichedOrders);
-    } catch (error) {
-      errorHandler.sendError(res, error);
-    }
-  });
-  
-  // Driver accepts a ready order (atomic - first come first served)
-  app.post("/api/driver/orders/:id/accept", authenticateAdmin, async (req: AuthRequest, res: Response) => {
-    try {
-      const driverId = getAuthenticatedDriverId(req);
-      
-      // Utiliser le service centralisé pour l'acceptation
-      const acceptedOrder = await OrderAcceptanceService.acceptOrder(
-        req.params.id,
-        driverId
-      );
-      
-      if (!acceptedOrder) {
-        throw errorHandler.badRequest("Cette commande a déjà été prise par un autre livreur");
-      }
-      
-      res.json(acceptedOrder);
-    } catch (error) {
-      errorHandler.sendError(res, error);
-    }
-  });
-  
-  // Driver updates order status (can set to delivery when ready, or delivered when done)
-  app.patch("/api/driver/orders/:id/status", authenticateAdmin, async (req: AuthRequest, res: Response) => {
-    try {
-      const { status } = req.body as { status?: string };
-      if (!status) throw errorHandler.badRequest("Status required");
-      
-      const driverId = getAuthenticatedDriverId(req);
-      
-      const updatedOrder = await OrderService.updateStatus(
-        req.params.id,
-        status,
-        { type: "driver", id: driverId }
-      );
-      
-      res.json(updatedOrder);
-    } catch (error) {
-      errorHandler.sendError(res, error);
-    }
-  });
-  
-  // Toggle driver online/offline status
-  app.patch("/api/driver/toggle-status", authenticateAdmin, async (req: AuthRequest, res: Response) => {
-    try {
-      const driverId = getAuthenticatedDriverId(req);
-      
-      const driver = await storage.getDriverById(driverId);
-      if (!driver) throw errorHandler.notFound("Driver not found");
-      
-      // Toggle between available and offline
-      const newStatus = driver.status === "offline" ? "available" : "offline";
-      const updated = await storage.updateDriverStatus(driverId, newStatus);
-      res.json({ status: updated.status });
-    } catch (error) {
-      errorHandler.sendError(res, error);
-    }
-  });
-
-  // Get driver status
-  app.get("/api/driver/status", authenticateAdmin, async (req: AuthRequest, res: Response) => {
-    try {
-      const driverId = getAuthenticatedDriverId(req);
-      
-      const driver = await storage.getDriverById(driverId);
-      if (!driver) throw errorHandler.notFound("Driver not found");
-      
-      res.json({ status: driver.status });
-    } catch (error) {
-      errorHandler.sendError(res, error);
-    }
-  });
-  
-  // ============ N8N WEBHOOKS (Endpoints que n8n appelle) ============
-  
-  // Webhook: n8n peut mettre à jour le statut d'une commande
-  app.patch("/webhook/orders/:id/status", authenticateN8nWebhook, async (req: Request, res: Response) => {
-    try {
-      const { status } = req.body;
-      if (!status) {
-        return res.status(400).json({ error: "Status required" });
-      }
-      
-      const updatedOrder = await OrderService.updateStatus(
-        req.params.id,
-        status,
-        { type: "webhook" }
-      );
-      res.json({ success: true, order: updatedOrder });
-    } catch (error: any) {
-      console.error("[N8N] Erreur webhook update status:", error);
-      res.status(500).json({ error: error.message || "Internal server error" });
-    }
-  });
-  
-  // Webhook: n8n peut assigner un livreur à une commande
-  app.post("/webhook/orders/:id/assign-driver", authenticateN8nWebhook, async (req: Request, res: Response) => {
-    try {
-      const { driverId } = req.body;
-      if (!driverId) {
-        return res.status(400).json({ error: "driverId required" });
-      }
-      
-      // Utiliser le service centralisé pour l'acceptation
-      const acceptedOrder = await OrderAcceptanceService.acceptOrder(
-        req.params.id,
-        driverId
-      );
-      
-      if (!acceptedOrder) {
-        return res.status(400).json({ error: "Failed to assign driver" });
-      }
-      
-      res.json({ success: true, order: acceptedOrder });
-    } catch (error: any) {
-      console.error("[N8N] Erreur webhook assign driver:", error);
-      res.status(500).json({ error: error.message || "Internal server error" });
-    }
-  });
-  
-  // Webhook: n8n peut enregistrer les commissions
-  app.post("/webhook/orders/:id/commissions", authenticateN8nWebhook, async (req: Request, res: Response) => {
-    try {
-      const { driverCommission, appCommission } = req.body;
-      
-      const order = await storage.getOrderById(req.params.id);
-      if (!order) {
-        return res.status(404).json({ error: "Order not found" });
-      }
-      
-      // Utiliser le service de commissions centralisé
-      const commissions = CommissionService.calculateFromCustom(
-        order.totalPrice,
-        driverCommission,
-        appCommission
-      );
-      
-      // Pour l'instant, on log juste les commissions
-      // TODO: Créer une table commissions si nécessaire
-      console.log(`[N8N] Commissions pour commande ${req.params.id}:`, commissions);
-      
-      res.json({ 
-        success: true, 
-        commissions: {
-          driver: commissions.driver,
-          app: commissions.app,
-          restaurant: commissions.restaurant,
-        },
-      });
-    } catch (error: any) {
-      console.error("[N8N] Erreur webhook commissions:", error);
-      res.status(500).json({ error: error.message || "Internal server error" });
-    }
-  });
-  
-  // Webhook: n8n peut recevoir des messages WhatsApp entrants
-  app.post("/webhook/whatsapp-incoming", authenticateN8nWebhook, async (req: Request, res: Response) => {
-    try {
-      const { from, message, orderId } = req.body;
-      
-      console.log(`[N8N] Message WhatsApp reçu de ${from}:`, message);
-      
-      // Traiter le message (ex: "ACCEPTER" pour livreur)
-      // Cette logique sera gérée par n8n, on log juste ici
-      
-      res.json({ success: true, received: true });
-    } catch (error: any) {
-      console.error("[N8N] Erreur webhook whatsapp incoming:", error);
-      res.status(500).json({ error: error.message || "Internal server error" });
-    }
-  });
-  
-  // Webhook: Health check pour n8n
-  app.get("/webhook/health", authenticateN8nWebhook, async (req: Request, res: Response) => {
-    res.json({ 
-      status: "ok", 
-      timestamp: new Date().toISOString(),
-      service: "tataouine-pizza-backend",
-    });
   });
 
   return httpServer;

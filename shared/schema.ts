@@ -98,6 +98,7 @@ export const orders = pgTable("orders", {
   addressDetails: text("address_details"),
   customerLat: numeric("customer_lat", { precision: 10, scale: 7 }), // Coordonnées GPS client
   customerLng: numeric("customer_lng", { precision: 10, scale: 7 }), // Coordonnées GPS client
+  clientOrderId: varchar("client_order_id"), // ID unique généré côté client pour idempotence
   status: orderStatusEnum("status").default("pending"),
   totalPrice: numeric("total_price", { precision: 10, scale: 2 }).notNull(),
   paymentMethod: text("payment_method").default("cash"),
@@ -163,6 +164,7 @@ export const insertOrderSchema = z.object({
   addressDetails: z.string().optional(),
   customerLat: z.number().optional(),
   customerLng: z.number().optional(),
+  clientOrderId: z.string().uuid().optional(), // ID unique généré côté client pour idempotence
   items: z.array(z.object({
     pizzaId: z.string(),
     size: z.enum(["small", "medium", "large"]),
@@ -195,6 +197,44 @@ export const driverLoginSchema = z.object({
   password: z.string().min(6, "Mot de passe min 6 caractères"),
 });
 
+// Update Schemas (PATCH) - tous les champs optionnels
+export const updateRestaurantSchema = z.object({
+  name: z.string().min(2, "Nom min 2 caractères").optional(),
+  phone: z.string().min(8, "Téléphone invalide").optional(),
+  address: z.string().min(5, "Adresse invalide").optional(),
+  description: z.string().nullable().optional(),
+  imageUrl: z.string().url().nullable().optional(),
+  categories: z.array(z.string()).min(1, "Au moins une catégorie requise").optional(),
+  isOpen: z.coerce.boolean().optional(),
+  openingHours: z.string().nullable().optional(),
+  deliveryTime: z.coerce.number().int().min(10).max(120).optional(),
+  minOrder: z.coerce.number().nonnegative().optional(),
+  rating: z.coerce.number().min(0).max(5).optional(),
+});
+
+export const updateDriverSchema = z.object({
+  name: z.string().min(2, "Nom min 2 caractères").optional(),
+  phone: z.string().min(8, "Téléphone invalide").optional(),
+  password: z.string().min(6, "Mot de passe min 6 caractères").optional(),
+});
+
+export const updatePizzaSchema = z.object({
+  name: z.string().min(2, "Nom min 2 caractères").optional(),
+  description: z.string().nullable().optional(),
+  productType: z.enum(["pizza", "burger", "salade", "drink", "dessert", "other"]).optional(),
+  category: z.string().min(1, "Catégorie requise").optional(),
+  imageUrl: z.string().url().nullable().optional(),
+  available: z.coerce.boolean().optional(),
+  prices: z.array(z.object({
+    size: z.enum(["small", "medium", "large"]),
+    price: z.coerce.number().positive("Prix doit être positif"),
+  })).optional(),
+});
+
+export const assignDriverSchema = z.object({
+  driverId: z.string().min(1, "Driver ID requis"),
+});
+
 // Types
 export type InsertAdminUser = z.infer<typeof insertAdminUserSchema>;
 export type AdminUser = typeof adminUsers.$inferSelect;
@@ -208,3 +248,7 @@ export type OtpCode = typeof otpCodes.$inferSelect;
 export type Order = typeof orders.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
+export type UpdateRestaurant = z.infer<typeof updateRestaurantSchema>;
+export type UpdateDriver = z.infer<typeof updateDriverSchema>;
+export type UpdatePizza = z.infer<typeof updatePizzaSchema>;
+export type AssignDriver = z.infer<typeof assignDriverSchema>;
