@@ -47,15 +47,4 @@ export function canTransitionTo(
   return allowedStatuses.includes(newStatus as OrderStatus);
 }
 
-/**
- * @deprecated Utiliser OrderStatus directement (déjà simplifié pour MVP)
- * Conservé pour compatibilité ascendante si nécessaire
- */
-export enum MVPOrderStatus {
-  PENDING = "pending",
-  ACCEPTED = "accepted",
-  READY = "ready",
-  DELIVERY = "delivery",
-  DELIVERED = "delivered",
-}
 
