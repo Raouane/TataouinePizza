@@ -29,26 +29,28 @@ export function PizzaSearchResult({ pizza, restaurant }: PizzaSearchResultProps)
   const price = parseFloat(defaultPrice?.price || "15");
 
   return (
-    <Link href={`/menu/${pizza.restaurantId}`}>
-      <div className="bg-white rounded-xl md:rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow active:scale-[0.98]">
+    <Link href={`/menu/${pizza.restaurantId}`} className="block">
+      <div className="bg-white rounded-xl md:rounded-2xl shadow-sm hover:shadow-md transition-shadow active:scale-[0.98] cursor-pointer">
         <div className="flex gap-2 md:gap-4 p-3 md:p-4">
           {/* Image - Taille responsive mobile-first */}
-          <ImageWithFallback
-            src={pizza.imageUrl}
-            alt={pizza.name}
-            className="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 rounded-lg md:rounded-xl object-cover bg-gray-100"
-          />
+          <div className="flex-shrink-0">
+            <ImageWithFallback
+              src={pizza.imageUrl}
+              alt={pizza.name}
+              className="w-20 h-20 md:w-24 md:h-24 rounded-lg md:rounded-xl object-cover bg-gray-100"
+            />
+          </div>
           
           {/* Contenu - Optimisé mobile */}
-          <div className="flex-1 flex flex-col justify-between min-w-0 overflow-hidden">
-            <div className="min-w-0">
-              <h3 className="font-bold text-base md:text-lg text-gray-900 mb-1 truncate">
+          <div className="flex-1 flex flex-col justify-between min-w-0">
+            <div className="min-w-0 flex flex-col gap-1.5 md:gap-2">
+              <h3 className="font-bold text-base md:text-lg text-gray-900 truncate">
                 {pizza.name}
               </h3>
-              <p className="text-xs md:text-sm text-gray-600 line-clamp-2 mb-2 leading-tight">
+              <p className="text-xs md:text-sm text-gray-600 line-clamp-2 leading-tight">
                 {pizza.description || t('menu.product.defaultDescription')}
               </p>
-              <div className="flex items-center gap-1.5 md:gap-2 mb-1.5 md:mb-2 flex-wrap">
+              <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
                 <span className="text-orange-500 font-bold text-base md:text-lg whitespace-nowrap">
                   {price.toFixed(2)} {t('common.currency')}
                 </span>
