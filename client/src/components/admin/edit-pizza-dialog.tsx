@@ -200,6 +200,25 @@ export function EditPizzaDialog({ open, onOpenChange, pizza, restaurants, onSubm
               onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
               placeholder="https://..."
             />
+            {form.imageUrl && form.imageUrl.trim() !== "" && (
+              <div className="mt-2">
+                <Label className="text-xs text-muted-foreground mb-1 block">Aperçu:</Label>
+                <div className="relative w-full h-32 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                  <img
+                    src={form.imageUrl}
+                    alt="Aperçu"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      const parent = (e.target as HTMLImageElement).parentElement;
+                      if (parent) {
+                        parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400 text-sm">Image invalide</div>';
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
           <div>
             <Label>Disponibilité</Label>
