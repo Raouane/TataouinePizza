@@ -27,8 +27,8 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [eta, setEta] = useState(0);
 
-  const refreshOrderData = async () => {
-    if (!orderId) return;
+  const refreshOrderData = async (): Promise<string | null> => {
+    if (!orderId) return null;
     
     const response = await fetch(`/api/orders/${orderId}`);
     
@@ -40,7 +40,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         setOrderId(null);
         setOrderData(null);
         sessionStorage.removeItem('currentOrderId');
-        return;
+        return null;
       }
       // Pour les autres erreurs (500, etc.), throw pour que le useEffect gère
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -65,7 +65,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         setEta(0);
         sessionStorage.removeItem('currentOrderId');
       }, 2000);
-      return;
+      return realStatus;
     }
     
     setOrderData(data);
@@ -83,6 +83,8 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     if (newStepIndex !== stepIndex) {
       setStepIndex(newStepIndex);
     }
+    
+    return realStatus;
   };
 
   const startOrder = (newOrderId?: string) => {
@@ -139,12 +141,37 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     if (!orderId) return;
     
     let consecutiveErrors = 0;
+    let lastStatus: string | null = null;
+    let statusUnchangedCount = 0;
     const MAX_CONSECUTIVE_ERRORS = 3;
+    const MAX_UNCHANGED_STATUS = 6; // 6 * 5s = 30 secondes sans changement
     
     const refreshWithErrorHandling = async () => {
       try {
-        await refreshOrderData();
+        const currentStatus = await refreshOrderData();
         consecutiveErrors = 0; // Reset on success
+        
+        // Si refreshOrderData retourne null, la commande a été supprimée ou livrée
+        if (currentStatus === null) {
+          return;
+        }
+        
+        // Vérifier si le statut a changé
+        if (currentStatus === lastStatus) {
+          statusUnchangedCount++;
+          // Si le statut reste identique trop longtemps, arrêter le polling
+          if (statusUnchangedCount >= MAX_UNCHANGED_STATUS && lastStatus === 'accepted') {
+            console.log('[OrderContext] Statut accepté inchangé pendant 30s, arrêt du polling');
+            setActiveOrder(false);
+            setOrderId(null);
+            setOrderData(null);
+            sessionStorage.removeItem('currentOrderId');
+            return;
+          }
+        } else {
+          statusUnchangedCount = 0;
+          lastStatus = currentStatus;
+        }
       } catch (error) {
         consecutiveErrors++;
         console.error(`[OrderContext] Erreur lors du rafraîchissement (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`, error);
@@ -165,7 +192,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     
     // Rafraîchir les données toutes les 5 secondes
     const interval = setInterval(() => {
-      if (consecutiveErrors < MAX_CONSECUTIVE_ERRORS) {
+      if (consecutiveErrors < MAX_CONSECUTIVE_ERRORS && statusUnchangedCount < MAX_UNCHANGED_STATUS) {
         refreshWithErrorHandling();
       }
     }, 5000);

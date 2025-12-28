@@ -148,16 +148,42 @@ export async function createOrder(data: {
   customerLng?: number;
   items: OrderItem[];
 }): Promise<{ orderId: string; totalPrice: number }> {
-  const res = await fetch(`${API_BASE}/orders`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+  console.log('[API] 🚀 createOrder appelé avec:', {
+    restaurantId: data.restaurantId,
+    itemsCount: data.items.length,
+    customerName: data.customerName,
+    phone: data.phone
   });
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Failed to create order");
+  
+  try {
+    const url = `${API_BASE}/orders`;
+    console.log('[API] 📡 Envoi POST vers:', url);
+    
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    
+    console.log('[API] 📡 Réponse reçue:', {
+      status: res.status,
+      statusText: res.statusText,
+      ok: res.ok
+    });
+    
+    if (!res.ok) {
+      const error = await res.json();
+      console.error('[API] ❌ Erreur création commande:', error);
+      throw new Error(error.error || "Failed to create order");
+    }
+    
+    const result = await res.json();
+    console.log('[API] ✅ Commande créée avec succès:', result);
+    return result;
+  } catch (error: any) {
+    console.error('[API] ❌ Exception lors de la création:', error);
+    throw error;
   }
-  return res.json();
 }
 
 export async function getOrder(id: string): Promise<Order> {

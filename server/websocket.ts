@@ -166,7 +166,12 @@ async function updateDriverLastSeen(driverId: string) {
  * Notifie tous les livreurs connectés d'une nouvelle commande
  */
 export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
-  console.log(`[WebSocket] Notification nouvelle commande ${orderData.orderId} à tous les livreurs`);
+  console.log("========================================");
+  console.log("[WebSocket] 🔔🔔🔔 NOUVELLE COMMANDE - NOTIFICATION LIVREURS 🔔🔔🔔");
+  console.log("[WebSocket] Order ID:", orderData.orderId);
+  console.log("[WebSocket] Restaurant:", orderData.restaurantName);
+  console.log("[WebSocket] Client:", orderData.customerName);
+  console.log("========================================");
 
   // Récupérer tous les livreurs connectés (en ligne dans les 5 dernières minutes)
   const onlineDrivers = await db
@@ -278,6 +283,7 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
   // Envoyer des notifications WhatsApp à tous les livreurs disponibles
   // WhatsApp sonne toujours, même téléphone éteint (solution fiable)
   try {
+    console.log("[WebSocket] 📞 Appel sendWhatsAppToDrivers pour commande:", orderData.orderId);
     const { sendWhatsAppToDrivers } = await import('./services/sms-service.js');
     const whatsappCount = await sendWhatsAppToDrivers(
       orderData.orderId,
@@ -289,6 +295,7 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
     console.log(`[WebSocket] 📱 ${whatsappCount} message(s) WhatsApp envoyé(s) (sonnerie garantie)`);
   } catch (whatsappError: any) {
     console.error('[WebSocket] ❌ Erreur envoi WhatsApp:', whatsappError);
+    console.error('[WebSocket] ❌ Stack:', whatsappError.stack);
     // Ne pas bloquer si WhatsApp échoue
   }
 

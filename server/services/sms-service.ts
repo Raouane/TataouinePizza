@@ -365,7 +365,12 @@ export async function sendWhatsAppToDrivers(
   address: string,
   maxDrivers: number = 999
 ): Promise<number> {
-  console.log('[WhatsApp] 🔔 sendWhatsAppToDrivers appelé pour commande:', orderId.slice(0, 8));
+  console.log("========================================");
+  console.log("[WhatsApp] 📱📱📱 SEND WHATSAPP TO DRIVERS 📱📱📱");
+  console.log("[WhatsApp] Order ID:", orderId.slice(0, 8));
+  console.log("[WhatsApp] Restaurant:", restaurantName);
+  console.log("[WhatsApp] Client:", customerName);
+  console.log("========================================");
   
   if (!twilioClient) {
     console.error('[WhatsApp] ❌ Twilio non configuré, WhatsApp non envoyé');
@@ -373,18 +378,30 @@ export async function sendWhatsAppToDrivers(
   }
 
   try {
-    // Récupérer tous les livreurs disponibles
-    const availableDrivers = await storage.getAvailableDrivers();
+    // Pour WhatsApp, on envoie à TOUS les livreurs avec statut 'available' ou 'online'
+    // même s'ils ne sont pas connectés (c'est le but de WhatsApp : notifier même app fermée)
+    console.log('[WhatsApp] 🔍 Récupération de tous les livreurs...');
+    const allDrivers = await storage.getAllDrivers();
+    console.log(`[WhatsApp] 🔍 ${allDrivers.length} livreur(s) total dans la DB`);
+    
+    const availableDrivers = allDrivers.filter(driver => 
+      driver.status === 'available' || driver.status === 'online'
+    );
+    
+    console.log(`[WhatsApp] 🔍 ${availableDrivers.length} livreur(s) avec statut available/online`);
+    availableDrivers.forEach(driver => {
+      console.log(`[WhatsApp] 🔍 - ${driver.name} (${driver.phone}) - statut: ${driver.status}`);
+    });
     
     if (availableDrivers.length === 0) {
-      console.log('[WhatsApp] ⚠️ Aucun livreur disponible');
+      console.log('[WhatsApp] ⚠️ Aucun livreur disponible (statut available/online)');
       return 0;
     }
 
     // Limiter le nombre de livreurs si nécessaire
     const driversToNotify = availableDrivers.slice(0, maxDrivers);
 
-    console.log(`[WhatsApp] Envoi WhatsApp à ${driversToNotify.length} livreur(s) sur ${availableDrivers.length} disponible(s)`);
+    console.log(`[WhatsApp] 📤 Envoi WhatsApp à ${driversToNotify.length} livreur(s) sur ${availableDrivers.length} disponible(s) (statut available/online)`);
 
     // Envoyer WhatsApp à chaque livreur (en parallèle, non-bloquant)
     const results = await Promise.allSettled(

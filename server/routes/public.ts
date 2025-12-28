@@ -177,7 +177,10 @@ export function registerPublicRoutes(app: Express): void {
   // ============ ORDERS (PUBLIC) ============
   
   app.post("/api/orders", async (req, res) => {
-    console.log("[ORDER] POST /api/orders - Début création commande");
+    console.log("========================================");
+    console.log("[ORDER] ⚡⚡⚡ POST /api/orders - DÉBUT CRÉATION COMMANDE ⚡⚡⚡");
+    console.log("[ORDER] Body reçu:", JSON.stringify(req.body, null, 2));
+    console.log("========================================");
     try {
       const validation = validate(insertOrderSchema, req.body);
       if (!validation.success) {
@@ -342,6 +345,7 @@ export function registerPublicRoutes(app: Express): void {
       }
       
       try {
+        console.log("[ORDER] 📞 Appel notifyDriversOfNewOrder pour commande:", order.id);
         await notifyDriversOfNewOrder({
           type: "new_order",
           orderId: order.id,
@@ -353,8 +357,10 @@ export function registerPublicRoutes(app: Express): void {
           totalPrice: totalPrice.toString(),
           items: orderItemsDetails,
         });
+        console.log("[ORDER] ✅ notifyDriversOfNewOrder terminé avec succès");
       } catch (wsError) {
-        console.error("[ORDER] Erreur notification WebSocket:", wsError);
+        console.error("[ORDER] ❌ Erreur notification WebSocket:", wsError);
+        console.error("[ORDER] ❌ Stack:", wsError instanceof Error ? wsError.stack : 'N/A');
       }
       
       try {
@@ -559,34 +565,59 @@ export function registerPublicRoutes(app: Express): void {
       const order = await storage.getOrderById(req.params.id);
       if (!order) return res.status(404).json({ error: "Order not found" });
       
-      const items = await storage.getOrderItems(order.id);
-      const itemsWithDetails = await Promise.all(
-        items.map(async (item) => {
-          const pizza = await storage.getPizzaById(item.pizzaId);
-          return { ...item, pizza: pizza || null };
-        })
-      );
+      // Récupérer les items avec gestion d'erreur individuelle
+      let itemsWithDetails: any[] = [];
+      try {
+        const items = await storage.getOrderItems(order.id);
+        itemsWithDetails = await Promise.all(
+          items.map(async (item) => {
+            try {
+              const pizza = await storage.getPizzaById(item.pizzaId);
+              return { ...item, pizza: pizza || null };
+            } catch (pizzaError: any) {
+              console.error(`[ORDERS] Erreur récupération pizza ${item.pizzaId}:`, pizzaError.message);
+              return { ...item, pizza: null };
+            }
+          })
+        );
+      } catch (itemsError: any) {
+        console.error("[ORDERS] Erreur récupération items:", itemsError.message);
+        itemsWithDetails = [];
+      }
       
       let enrichedOrder: any = { ...order, items: itemsWithDetails };
+      
+      // Récupérer le restaurant avec gestion d'erreur
       if (order.restaurantId) {
-        const restaurant = await storage.getRestaurantById(order.restaurantId);
-        if (restaurant) {
-          enrichedOrder = {
-            ...enrichedOrder,
-            restaurantName: restaurant.name,
-            restaurantAddress: restaurant.address,
-          };
+        try {
+          const restaurant = await storage.getRestaurantById(order.restaurantId);
+          if (restaurant) {
+            enrichedOrder = {
+              ...enrichedOrder,
+              restaurantName: restaurant.name,
+              restaurantAddress: restaurant.address,
+            };
+          }
+        } catch (restaurantError: any) {
+          console.error(`[ORDERS] Erreur récupération restaurant ${order.restaurantId}:`, restaurantError.message);
+          // Continuer sans les données du restaurant
         }
       }
       
+      // Récupérer le livreur avec gestion d'erreur
       if (order.driverId) {
-        const driver = await storage.getDriverById(order.driverId);
-        if (driver) {
-          enrichedOrder = {
-            ...enrichedOrder,
-            driverName: driver.name,
-            driverPhone: driver.phone,
-          };
+        try {
+          const driver = await storage.getDriverById(order.driverId);
+          if (driver) {
+            enrichedOrder = {
+              ...enrichedOrder,
+              driverName: driver.name,
+              driverPhone: driver.phone,
+            };
+          }
+        } catch (driverError: any) {
+          console.error(`[ORDERS] Erreur récupération driver ${order.driverId}:`, driverError.message);
+          // Continuer sans les données du livreur
         }
       }
       
