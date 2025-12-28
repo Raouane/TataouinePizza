@@ -10,11 +10,22 @@ import { createServer } from "http";
 const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
 const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+const twilioWhatsAppNumber = process.env.TWILIO_WHATSAPP_NUMBER;
 
 if (twilioAccountSid && twilioAuthToken && twilioPhoneNumber) {
   console.log('[STARTUP] ✅ Twilio configuré');
   console.log('[STARTUP]   - Account SID:', twilioAccountSid.substring(0, 10) + '...');
   console.log('[STARTUP]   - Phone Number:', twilioPhoneNumber);
+  
+  // Vérifier la configuration WhatsApp
+  if (twilioWhatsAppNumber) {
+    console.log('[STARTUP] ✅ WhatsApp configuré');
+    console.log('[STARTUP]   - WhatsApp Number:', twilioWhatsAppNumber);
+  } else {
+    console.warn('[STARTUP] ⚠️ WhatsApp non configuré');
+    console.warn('[STARTUP]   - TWILIO_WHATSAPP_NUMBER manquant');
+    console.warn('[STARTUP]   Les notifications WhatsApp ne seront pas envoyées');
+  }
 } else {
   console.warn('[STARTUP] ⚠️ Twilio non configuré');
   console.warn('[STARTUP]   Variables manquantes:', {
