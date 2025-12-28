@@ -52,11 +52,12 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
-    proxy: {
-      "/api": {
-        target: "http://localhost:5000",
-        changeOrigin: true,
-      },
+    // Pas de proxy nécessaire : Express sert Vite en mode middleware
+    // Les routes /api sont gérées directement par Express
+    hmr: {
+      host: 'localhost',
+      port: 5000,
+      protocol: 'ws',
     },
   },
 });
