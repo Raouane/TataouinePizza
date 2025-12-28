@@ -26,10 +26,18 @@ export const errorHandler = {
         code: error.code,
       });
     } else {
-      console.error("[ERROR]", error);
+      console.error("[ERROR] Erreur non gérée:", error);
+      console.error("[ERROR] Stack:", error?.stack);
+      console.error("[ERROR] Message:", error?.message);
+      
+      const isDevelopment = process.env.NODE_ENV !== "production";
       res.status(500).json({
-        error: "Internal server error",
+        error: isDevelopment ? (error?.message || "Internal server error") : "Internal server error",
         code: "SERVER_ERROR",
+        ...(isDevelopment && { 
+          details: error?.stack,
+          type: error?.name || typeof error,
+        }),
       });
     }
   },

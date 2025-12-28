@@ -67,8 +67,15 @@ app.use(
           "data:",
           "https://fonts.gstatic.com", // Google Fonts fichiers de polices
         ],
+        workerSrc: [
+          "'self'",
+          "blob:", // Nécessaire pour canvas-confetti qui utilise des workers blob
+        ],
         objectSrc: ["'none'"],
-        mediaSrc: ["'self'"],
+        mediaSrc: [
+          "'self'",
+          "data:", // Nécessaire pour les fichiers audio en base64 (notifications sonores)
+        ],
         frameSrc: ["'none'"],
       },
     },

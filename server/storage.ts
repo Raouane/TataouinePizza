@@ -729,7 +729,14 @@ export class DatabaseStorage implements IStorage {
     }>,
     checkDuplicate?: { phone: string; restaurantId: string; totalPrice: string; withinSeconds: number }
   ): Promise<Order | null> {
-    return await db.transaction(async (tx) => {
+    try {
+      this.log('debug', `[STORAGE] createOrderWithItems - Début création commande pour ${order.phone}`, {
+        restaurantId: order.restaurantId,
+        itemsCount: items.length,
+        clientOrderId: order.clientOrderId,
+      });
+      
+      return await db.transaction(async (tx) => {
       // CRITICAL: Use PostgreSQL advisory lock to prevent concurrent duplicate creation
       // This is the ONLY way to guarantee no duplicates when multiple requests arrive simultaneously
       const lockKey = order.clientOrderId 
@@ -768,12 +775,14 @@ export class DatabaseStorage implements IStorage {
       // Priority 2: If duplicate check is requested, verify within transaction
       // Advisory lock already prevents race conditions, but we still check for duplicates
       if (checkDuplicate) {
+        // Calculer la date limite en JavaScript plutôt qu'en SQL pour éviter les problèmes d'interpolation
+        const cutoffTime = new Date(Date.now() - checkDuplicate.withinSeconds * 1000);
         const duplicateResult = await tx.execute(sql`
           SELECT id FROM orders
           WHERE phone = ${checkDuplicate.phone}
             AND restaurant_id = ${checkDuplicate.restaurantId}
             AND total_price = ${checkDuplicate.totalPrice}
-            AND created_at > NOW() - INTERVAL '${checkDuplicate.withinSeconds} seconds'
+            AND created_at > ${cutoffTime}
           LIMIT 1
         `);
         
@@ -807,8 +816,15 @@ export class DatabaseStorage implements IStorage {
       }
       
       // Return the created order
-      return orderResult[0];
+      const createdOrder = orderResult[0];
+      this.log('debug', `[STORAGE] createOrderWithItems - Commande créée avec succès: ${createdOrder.id}`);
+      return createdOrder;
     });
+    } catch (error: any) {
+      this.log('error', '[STORAGE] createOrderWithItems - Erreur lors de la création:', error);
+      // Re-throw pour que la route puisse gérer l'erreur
+      throw error;
+    }
   }
 
   async getOrderById(id: string): Promise<Order | undefined> {
@@ -835,12 +851,14 @@ export class DatabaseStorage implements IStorage {
     totalPrice: string,
     withinSeconds: number = 10
   ): Promise<Order | undefined> {
+    // Calculer la date limite en JavaScript plutôt qu'en SQL pour éviter les problèmes d'interpolation
+    const cutoffTime = new Date(Date.now() - withinSeconds * 1000);
     const result = await db.select().from(orders)
       .where(and(
         eq(orders.phone, phone),
         eq(orders.restaurantId, restaurantId),
         eq(orders.totalPrice, totalPrice),
-        sql`created_at > NOW() - INTERVAL '${withinSeconds} seconds'`
+        sql`created_at > ${cutoffTime}`
       ))
       .orderBy(desc(orders.createdAt))
       .limit(1);
@@ -853,7 +871,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOrdersByPhone(phone: string): Promise<Order[]> {
-    return await db.select().from(orders).where(eq(orders.phone, phone)).orderBy(desc(orders.createdAt));
+    try {
+      this.log('debug', `[STORAGE] getOrdersByPhone - Recherche commandes pour téléphone: ${phone}`);
+      const result = await db.select().from(orders).where(eq(orders.phone, phone)).orderBy(desc(orders.createdAt));
+      this.log('debug', `[STORAGE] getOrdersByPhone - ${result.length} commande(s) trouvée(s)`);
+      return result;
+    } catch (error: any) {
+      this.log('error', `[STORAGE] getOrdersByPhone - Erreur pour téléphone ${phone}:`, error);
+      throw error;
+    }
   }
 
   async getReadyOrders(): Promise<Order[]> {

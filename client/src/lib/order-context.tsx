@@ -29,48 +29,59 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
 
   const refreshOrderData = async () => {
     if (!orderId) return;
-    try {
-      const response = await fetch(`/api/orders/${orderId}`);
-      if (response.ok) {
-        const data = await response.json();
-        const realStatus = data.status;
-        
-        console.log('[OrderContext] refreshOrderData - Statut récupéré:', realStatus, 'pour orderId:', orderId);
-        
-        // Si la commande est livrée ou rejetée, annuler immédiatement
-        if (realStatus === 'delivered' || realStatus === 'rejected') {
-          console.log('[OrderContext] Commande livrée/rejetée, masquage de la bannière dans 2 secondes');
-          setOrderData(data);
-          setEta(0);
-          setStepIndex(4); // delivered
-          // Masquer après 2 secondes pour laisser voir le statut final
-          setTimeout(() => {
-            console.log('[OrderContext] Masquage effectif de la bannière maintenant');
-            setActiveOrder(false);
-            setOrderId(null);
-            setOrderData(null);
-            setStepIndex(0);
-            setEta(0);
-            sessionStorage.removeItem('currentOrderId');
-          }, 2000);
-          return;
-        }
-        
-        setOrderData(data);
-        // Mettre à jour le statut selon les données réelles
-        const statusMap: Record<string, number> = {
-          'pending': 0,
-          'accepted': 1,
-          'ready': 2,
-          'delivery': 3,
-          'delivered': 4,
-        };
-        const newStepIndex = statusMap[realStatus] ?? 0;
-        setStepIndex(newStepIndex);
-        console.log('[OrderContext] Statut mis à jour - stepIndex:', newStepIndex, 'status:', realStatus);
+    
+    const response = await fetch(`/api/orders/${orderId}`);
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        // Commande introuvable, arrêter le suivi
+        console.log('[OrderContext] Commande introuvable (404), arrêt du suivi');
+        setActiveOrder(false);
+        setOrderId(null);
+        setOrderData(null);
+        sessionStorage.removeItem('currentOrderId');
+        return;
       }
-    } catch (error) {
-      console.error('[OrderContext] Erreur lors de la récupération des données:', error);
+      // Pour les autres erreurs (500, etc.), throw pour que le useEffect gère
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    const realStatus = data.status;
+    
+    // Si la commande est livrée ou rejetée, annuler immédiatement
+    if (realStatus === 'delivered' || realStatus === 'rejected') {
+      console.log('[OrderContext] Commande livrée/rejetée, masquage de la bannière dans 2 secondes');
+      setOrderData(data);
+      setEta(0);
+      setStepIndex(4); // delivered
+      // Masquer après 2 secondes pour laisser voir le statut final
+      setTimeout(() => {
+        console.log('[OrderContext] Masquage effectif de la bannière maintenant');
+        setActiveOrder(false);
+        setOrderId(null);
+        setOrderData(null);
+        setStepIndex(0);
+        setEta(0);
+        sessionStorage.removeItem('currentOrderId');
+      }, 2000);
+      return;
+    }
+    
+    setOrderData(data);
+    // Mettre à jour le statut selon les données réelles
+    const statusMap: Record<string, number> = {
+      'pending': 0,
+      'accepted': 1,
+      'ready': 2,
+      'delivery': 3,
+      'delivered': 4,
+    };
+    const newStepIndex = statusMap[realStatus] ?? 0;
+    
+    // Ne mettre à jour stepIndex que si différent pour éviter les re-renders inutiles
+    if (newStepIndex !== stepIndex) {
+      setStepIndex(newStepIndex);
     }
   };
 
@@ -125,14 +136,41 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
 
   // Rafraîchir les données si orderId est défini
   useEffect(() => {
-    if (orderId) {
-      refreshOrderData();
-      // Rafraîchir les données toutes les 5 secondes
-      const interval = setInterval(() => {
-        refreshOrderData();
-      }, 5000);
-      return () => clearInterval(interval);
-    }
+    if (!orderId) return;
+    
+    let consecutiveErrors = 0;
+    const MAX_CONSECUTIVE_ERRORS = 3;
+    
+    const refreshWithErrorHandling = async () => {
+      try {
+        await refreshOrderData();
+        consecutiveErrors = 0; // Reset on success
+      } catch (error) {
+        consecutiveErrors++;
+        console.error(`[OrderContext] Erreur lors du rafraîchissement (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`, error);
+        
+        // Si trop d'erreurs consécutives, arrêter le polling
+        if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+          console.error('[OrderContext] Trop d\'erreurs consécutives, arrêt du polling');
+          setActiveOrder(false);
+          setOrderId(null);
+          setOrderData(null);
+          sessionStorage.removeItem('currentOrderId');
+        }
+      }
+    };
+    
+    // Rafraîchir immédiatement
+    refreshWithErrorHandling();
+    
+    // Rafraîchir les données toutes les 5 secondes
+    const interval = setInterval(() => {
+      if (consecutiveErrors < MAX_CONSECUTIVE_ERRORS) {
+        refreshWithErrorHandling();
+      }
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, [orderId]);
 
   useEffect(() => {

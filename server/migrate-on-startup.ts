@@ -230,6 +230,7 @@ export async function runMigrationsOnStartup() {
         address_details TEXT,
         customer_lat NUMERIC(10, 7),
         customer_lng NUMERIC(10, 7),
+        client_order_id VARCHAR,
         status TEXT DEFAULT 'pending',
         total_price NUMERIC(10, 2) NOT NULL,
         payment_method TEXT DEFAULT 'cash',
@@ -242,6 +243,20 @@ export async function runMigrationsOnStartup() {
       );
     `);
     console.log("[DB] ✅ Table orders créée/vérifiée");
+    
+    // Ajouter la colonne client_order_id si elle n'existe pas (pour les tables existantes)
+    await db.execute(sql`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'orders' AND column_name = 'client_order_id'
+        ) THEN
+          ALTER TABLE orders ADD COLUMN client_order_id VARCHAR;
+        END IF;
+      END $$;
+    `);
+    console.log("[DB] ✅ Colonne client_order_id ajoutée/vérifiée");
 
     // Créer la table order_items si elle n'existe pas
     await db.execute(sql`

@@ -177,6 +177,7 @@ export function registerPublicRoutes(app: Express): void {
   // ============ ORDERS (PUBLIC) ============
   
   app.post("/api/orders", async (req, res) => {
+    console.log("[ORDER] POST /api/orders - Début création commande");
     try {
       const validation = validate(insertOrderSchema, req.body);
       if (!validation.success) {
@@ -379,8 +380,13 @@ export function registerPublicRoutes(app: Express): void {
       }
       
       res.status(201).json({ orderId: order.id, totalPrice });
-    } catch (error) {
-      console.error("[ORDER] Error:", error);
+    } catch (error: any) {
+      console.error("[ORDER] Error creating order:", error);
+      console.error("[ORDER] Error details:", {
+        message: error?.message,
+        stack: error?.stack,
+        body: process.env.NODE_ENV !== "production" ? req.body : undefined,
+      });
       errorHandler.sendError(res, error);
     }
   });
@@ -520,6 +526,7 @@ export function registerPublicRoutes(app: Express): void {
   });
 
   app.get("/api/orders/customer/:phone", async (req, res) => {
+    console.log(`[ORDERS] GET /api/orders/customer/:phone - Téléphone: ${req.params.phone}`);
     try {
       const phone = req.params.phone;
       
@@ -532,9 +539,17 @@ export function registerPublicRoutes(app: Express): void {
       }
       
       const orders = await storage.getOrdersByPhone(phone);
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[ORDERS] ${orders.length} commande(s) trouvée(s) pour ${phone}`);
+      }
       res.json(orders);
     } catch (error: any) {
       console.error("[ORDERS] Error fetching orders by phone:", error);
+      console.error("[ORDERS] Error details:", {
+        message: error?.message,
+        stack: error?.stack,
+        phone: req.params.phone,
+      });
       errorHandler.sendError(res, error);
     }
   });
@@ -548,7 +563,7 @@ export function registerPublicRoutes(app: Express): void {
       const itemsWithDetails = await Promise.all(
         items.map(async (item) => {
           const pizza = await storage.getPizzaById(item.pizzaId);
-          return { ...item, pizza };
+          return { ...item, pizza: pizza || null };
         })
       );
       
@@ -576,8 +591,9 @@ export function registerPublicRoutes(app: Express): void {
       }
       
       res.json(enrichedOrder);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch order" });
+    } catch (error: any) {
+      console.error("[ORDERS] Error fetching order by id:", error);
+      errorHandler.sendError(res, error);
     }
   });
 }
