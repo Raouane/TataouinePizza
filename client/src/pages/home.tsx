@@ -184,8 +184,8 @@ export default function Home() {
       <SearchBar value={searchQuery} onChange={setSearchQuery} />
 
       {showSearchResults && (
-        <section className="px-4 mt-8 max-w-4xl mx-auto">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
+        <section className="px-3 md:px-4 mt-4 md:mt-8 max-w-4xl mx-auto">
+          <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-3 md:mb-4 px-1">
             {loadingPizzas 
               ? t('home.search.loading')
               : filteredPizzas.length > 0 
@@ -194,13 +194,13 @@ export default function Home() {
           </h2>
           
           {loadingPizzas ? (
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-gray-200 rounded-2xl h-24 animate-pulse" />
+                <div key={i} className="bg-gray-200 rounded-xl md:rounded-2xl h-20 md:h-24 animate-pulse" />
               ))}
             </div>
           ) : filteredPizzas.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               {filteredPizzas.map((pizza) => (
                 <PizzaSearchResult
                   key={pizza.id}
@@ -210,10 +210,10 @@ export default function Home() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 bg-white rounded-2xl">
-              <div className="text-4xl mb-3">🔍</div>
-              <p className="text-gray-600 font-medium">{t('home.search.noResults')}</p>
-              <p className="text-sm text-gray-500 mt-2">{t('home.search.tryOther')}</p>
+            <div className="text-center py-8 md:py-12 bg-white rounded-xl md:rounded-2xl px-4">
+              <div className="text-3xl md:text-4xl mb-2 md:mb-3">🔍</div>
+              <p className="text-sm md:text-base text-gray-600 font-medium">{t('home.search.noResults')}</p>
+              <p className="text-xs md:text-sm text-gray-500 mt-2">{t('home.search.tryOther')}</p>
             </div>
           )}
         </section>
