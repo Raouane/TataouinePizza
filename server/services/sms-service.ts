@@ -356,6 +356,13 @@ ${address}
       console.error(`[WhatsApp] 💡 Solution: Le livreur doit envoyer le code Sandbox à son numéro WhatsApp.`);
     } else if (error.code === 21610) {
       console.error(`[WhatsApp] ⚠️ Message non autorisé. Utilisez un template pour le premier message.`);
+    } else if (error.code === 63038) {
+      console.error(`[WhatsApp] ⚠️⚠️⚠️ LIMITE QUOTIDIENNE ATTEINTE ⚠️⚠️⚠️`);
+      console.error(`[WhatsApp] ⚠️ Le compte Twilio a atteint la limite de 50 messages/jour (mode Trial)`);
+      console.error(`[WhatsApp] 💡 Solutions:`);
+      console.error(`[WhatsApp]    1. Attendre demain (limite réinitialisée à minuit UTC)`);
+      console.error(`[WhatsApp]    2. Upgrader le compte Twilio pour plus de messages`);
+      console.error(`[WhatsApp]    3. Optimisation: Envoi seulement au premier livreur (déjà fait)`);
     }
     
     return false;
@@ -413,10 +420,13 @@ export async function sendWhatsAppToDrivers(
       return 0;
     }
 
-    // Limiter le nombre de livreurs si nécessaire
-    const driversToNotify = availableDrivers.slice(0, maxDrivers);
+    // OPTIMISATION: Envoyer seulement au premier livreur disponible pour économiser les messages
+    // (Limite Twilio: 50 messages/jour en mode Trial)
+    // Si le premier livreur refuse, on pourra envoyer au suivant
+    const driversToNotify = availableDrivers.slice(0, 1); // Seulement le premier livreur
 
-    console.log(`[WhatsApp] 📤 Envoi WhatsApp à ${driversToNotify.length} livreur(s) sur ${availableDrivers.length} disponible(s) (statut available/online)`);
+    console.log(`[WhatsApp] 📤 Envoi WhatsApp à ${driversToNotify.length} livreur(s) (premier disponible) sur ${availableDrivers.length} disponible(s) (statut available/online)`);
+    console.log(`[WhatsApp] 💡 Optimisation: 1 seul message pour économiser la limite Twilio (50/jour)`);
 
     // Envoyer WhatsApp à chaque livreur (en parallèle, non-bloquant)
     const results = await Promise.allSettled(
