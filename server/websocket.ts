@@ -195,7 +195,24 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
     }
   }
 
-  // Envoyer aussi des SMS à tous les livreurs disponibles
+  // Envoyer des notifications push PWA à tous les livreurs disponibles
+  // (Fonctionne même si l'app est fermée)
+  try {
+    const { notifyAllAvailableDriversPush } = await import('./services/push-notification-service.js');
+    const pushCount = await notifyAllAvailableDriversPush({
+      id: orderData.orderId,
+      customerName: orderData.customerName,
+      address: orderData.address,
+      totalPrice: orderData.totalPrice,
+      restaurantName: orderData.restaurantName
+    });
+    console.log(`[WebSocket] 📲 ${pushCount} notification(s) push envoyée(s)`);
+  } catch (pushError: any) {
+    console.error('[WebSocket] ❌ Erreur envoi push notifications:', pushError);
+    // Ne pas bloquer si push échoue
+  }
+
+  // Envoyer aussi des SMS à tous les livreurs disponibles (fallback)
   console.log('[WebSocket] 📱 Tentative d\'envoi SMS pour commande:', orderData.orderId.slice(0, 8));
   try {
     const { sendSMSToDrivers } = await import('./services/sms-service.js');

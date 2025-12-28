@@ -15,6 +15,7 @@ import { AudioPermissionBanner } from "@/components/audio-permission-banner";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { playOrderNotificationSound, startNotificationRepeatViaSW, stopNotificationRepeatViaSW } from "@/lib/sound-utils";
 import { stopCustomSound } from "@/lib/pwa-sound-manager";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 
 interface Order {
   id: string;
@@ -70,6 +71,22 @@ export default function DriverDashboard() {
   const driverName = localStorage.getItem("driverName") || "Livreur";
   const driverId = localStorage.getItem("driverId");
   const token = localStorage.getItem("driverToken");
+
+  // Push Notifications PWA
+  const { isSupported: isPushSupported, isSubscribed: isPushSubscribed, subscribe: subscribePush, error: pushError } = usePushNotifications();
+
+  // S'abonner automatiquement aux push notifications au chargement (si supporté et pas déjà abonné)
+  useEffect(() => {
+    if (isPushSupported && !isPushSubscribed && token) {
+      // Attendre un peu pour que le service worker soit prêt
+      const timer = setTimeout(() => {
+        subscribePush().catch(err => {
+          console.error('[Push] Erreur abonnement automatique:', err);
+        });
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isPushSupported, isPushSubscribed, token, subscribePush]);
 
     // WebSocket connection
   useEffect(() => {

@@ -160,15 +160,15 @@ export default function CartPage() {
         // Si l'erreur indique que l'OTP est activé, essayer le flow OTP
         if (error.message?.includes('OTP authentication is enabled') || error.message?.includes('OTP désactivé')) {
           // Fallback vers OTP si activé
-          try {
-            await sendOtp(phone);
-            setStep("verify");
+      try {
+        await sendOtp(phone);
+        setStep("verify");
           } catch (otpError) {
-            toast({ 
-              title: t('cart.error.order'), 
-              description: t('cart.error.sendOtp') || "Impossible d'envoyer le code", 
-              variant: "destructive" 
-            });
+        toast({ 
+          title: t('cart.error.order'), 
+          description: t('cart.error.sendOtp') || "Impossible d'envoyer le code", 
+          variant: "destructive" 
+        });
           }
         } else {
           toast({ 

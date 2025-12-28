@@ -5,40 +5,54 @@
 let notificationIntervals = {};
 
 // Écouter les événements push du serveur (pour les notifications en arrière-plan)
+// Ces notifications fonctionnent même quand l'app est complètement fermée
 self.addEventListener('push', (event) => {
-  console.log('[SW] Événement push reçu:', event);
+  console.log('[SW] 📬 Événement push reçu:', event);
   
-  let data = {};
+  let data = {
+    title: '🔔 Nouvelle commande!',
+    body: 'Une nouvelle commande est disponible',
+    orderId: null,
+    url: '/driver',
+    icon: '/favicon-32x32.png',
+    badge: '/favicon-32x32.png'
+  };
+
   if (event.data) {
     try {
-      data = event.data.json();
+      const parsed = event.data.json();
+      data = { ...data, ...parsed };
     } catch (e) {
-      data = { title: '🔔 Nouvelle commande!', body: 'Une nouvelle commande est disponible' };
+      console.error('[SW] Erreur parsing push data:', e);
+      // Utiliser les valeurs par défaut
     }
   }
   
   const title = data.title || '🔔 Nouvelle commande!';
   const body = data.body || 'Une nouvelle commande est disponible';
   const orderId = data.orderId || 'unknown';
-  const interval = data.interval || 5000;
+  const url = data.url || '/driver';
+  const icon = data.icon || '/favicon-32x32.png';
+  const badge = data.badge || '/favicon-32x32.png';
   
   // Afficher la notification immédiatement
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon: '/favicon-32x32.png',
-      badge: '/favicon-32x32.png',
+      icon,
+      badge,
       tag: `order-${orderId}`,
-      requireInteraction: true,
-      silent: false,
-      vibrate: [200, 100, 200, 100, 200],
-    }).then(() => {
-      console.log('[SW] Notification push affichée pour commande', orderId);
-      
-      // Démarrer la répétition si demandée
-      if (data.repeat) {
-        startNotificationRepeat(orderId, interval, title, body);
+      requireInteraction: true, // Nécessite une interaction pour se fermer
+      silent: false, // Activer le son
+      vibrate: [200, 100, 200, 100, 200], // Vibration sur mobile
+      data: {
+        orderId,
+        url
       }
+    }).then(() => {
+      console.log('[SW] ✅ Notification push affichée pour commande', orderId);
+    }).catch((error) => {
+      console.error('[SW] ❌ Erreur affichage notification:', error);
     })
   );
 });
@@ -116,21 +130,29 @@ self.addEventListener('message', (event) => {
 
 // Gérer le clic sur la notification
 self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] Notification cliquée:', event.notification.tag);
+  console.log('[SW] 👆 Notification cliquée:', event.notification.tag);
   event.notification.close();
+  
+  // Récupérer l'URL depuis les données de la notification
+  const url = event.notification.data?.url || '/driver';
   
   // Ouvrir/focus l'application
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Si une fenêtre est déjà ouverte, la focus
+      // Si une fenêtre est déjà ouverte, la focus et naviguer vers l'URL
       for (const client of clientList) {
-        if (client.url === self.location.origin && 'focus' in client) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          // Essayer de naviguer si possible (Chrome)
+          if ('navigate' in client) {
+            return (client as any).navigate(url).then(() => client.focus());
+          }
+          // Sinon juste focus
           return client.focus();
         }
       }
       // Sinon, ouvrir une nouvelle fenêtre
       if (clients.openWindow) {
-        return clients.openWindow('/driver');
+        return clients.openWindow(url);
       }
     })
   );

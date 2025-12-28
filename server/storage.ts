@@ -32,6 +32,7 @@ export interface IStorage {
   createDriver(driver: InsertDriver): Promise<Driver>;
   getDriverById(id: string): Promise<Driver | undefined>;
   getAllDrivers(): Promise<Driver[]>;
+  getAvailableDrivers(): Promise<Driver[]>;
   getOrdersByDriver(driverId: string): Promise<Order[]>;
   updateDriverStatus(id: string, status: string): Promise<Driver>;
   updateDriver(id: string, data: Partial<Driver>): Promise<Driver>;
@@ -461,6 +462,16 @@ export class DatabaseStorage implements IStorage {
 
   async getAllDrivers(): Promise<Driver[]> {
     const result = await db.select().from(drivers);
+    return Array.isArray(result) ? result : [];
+  }
+
+  async getAvailableDrivers(): Promise<Driver[]> {
+    const result = await db
+      .select()
+      .from(drivers)
+      .where(
+        sql`status IN ('available', 'online') AND last_seen > NOW() - INTERVAL '5 minutes'`
+      );
     return Array.isArray(result) ? result : [];
   }
 

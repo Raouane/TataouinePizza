@@ -385,9 +385,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     if (params?.count !== undefined) {
       const count = typeof params.count === 'number' ? params.count : Number(params.count);
       if (count > 1) {
-        const pluralKey = `${key}.plural`;
-        if (translations[pluralKey]) {
-          finalKey = pluralKey;
+      const pluralKey = `${key}.plural`;
+      if (translations[pluralKey]) {
+        finalKey = pluralKey;
         }
       }
     }

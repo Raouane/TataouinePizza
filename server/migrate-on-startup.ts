@@ -137,11 +137,27 @@ export async function runMigrationsOnStartup() {
         password TEXT NOT NULL,
         status TEXT DEFAULT 'available',
         last_seen TIMESTAMP DEFAULT NOW(),
+        push_subscription TEXT,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
     `);
     console.log("[DB] ✅ Table drivers créée/vérifiée");
+    
+    // Ajouter la colonne push_subscription si elle n'existe pas (pour les tables existantes)
+    await db.execute(sql`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'drivers' AND column_name = 'push_subscription'
+        ) THEN
+          ALTER TABLE drivers ADD COLUMN push_subscription TEXT;
+          RAISE NOTICE 'Colonne push_subscription ajoutée à drivers';
+        END IF;
+      END $$;
+    `);
+    console.log("[DB] ✅ Colonne push_subscription vérifiée");
 
     // Créer la table pizzas si elle n'existe pas
     await db.execute(sql`

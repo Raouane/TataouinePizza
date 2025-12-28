@@ -60,6 +60,7 @@ export const drivers = pgTable("drivers", {
   password: text("password").notNull(),
   status: text("status").default("available"), // "available", "on_delivery", "offline", "online"
   lastSeen: timestamp("last_seen").defaultNow(), // Pour détecter les livreurs connectés
+  pushSubscription: text("push_subscription"), // Subscription pour les notifications push PWA
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
