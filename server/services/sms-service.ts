@@ -170,7 +170,7 @@ export async function sendSMSToDrivers(
     
     // Filtrer les livreurs disponibles (en ligne dans les 5 dernières minutes)
     const onlineDrivers = allDrivers.filter(driver => {
-      const isAvailable = driver.status === 'available' || driver.status === 'online';
+      const isAvailable = driver.status === 'available';
       return isAvailable;
     });
 
@@ -407,10 +407,10 @@ export async function sendWhatsAppToDrivers(
     console.log(`[WhatsApp] 🔍 ${allDrivers.length} livreur(s) total dans la DB`);
     
     const availableDrivers = allDrivers.filter(driver => 
-      driver.status === 'available' || driver.status === 'online'
+      driver.status === 'available'
     );
     
-    console.log(`[WhatsApp] 🔍 ${availableDrivers.length} livreur(s) avec statut available/online`);
+    console.log(`[WhatsApp] 🔍 ${availableDrivers.length} livreur(s) avec statut available`);
     availableDrivers.forEach(driver => {
       console.log(`[WhatsApp] 🔍 - ${driver.name} (${driver.phone}) - statut: ${driver.status}`);
     });

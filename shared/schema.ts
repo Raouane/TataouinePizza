@@ -59,7 +59,7 @@ export const drivers = pgTable("drivers", {
   name: text("name").notNull(),
   phone: text("phone").notNull().unique(), // Utilisé aussi pour WhatsApp
   password: text("password").notNull(),
-  status: text("status").default("available"), // "available", "on_delivery", "offline", "online"
+  status: text("status").default("available"), // "available", "on_delivery", "offline"
   lastSeen: timestamp("last_seen").defaultNow(), // Pour détecter les livreurs connectés
   pushSubscription: text("push_subscription"), // Subscription pour les notifications push PWA
   createdAt: timestamp("created_at").defaultNow(),
@@ -234,7 +234,7 @@ export const updateDriverSchema = z.object({
   name: z.string().min(2, "Nom min 2 caractères").optional(),
   phone: z.string().min(8, "Téléphone invalide").optional(),
   password: z.string().min(6, "Mot de passe min 6 caractères").optional(),
-  status: z.enum(["available", "online", "offline", "on_delivery"]).optional(),
+  status: z.enum(["available", "offline", "on_delivery"]).optional(),
 });
 
 export const updatePizzaSchema = z.object({

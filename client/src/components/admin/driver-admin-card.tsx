@@ -35,16 +35,14 @@ export function DriverAdminCard({ driver, onEdit, onDelete }: DriverAdminCardPro
       </div>
       <p className="text-sm text-muted-foreground">{driver.phone}</p>
       <div className="mt-2">
-        <span className={`text-xs px-2 py-1 rounded ${
+        <span className={`text-xs px-2 py-1 rounded font-medium ${
           driver.status === 'available' ? 'bg-green-100 text-green-800' :
-          driver.status === 'online' ? 'bg-blue-100 text-blue-800' :
           driver.status === 'on_delivery' ? 'bg-orange-100 text-orange-800' :
           'bg-gray-100 text-gray-800'
         }`}>
-          {driver.status === 'available' ? 'Disponible' :
-           driver.status === 'online' ? 'En ligne' :
-           driver.status === 'on_delivery' ? 'En livraison' :
-           driver.status === 'offline' ? 'Hors ligne' :
+          {driver.status === 'available' ? '✅ Disponible' :
+           driver.status === 'on_delivery' ? '🚚 En livraison' :
+           driver.status === 'offline' ? '❌ Hors ligne' :
            driver.status}
         </span>
       </div>

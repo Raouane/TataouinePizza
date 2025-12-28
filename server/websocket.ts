@@ -154,7 +154,7 @@ async function updateDriverLastSeen(driverId: string) {
       .update(drivers)
       .set({ 
         lastSeen: sql`NOW()`,
-        status: "online"
+        status: "available"
       })
       .where(eq(drivers.id, driverId));
   } catch (error) {
@@ -177,9 +177,9 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
   const onlineDrivers = await db
     .select()
     .from(drivers)
-    .where(
-      sql`last_seen > NOW() - INTERVAL '5 minutes' AND status IN ('available', 'online')`
-    );
+      .where(
+        sql`last_seen > NOW() - INTERVAL '5 minutes' AND status = 'available'`
+      );
 
   console.log(`[WebSocket] ${onlineDrivers.length} livreur(s) en ligne trouvé(s)`);
 
@@ -561,7 +561,7 @@ function startPeriodicCleanup(wss: WebSocketServer) {
             ELSE status
           END`
         })
-        .where(sql`last_seen < NOW() - INTERVAL '5 minutes' AND status = 'online'`);
+        .where(sql`last_seen < NOW() - INTERVAL '5 minutes' AND status = 'available'`);
     } catch (error) {
       console.error("[WebSocket] Erreur mise à jour statut livreurs:", error);
     }

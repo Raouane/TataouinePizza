@@ -472,7 +472,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(drivers)
       .where(
-        sql`status IN ('available', 'online') AND last_seen > NOW() - INTERVAL '5 minutes'`
+        sql`status = 'available' AND last_seen > NOW() - INTERVAL '5 minutes'`
       );
     return Array.isArray(result) ? result : [];
   }
