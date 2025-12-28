@@ -175,12 +175,10 @@ export function registerAdminCrudRoutes(app: Express): void {
       const driver = await storage.getDriverById(driverId);
       if (!driver) throw errorHandler.notFound("Livreur non trouvé");
       
-      // Utiliser storage au lieu de db.delete direct pour cohérence
-      await storage.updateDriver(driverId, { status: "offline" });
-      // Note: Si storage.deleteDriver existe, l'utiliser à la place
-      // Pour l'instant, on désactive le driver plutôt que de le supprimer
+      // Supprimer vraiment le livreur de la base de données
+      await storage.deleteDriver(driverId);
       
-      res.json({ message: "Livreur désactivé avec succès" });
+      res.json({ message: "Livreur supprimé avec succès" });
     } catch (error) {
       errorHandler.sendError(res, error);
     }

@@ -234,6 +234,7 @@ export const updateDriverSchema = z.object({
   name: z.string().min(2, "Nom min 2 caractères").optional(),
   phone: z.string().min(8, "Téléphone invalide").optional(),
   password: z.string().min(6, "Mot de passe min 6 caractères").optional(),
+  status: z.enum(["available", "online", "offline", "on_delivery"]).optional(),
 });
 
 export const updatePizzaSchema = z.object({

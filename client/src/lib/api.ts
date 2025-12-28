@@ -458,7 +458,7 @@ export async function createDriver(
 
 export async function updateDriver(
   id: string,
-  data: { name?: string; phone?: string; password?: string },
+  data: { name?: string; phone?: string; password?: string; status?: "available" | "online" | "offline" | "on_delivery" },
   token: string
 ): Promise<Driver> {
   const res = await fetch(`${API_BASE}/admin/drivers/${id}`, {

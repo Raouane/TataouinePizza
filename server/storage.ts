@@ -36,6 +36,7 @@ export interface IStorage {
   getOrdersByDriver(driverId: string): Promise<Order[]>;
   updateDriverStatus(id: string, status: string): Promise<Driver>;
   updateDriver(id: string, data: Partial<Driver>): Promise<Driver>;
+  deleteDriver(id: string): Promise<void>;
   assignOrderToDriver(orderId: string, driverId: string): Promise<Order>;
   acceptOrderByDriver(orderId: string, driverId: string): Promise<Order | null>;
 
@@ -496,6 +497,10 @@ export class DatabaseStorage implements IStorage {
       throw new Error("Failed to retrieve updated driver");
     }
     return result[0];
+  }
+
+  async deleteDriver(id: string): Promise<void> {
+    await db.delete(drivers).where(eq(drivers.id, id));
   }
 
   async assignOrderToDriver(orderId: string, driverId: string): Promise<Order> {
