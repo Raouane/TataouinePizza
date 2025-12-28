@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { sendOtp } from "@/lib/api";
+import { sendDriverOtp } from "@/lib/api";
 import { Bike, AlertCircle, ArrowLeft, Phone, KeyRound } from "lucide-react";
 
 export default function DriverLogin() {
@@ -20,7 +20,7 @@ export default function DriverLogin() {
     setLoading(true);
 
     try {
-      await sendOtp(phone);
+      await sendDriverOtp(phone);
       setStep("otp");
     } catch (err: any) {
       setError(err.message || "Erreur lors de l'envoi du code");

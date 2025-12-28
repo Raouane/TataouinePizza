@@ -73,17 +73,52 @@ export async function customerLogin(firstName: string, phone: string): Promise<{
   return res.json();
 }
 
-// ============ OTP (Conditional - only if ENABLE_SMS_OTP=true) ============
+// ============ OTP (Conditional - only if ENABLE_SMS_OTP=true for customers) ============
 
+/**
+ * Envoie un code OTP pour les clients (uniquement si ENABLE_SMS_OTP=true)
+ */
 export async function sendOtp(phone: string): Promise<{ code?: string }> {
   const res = await fetch(`${API_BASE}/otp/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, userType: "customer" }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || error.message || "Failed to send OTP");
+  }
+  return res.json();
+}
+
+/**
+ * Envoie un code OTP pour les livreurs (toujours activé)
+ */
+export async function sendDriverOtp(phone: string): Promise<{ message: string }> {
+  const res = await fetch(`${API_BASE}/driver/otp/send`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone }),
   });
   if (!res.ok) {
     const error = await res.json();
-    throw new Error(error.error || error.message || "Failed to send OTP");
+    throw new Error(error.error || "Failed to send OTP");
+  }
+  return res.json();
+}
+
+/**
+ * Envoie un code OTP pour les restaurants (toujours activé)
+ */
+export async function sendRestaurantOtp(phone: string): Promise<{ message: string }> {
+  const res = await fetch(`${API_BASE}/restaurant/otp/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to send OTP");
   }
   return res.json();
 }

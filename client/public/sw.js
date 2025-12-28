@@ -143,8 +143,10 @@ self.addEventListener('notificationclick', (event) => {
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           // Essayer de naviguer si possible (Chrome)
-          if ('navigate' in client) {
-            return (client as any).navigate(url).then(() => client.focus());
+          if ('navigate' in client && typeof client.navigate === 'function') {
+            return client.navigate(url).then(function() {
+              return client.focus();
+            });
           }
           // Sinon juste focus
           return client.focus();
