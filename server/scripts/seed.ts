@@ -32,6 +32,7 @@ export async function seedDatabase(): Promise<boolean> {
         description: "Les meilleures pizzas de Tataouine avec des recettes traditionnelles tunisiennes",
         imageUrl: null,
         categories: ["pizza"],
+        orderType: "online",
       });
       
       const restaurant2 = await storage.createRestaurant({
@@ -41,6 +42,7 @@ export async function seedDatabase(): Promise<boolean> {
         description: "Pizzas italiennes authentiques cuites au feu de bois",
         imageUrl: null,
         categories: ["pizza"],
+        orderType: "online",
       });
       
       const restaurant3 = await storage.createRestaurant({
@@ -50,6 +52,7 @@ export async function seedDatabase(): Promise<boolean> {
         description: "Grillades et spécialités du sud tunisien",
         imageUrl: null,
         categories: ["grill"],
+        orderType: "online",
       });
       
       // Pizzas for restaurant 1

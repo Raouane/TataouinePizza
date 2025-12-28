@@ -26,6 +26,7 @@ export function registerAdminSeedRoutes(app: Express): void {
           deliveryTime: 25,
           minOrder: "10.00",
           rating: "4.6",
+          orderType: "phone_call",
           products: []
         },
         {
@@ -40,6 +41,7 @@ export function registerAdminSeedRoutes(app: Express): void {
           deliveryTime: 35,
           minOrder: "15.00",
           rating: "4.8",
+          orderType: "phone_call",
           products: []
         },
         {
@@ -214,6 +216,7 @@ export function registerAdminSeedRoutes(app: Express): void {
           const restaurant = await storage.createRestaurant({
             ...restaurantInfo,
             categories: restaurantInfo.categories,
+            orderType: (restaurantInfo.orderType as "online" | "phone_call" | "coming_soon") || "online",
           });
           
           restaurantsCreated++;

@@ -35,6 +35,8 @@ interface Restaurant {
   openingHours?: string;
   imageUrl?: string;
   categories?: string[];
+  phone?: string;
+  orderType?: "online" | "phone_call" | "coming_soon";
 }
 
 export default function Menu() {
@@ -364,37 +366,84 @@ export default function Menu() {
       <div className="px-4 mt-6 md:mt-8 max-w-4xl mx-auto">
         <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 md:mb-6">{t('menu.title')}</h2>
 
-        {/* Category Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-4 md:mb-6 scrollbar-hide">
-          <button
-            onClick={() => setCategory("all")}
-            className={`px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-              category === "all"
-                ? "bg-orange-500 text-white"
-                : "bg-gray-100 text-gray-700"
-            }`}
-            aria-label={t('menu.category.all')}
-          >
-            {t('menu.category.all')}
-          </button>
-          {categories.map((cat) => (
+        {/* Message spécial pour restaurants nécessitant un appel */}
+        {restaurant.orderType === "phone_call" && (
+          <div className="bg-orange-50 border-l-4 border-orange-500 rounded-lg p-4 md:p-6 mb-6">
+            <div className="flex items-start gap-3 md:gap-4">
+              <div className="text-3xl md:text-4xl flex-shrink-0">📞</div>
+              <div className="flex-1">
+                <h3 className="font-bold text-lg md:text-xl text-orange-900 mb-2">
+                  {t('menu.phoneCall.title')}
+                </h3>
+                <p className="text-sm md:text-base text-orange-800 mb-3">
+                  {t('menu.phoneCall.description')}
+                </p>
+                {restaurant.phone && (
+                  <a
+                    href={`tel:${restaurant.phone}`}
+                    className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 md:px-6 py-2 md:py-3 rounded-lg transition-colors"
+                  >
+                    <span className="text-lg">📞</span>
+                    <span>{t('menu.phoneCall.callNow')} {restaurant.phone}</span>
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Message pour commerces à venir */}
+        {restaurant.orderType === "coming_soon" && (
+          <div className="bg-blue-50 border-l-4 border-blue-500 rounded-lg p-4 md:p-6 mb-6">
+            <div className="flex items-start gap-3 md:gap-4">
+              <div className="text-3xl md:text-4xl flex-shrink-0">🚀</div>
+              <div className="flex-1">
+                <h3 className="font-bold text-lg md:text-xl text-blue-900 mb-2">
+                  {t('menu.comingSoon.title')}
+                </h3>
+                <p className="text-sm md:text-base text-blue-800">
+                  {t('menu.comingSoon.description')}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Category Tabs - Masquer si orderType n'est pas "online" */}
+        {restaurant.orderType === "online" && (
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-4 md:mb-6 scrollbar-hide">
             <button
-              key={cat}
-              onClick={() => setCategory(cat)}
+              onClick={() => setCategory("all")}
               className={`px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-                category === cat
+                category === "all"
                   ? "bg-orange-500 text-white"
                   : "bg-gray-100 text-gray-700"
               }`}
-              aria-label={getCategoryLabel(cat, t)}
+              aria-label={t('menu.category.all')}
             >
-              {getCategoryLabel(cat, t)}
+              {t('menu.category.all')}
             </button>
-          ))}
-        </div>
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setCategory(cat)}
+                className={`px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
+                  category === cat
+                    ? "bg-orange-500 text-white"
+                    : "bg-gray-100 text-gray-700"
+                }`}
+                aria-label={getCategoryLabel(cat, t)}
+              >
+                {getCategoryLabel(cat, t)}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {/* Products List */}
-        {filteredPizzas.length === 0 ? (
+        {/* Products List - Masquer si orderType n'est pas "online" */}
+        {restaurant.orderType === "online" && (
+          <>
+            {filteredPizzas.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-2xl">
             <div className="text-4xl mb-4">🍕</div>
             <p className="text-gray-600 font-medium mb-2">
@@ -479,6 +528,8 @@ export default function Menu() {
               );
             })}
           </div>
+        )}
+          </>
         )}
       </div>
 

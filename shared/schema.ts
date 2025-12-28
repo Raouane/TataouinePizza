@@ -39,6 +39,7 @@ export const restaurants = pgTable("restaurants", {
   deliveryTime: integer("delivery_time").default(30), // minutes
   minOrder: numeric("min_order", { precision: 10, scale: 2 }).default("0"),
   rating: numeric("rating", { precision: 2, scale: 1 }).default("4.5"),
+  orderType: text("order_type"), // "online" (default), "phone_call", "coming_soon"
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -139,7 +140,7 @@ export const insertAdminUserSchema = createInsertSchema(adminUsers)
   });
 
 export const insertRestaurantSchema = createInsertSchema(restaurants)
-  .pick({ name: true, phone: true, address: true, description: true, imageUrl: true, categories: true, openingHours: true, deliveryTime: true, minOrder: true, rating: true })
+  .pick({ name: true, phone: true, address: true, description: true, imageUrl: true, categories: true, openingHours: true, deliveryTime: true, minOrder: true, rating: true, orderType: true })
   .extend({
     name: z.string().min(2, "Nom min 2 caractères"),
     phone: z.string().min(8, "Téléphone invalide"),
@@ -149,6 +150,7 @@ export const insertRestaurantSchema = createInsertSchema(restaurants)
     deliveryTime: z.number().int().min(10).max(120).optional(),
     minOrder: z.string().optional(),
     rating: z.string().optional(),
+    orderType: z.enum(["online", "phone_call", "coming_soon"]).optional().default("online"),
   });
 
 export const insertPizzaSchema = createInsertSchema(pizzas)

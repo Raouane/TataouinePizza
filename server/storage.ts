@@ -185,6 +185,7 @@ export class DatabaseStorage implements IStorage {
       deliveryTime: row.delivery_time || 30,
       minOrder: row.min_order || "0",
       rating: row.rating || "4.5",
+      orderType: row.order_type || "online",
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     } as Restaurant;
@@ -279,7 +280,7 @@ export class DatabaseStorage implements IStorage {
         SELECT id, name, phone, address, description, image_url, 
                COALESCE(categories::text, NULL) as categories,
                is_open::text as is_open_text, opening_hours, delivery_time, 
-               min_order, rating, created_at, updated_at 
+               min_order, rating, order_type, created_at, updated_at 
         FROM restaurants ORDER BY name
       `);
       
@@ -314,7 +315,7 @@ export class DatabaseStorage implements IStorage {
       const rawResult = await db.execute(sql`
         SELECT id, name, phone, address, description, image_url, categories, 
                is_open::text as is_open_text, opening_hours, delivery_time, 
-               min_order, rating, created_at, updated_at 
+               min_order, rating, order_type, created_at, updated_at 
         FROM restaurants WHERE id = ${id}
       `);
       
@@ -338,7 +339,7 @@ export class DatabaseStorage implements IStorage {
       const rawResult = await db.execute(sql`
         SELECT id, name, phone, address, description, image_url, categories, 
                is_open::text as is_open_text, opening_hours, delivery_time, 
-               min_order, rating, created_at, updated_at 
+               min_order, rating, order_type, created_at, updated_at 
         FROM restaurants WHERE phone = ${phone}
       `);
       

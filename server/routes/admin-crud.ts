@@ -224,6 +224,7 @@ export function registerAdminCrudRoutes(app: Express): void {
         deliveryTime: data.deliveryTime || 30,
         minOrder: data.minOrder || "0",
         rating: data.rating || "4.5",
+        orderType: data.orderType || "online",
       };
       
       const restaurant = await storage.createRestaurant(restaurantData);

@@ -62,11 +62,27 @@ export async function runMigrationsOnStartup() {
         delivery_time INTEGER DEFAULT 30,
         min_order NUMERIC(10, 2) DEFAULT 0,
         rating NUMERIC(2, 1) DEFAULT 4.5,
+        order_type TEXT,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
     `);
     console.log("[DB] ✅ Table restaurants créée/vérifiée");
+    
+    // Ajouter la colonne order_type si elle n'existe pas
+    await db.execute(sql`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'restaurants' AND column_name = 'order_type'
+        ) THEN
+          ALTER TABLE restaurants ADD COLUMN order_type TEXT;
+          RAISE NOTICE 'Colonne order_type ajoutée à restaurants';
+        END IF;
+      END $$;
+    `);
+    console.log("[DB] ✅ Colonne order_type vérifiée");
     
     // Ajouter la colonne categories si elle n'existe pas et migrer category vers categories
     await db.execute(sql`
