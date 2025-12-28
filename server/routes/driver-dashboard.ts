@@ -11,6 +11,8 @@ import { getVapidPublicKey } from "../services/push-notification-service";
 import type { Order } from "@shared/schema";
 
 export function registerDriverDashboardRoutes(app: Express): void {
+  console.log("[ROUTES] ✅ Enregistrement des routes driver dashboard");
+  
   // ============ DRIVER AUTH (OTP) ============
   // OTP TOUJOURS ACTIVÉ pour les livreurs (indépendamment de ENABLE_SMS_OTP)
   
@@ -19,6 +21,7 @@ export function registerDriverDashboardRoutes(app: Express): void {
    * Envoie un code OTP au livreur (toujours activé)
    */
   app.post("/api/driver/otp/send", async (req, res) => {
+    console.log("[DRIVER OTP] Requête reçue pour /api/driver/otp/send");
     try {
       const { phone } = req.body as { phone?: string };
       if (!phone) {
