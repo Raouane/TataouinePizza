@@ -420,12 +420,18 @@ export async function sendWhatsAppToDrivers(
       return 0;
     }
 
-    // OPTIMISATION: Envoyer seulement au premier livreur disponible pour économiser les messages
+    // OPTIMISATION: Envoyer seulement à Raouane (+33783698509) pour économiser les messages
     // (Limite Twilio: 50 messages/jour en mode Trial)
-    // Si le premier livreur refuse, on pourra envoyer au suivant
-    const driversToNotify = availableDrivers.slice(0, 1); // Seulement le premier livreur
+    const targetPhone = "+33783698509";
+    const driversToNotify = availableDrivers.filter(driver => driver.phone === targetPhone);
 
-    console.log(`[WhatsApp] 📤 Envoi WhatsApp à ${driversToNotify.length} livreur(s) (premier disponible) sur ${availableDrivers.length} disponible(s) (statut available/online)`);
+    if (driversToNotify.length === 0) {
+      console.log(`[WhatsApp] ⚠️ Raouane (${targetPhone}) n'est pas disponible`);
+      console.log(`[WhatsApp] 💡 Livreurs disponibles: ${availableDrivers.map(d => d.name).join(', ')}`);
+      return 0;
+    }
+
+    console.log(`[WhatsApp] 📤 Envoi WhatsApp uniquement à Raouane (${targetPhone}) sur ${availableDrivers.length} disponible(s)`);
     console.log(`[WhatsApp] 💡 Optimisation: 1 seul message pour économiser la limite Twilio (50/jour)`);
 
     // Envoyer WhatsApp à chaque livreur (en parallèle, non-bloquant)
