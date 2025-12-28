@@ -84,17 +84,22 @@ export function registerAuthRoutes(app: Express): void {
     }
   });
 
-  // ============ OTP (Conditional - only if ENABLE_SMS_OTP=true) ============
-  // OTP DISABLED FOR MVP – ENABLE VIA ENABLE_SMS_OTP ENV FLAG
+  // ============ OTP (Conditional - only if ENABLE_SMS_OTP=true for customers) ============
+  // OTP DISABLED FOR CUSTOMERS (MVP) – ENABLE VIA ENABLE_SMS_OTP ENV FLAG
+  // OTP TOUJOURS ACTIVÉ pour les livreurs et restaurants
   
   app.post("/api/otp/send", otpLimiter, async (req, res) => {
-    // Vérifier si l'OTP est activé
-    if (!isOtpEnabled()) {
+    const { userType } = req.body as { userType?: "customer" | "driver" | "restaurant" };
+    
+    // Si c'est un client et que l'OTP est désactivé, bloquer
+    if ((!userType || userType === "customer") && !isOtpEnabled()) {
       return res.status(400).json({
-        error: "OTP authentication is disabled. Please use /api/auth/login endpoint.",
-        message: "OTP désactivé pour le MVP. Utilisez /api/auth/login avec prénom + téléphone.",
+        error: "OTP authentication is disabled for customers. Please use /api/auth/login endpoint.",
+        message: "OTP désactivé pour les clients (MVP). Utilisez /api/auth/login avec prénom + téléphone.",
       });
     }
+    
+    // Pour les livreurs et restaurants, l'OTP est toujours activé
     try {
       const validation = validate(sendOtpSchema, req.body);
       if (!validation.success) {
@@ -124,13 +129,17 @@ export function registerAuthRoutes(app: Express): void {
   });
   
   app.post("/api/otp/verify", async (req, res) => {
-    // Vérifier si l'OTP est activé
-    if (!isOtpEnabled()) {
+    const { userType } = req.body as { userType?: "customer" | "driver" | "restaurant" };
+    
+    // Si c'est un client et que l'OTP est désactivé, bloquer
+    if ((!userType || userType === "customer") && !isOtpEnabled()) {
       return res.status(400).json({
-        error: "OTP authentication is disabled. Please use /api/auth/login endpoint.",
-        message: "OTP désactivé pour le MVP. Utilisez /api/auth/login avec prénom + téléphone.",
+        error: "OTP authentication is disabled for customers. Please use /api/auth/login endpoint.",
+        message: "OTP désactivé pour les clients (MVP). Utilisez /api/auth/login avec prénom + téléphone.",
       });
     }
+    
+    // Pour les livreurs et restaurants, l'OTP est toujours activé
 
     try {
       const validation = validate(verifyOtpSchema, req.body);

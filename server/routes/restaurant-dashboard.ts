@@ -8,6 +8,40 @@ import { OrderService } from "../services/order-service";
 
 export function registerRestaurantDashboardRoutes(app: Express): void {
   // ============ RESTAURANT AUTH (OTP) ============
+  // OTP TOUJOURS ACTIVÉ pour les restaurants (indépendamment de ENABLE_SMS_OTP)
+  
+  /**
+   * POST /api/restaurant/otp/send
+   * Envoie un code OTP au restaurant (toujours activé)
+   */
+  app.post("/api/restaurant/otp/send", async (req, res) => {
+    try {
+      const { phone } = req.body as { phone?: string };
+      if (!phone) {
+        return res.status(400).json({ error: "Phone required" });
+      }
+      
+      // Vérifier que le restaurant existe
+      const restaurant = await storage.getRestaurantByPhone(phone);
+      if (!restaurant) {
+        return res.status(404).json({ error: "Restaurant non trouvé avec ce numéro" });
+      }
+      
+      // Générer et envoyer l'OTP
+      const code = Math.floor(1000 + Math.random() * 9000).toString();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+      await storage.createOtpCode(phone, code, expiresAt);
+      
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[RESTAURANT OTP] Code for ${phone}: ${code}`);
+      }
+      
+      res.json({ message: "OTP sent" });
+    } catch (error: any) {
+      console.error("[RESTAURANT OTP] Erreur lors de l'envoi:", error);
+      res.status(500).json({ error: "Failed to send OTP" });
+    }
+  });
   
   app.post("/api/restaurant/login-otp", async (req, res) => {
     const result = await handleOtpLogin(req, res, {
