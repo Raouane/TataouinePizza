@@ -46,9 +46,25 @@ export async function handleOtpLogin(
     if (code) {
       const isValid = await storage.verifyOtpCode(phone, code);
       if (!isValid) {
-        res.status(403).json({ error: "Code OTP incorrect" });
+        // Vérifier pourquoi le code est invalide pour donner un message plus clair
+        const latestOtp = await storage.getLatestOtpCode(phone);
+        if (!latestOtp) {
+          res.status(403).json({ error: "Aucun code OTP trouvé. Veuillez demander un nouveau code." });
+        } else if (latestOtp.verified) {
+          res.status(403).json({ error: "Ce code a déjà été utilisé. Veuillez demander un nouveau code." });
+        } else if (new Date() > latestOtp.expiresAt) {
+          res.status(403).json({ error: "Le code OTP a expiré. Veuillez demander un nouveau code." });
+        } else if ((latestOtp.attempts || 0) >= 3) {
+          res.status(403).json({ error: "Trop de tentatives échouées. Veuillez demander un nouveau code." });
+        } else {
+          res.status(403).json({ error: "Code OTP incorrect. Vérifiez votre code et réessayez." });
+        }
         return null;
       }
+    } else {
+      // Si pas de code fourni, permettre la connexion sans vérification (pour compatibilité)
+      // Mais loguer un avertissement
+      console.warn(`[OTP LOGIN] ${options.userType} login sans code OTP pour ${phone}`);
     }
     
     // Récupérer l'utilisateur par téléphone

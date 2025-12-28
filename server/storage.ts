@@ -672,16 +672,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async verifyOtpCode(phone: string, code: string): Promise<boolean> {
+    // Code de démo universel (uniquement en dev/test)
+    const DEMO_OTP_CODE = process.env.DEMO_OTP_CODE || "1234";
+    const isDemoCode = code === DEMO_OTP_CODE && process.env.NODE_ENV !== "production";
+    
+    // Si c'est le code de démo, accepter directement (sans vérifier la DB)
+    if (isDemoCode) {
+      console.log(`[OTP] Code de démo accepté pour ${phone}`);
+      return true;
+    }
+    
     const otpRecord = await this.getLatestOtpCode(phone);
     if (!otpRecord) return false;
     if (otpRecord.verified) return false;
     if (new Date() > otpRecord.expiresAt) return false;
     if ((otpRecord.attempts || 0) >= 3) return false;
     
-    // Code de test via variable d'environnement (uniquement en dev)
-    const DEMO_OTP_CODE = process.env.DEMO_OTP_CODE;
-    const isDemoCode = DEMO_OTP_CODE && code === DEMO_OTP_CODE && process.env.NODE_ENV !== "production";
-    const isValidCode = isDemoCode || otpRecord.code === code;
+    const isValidCode = otpRecord.code === code;
     
     if (!isValidCode) {
       await db.update(otpCodes).set({ attempts: (otpRecord.attempts || 0) + 1 }).where(eq(otpCodes.id, otpRecord.id));
