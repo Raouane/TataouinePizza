@@ -8,6 +8,7 @@ import { OrderAcceptanceService } from "../services/order-acceptance-service";
 import { OrderEnrichmentService } from "../services/order-enrichment-service";
 import { OrderService } from "../services/order-service";
 import { getVapidPublicKey } from "../services/push-notification-service";
+import { sendOtpSms } from "../services/sms-service";
 import type { Order } from "@shared/schema";
 
 export function registerDriverDashboardRoutes(app: Express): void {
@@ -39,11 +40,31 @@ export function registerDriverDashboardRoutes(app: Express): void {
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
       await storage.createOtpCode(phone, code, expiresAt);
       
-      if (process.env.NODE_ENV !== "production") {
+      // Envoyer le code par SMS uniquement si ENABLE_DEMO_OTP=false (mode production réel)
+      const ENABLE_DEMO_OTP = process.env.ENABLE_DEMO_OTP === "true" || process.env.NODE_ENV !== "production";
+      
+      if (!ENABLE_DEMO_OTP) {
+        // Mode production réel : envoyer SMS
+        try {
+          await sendOtpSms(phone, code, "driver");
+          console.log(`[DRIVER OTP] ✅ Code OTP envoyé par SMS à ${phone}`);
+        } catch (smsError: any) {
+          console.error(`[DRIVER OTP] ⚠️ Erreur envoi SMS (code stocké en base):`, smsError.message);
+          // Ne pas bloquer si SMS échoue, le code est quand même stocké en base
+        }
+      } else {
+        // Mode démo : afficher le code dans la console
+        const demoCode = process.env.DEMO_OTP_CODE || "1234";
         console.log(`[DRIVER OTP] Code for ${phone}: ${code}`);
+        console.log(`[DRIVER OTP] 💡 Mode démo activé - Utilisez le code de démo: ${demoCode}`);
       }
       
-      res.json({ message: "OTP sent" });
+      const response: { message: string; demoCode?: string } = { message: "OTP sent" };
+      if (ENABLE_DEMO_OTP) {
+        response.demoCode = process.env.DEMO_OTP_CODE || "1234";
+      }
+      
+      res.json(response);
     } catch (error: any) {
       console.error("[DRIVER OTP] Erreur lors de l'envoi:", error);
       res.status(500).json({ error: "Failed to send OTP" });

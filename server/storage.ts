@@ -672,29 +672,65 @@ export class DatabaseStorage implements IStorage {
   }
 
   async verifyOtpCode(phone: string, code: string): Promise<boolean> {
-    // Code de démo universel (uniquement en dev/test)
+    // Code de démo universel (utilisable en dev ET en prod si ENABLE_DEMO_OTP=true)
     const DEMO_OTP_CODE = process.env.DEMO_OTP_CODE || "1234";
-    const isDemoCode = code === DEMO_OTP_CODE && process.env.NODE_ENV !== "production";
+    const ENABLE_DEMO_OTP = process.env.ENABLE_DEMO_OTP === "true" || process.env.NODE_ENV !== "production";
+    const isDemoCode = code === DEMO_OTP_CODE && ENABLE_DEMO_OTP;
     
     // Si c'est le code de démo, accepter directement (sans vérifier la DB)
     if (isDemoCode) {
-      console.log(`[OTP] Code de démo accepté pour ${phone}`);
+      console.log(`[OTP] ✅ Code de démo accepté pour ${phone} (ENABLE_DEMO_OTP=${ENABLE_DEMO_OTP})`);
       return true;
     }
     
     const otpRecord = await this.getLatestOtpCode(phone);
-    if (!otpRecord) return false;
-    if (otpRecord.verified) return false;
-    if (new Date() > otpRecord.expiresAt) return false;
-    if ((otpRecord.attempts || 0) >= 3) return false;
+    if (!otpRecord) {
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[OTP] ❌ Aucun code OTP trouvé pour ${phone}`);
+      }
+      return false;
+    }
+    
+    if (otpRecord.verified) {
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[OTP] ❌ Code déjà utilisé pour ${phone}`);
+      }
+      return false;
+    }
+    
+    if (new Date() > otpRecord.expiresAt) {
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[OTP] ❌ Code expiré pour ${phone} (expiré à ${otpRecord.expiresAt})`);
+      }
+      return false;
+    }
+    
+    if ((otpRecord.attempts || 0) >= 3) {
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[OTP] ❌ Trop de tentatives pour ${phone} (${otpRecord.attempts} tentatives)`);
+      }
+      return false;
+    }
     
     const isValidCode = otpRecord.code === code;
     
     if (!isValidCode) {
-      await db.update(otpCodes).set({ attempts: (otpRecord.attempts || 0) + 1 }).where(eq(otpCodes.id, otpRecord.id));
+      const newAttempts = (otpRecord.attempts || 0) + 1;
+      await db.update(otpCodes).set({ attempts: newAttempts }).where(eq(otpCodes.id, otpRecord.id));
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[OTP] ❌ Code incorrect pour ${phone}:`, {
+          codeFourni: code,
+          codeAttendu: otpRecord.code,
+          tentatives: newAttempts,
+        });
+      }
       return false;
     }
+    
     await db.update(otpCodes).set({ verified: true }).where(eq(otpCodes.id, otpRecord.id));
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[OTP] ✅ Code validé pour ${phone}`);
+    }
     return true;
   }
 

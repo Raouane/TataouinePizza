@@ -211,3 +211,64 @@ export async function sendSMSToDrivers(
   }
 }
 
+/**
+ * Envoie un code OTP par SMS à un utilisateur (livreur ou restaurant)
+ * @param phone Numéro de téléphone du destinataire
+ * @param code Code OTP à envoyer
+ * @param userType Type d'utilisateur (driver ou restaurant)
+ */
+export async function sendOtpSms(
+  phone: string,
+  code: string,
+  userType: "driver" | "restaurant" = "driver"
+): Promise<void> {
+  if (!twilioClient) {
+    console.warn('[SMS OTP] ⚠️ Twilio non configuré, SMS OTP non envoyé');
+    return;
+  }
+
+  const formattedPhone = formatPhoneNumber(phone);
+  const userLabel = userType === "driver" ? "Livreur" : "Restaurant";
+  
+  const message = `🔐 Code OTP ${userLabel}\n\nVotre code de connexion: ${code}\n\nCe code expire dans 5 minutes.`;
+
+  try {
+    // Si un numéro vérifié est configuré (pour compte Trial), envoyer uniquement à ce numéro
+    if (verifiedNumber) {
+      const formattedVerifiedNumber = verifiedNumber.startsWith('+') 
+        ? verifiedNumber 
+        : `+${verifiedNumber}`;
+      
+      console.log(`[SMS OTP] Mode Trial: Envoi OTP au numéro vérifié ${formattedVerifiedNumber}`);
+      
+      const result = await twilioClient.messages.create({
+        body: message,
+        from: twilioPhoneNumber!,
+        to: formattedVerifiedNumber,
+      });
+
+      console.log(`[SMS OTP] ✅ SMS OTP envoyé au numéro vérifié: ${result.sid}`);
+      console.log(`[SMS OTP] Code OTP: ${code} (pour ${phone})`);
+      return;
+    }
+
+    // En production, envoyer au numéro réel du livreur/restaurant
+    console.log(`[SMS OTP] Envoi OTP à ${formattedPhone} (${userLabel})`);
+    
+    const result = await twilioClient.messages.create({
+      body: message,
+      from: twilioPhoneNumber!,
+      to: formattedPhone,
+    });
+
+    console.log(`[SMS OTP] ✅ SMS OTP envoyé à ${formattedPhone}: ${result.sid}`);
+  } catch (error: any) {
+    console.error(`[SMS OTP] ❌ Erreur envoi SMS OTP à ${formattedPhone}:`, error.message);
+    if (error.code === 21211) {
+      console.error(`[SMS OTP] ⚠️ Numéro invalide: ${formattedPhone}`);
+    }
+    // Ne pas throw l'erreur pour ne pas bloquer le processus si SMS échoue
+    // Le code OTP est quand même stocké en base et peut être utilisé
+  }
+}
+

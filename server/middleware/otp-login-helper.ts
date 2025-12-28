@@ -44,21 +44,42 @@ export async function handleOtpLogin(
     
     // Vérifier le code OTP si fourni
     if (code) {
+      // Vérifier d'abord si un code OTP existe pour ce téléphone
+      const latestOtp = await storage.getLatestOtpCode(phone);
+      
+      if (!latestOtp) {
+        res.status(403).json({ error: "Aucun code OTP trouvé. Veuillez demander un nouveau code." });
+        return null;
+      }
+      
+      // Vérifier les conditions avant de vérifier le code
+      if (latestOtp.verified) {
+        res.status(403).json({ error: "Ce code a déjà été utilisé. Veuillez demander un nouveau code." });
+        return null;
+      }
+      
+      if (new Date() > latestOtp.expiresAt) {
+        res.status(403).json({ error: "Le code OTP a expiré. Veuillez demander un nouveau code." });
+        return null;
+      }
+      
+      if ((latestOtp.attempts || 0) >= 3) {
+        res.status(403).json({ error: "Trop de tentatives échouées. Veuillez demander un nouveau code." });
+        return null;
+      }
+      
+      // Maintenant vérifier le code
       const isValid = await storage.verifyOtpCode(phone, code);
       if (!isValid) {
-        // Vérifier pourquoi le code est invalide pour donner un message plus clair
-        const latestOtp = await storage.getLatestOtpCode(phone);
-        if (!latestOtp) {
-          res.status(403).json({ error: "Aucun code OTP trouvé. Veuillez demander un nouveau code." });
-        } else if (latestOtp.verified) {
-          res.status(403).json({ error: "Ce code a déjà été utilisé. Veuillez demander un nouveau code." });
-        } else if (new Date() > latestOtp.expiresAt) {
-          res.status(403).json({ error: "Le code OTP a expiré. Veuillez demander un nouveau code." });
-        } else if ((latestOtp.attempts || 0) >= 3) {
-          res.status(403).json({ error: "Trop de tentatives échouées. Veuillez demander un nouveau code." });
-        } else {
-          res.status(403).json({ error: "Code OTP incorrect. Vérifiez votre code et réessayez." });
+        // Log pour débogage
+        if (process.env.NODE_ENV !== "production") {
+          console.log(`[OTP LOGIN] Code invalide pour ${phone}:`, {
+            codeFourni: code,
+            codeAttendu: latestOtp.code,
+            attempts: latestOtp.attempts || 0,
+          });
         }
+        res.status(403).json({ error: "Code OTP incorrect. Vérifiez votre code et réessayez." });
         return null;
       }
     } else {
