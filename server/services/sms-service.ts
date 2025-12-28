@@ -272,3 +272,144 @@ export async function sendOtpSms(
   }
 }
 
+/**
+ * Envoie une notification WhatsApp à un livreur pour une nouvelle commande
+ * WhatsApp sonne toujours, même téléphone éteint (contrairement aux notifications push)
+ * @param driverPhone Numéro WhatsApp du livreur (format: +216xxxxxxxxx ou +33xxxxxxxxx)
+ * @param orderId ID de la commande
+ * @param customerName Nom du client
+ * @param totalPrice Prix total
+ * @param address Adresse de livraison
+ * @param restaurantName Nom du restaurant
+ */
+export async function sendWhatsAppToDriver(
+  driverPhone: string,
+  orderId: string,
+  customerName: string,
+  totalPrice: string,
+  address: string,
+  restaurantName: string
+): Promise<boolean> {
+  if (!twilioClient) {
+    console.warn('[WhatsApp] ⚠️ Twilio non configuré, WhatsApp non envoyé');
+    return false;
+  }
+
+  const whatsappFrom = process.env.TWILIO_WHATSAPP_NUMBER || (twilioPhoneNumber ? `whatsapp:${twilioPhoneNumber}` : null);
+  
+  if (!whatsappFrom) {
+    console.error('[WhatsApp] ❌ Numéro WhatsApp Twilio non configuré (TWILIO_WHATSAPP_NUMBER)');
+    return false;
+  }
+
+  const formattedPhone = formatPhoneNumber(driverPhone);
+  const whatsappTo = formattedPhone.startsWith('whatsapp:') 
+    ? formattedPhone 
+    : `whatsapp:${formattedPhone}`;
+
+  // Message WhatsApp avec emojis et formatage
+  // Note: En mode Sandbox, si le livreur a déjà rejoint, on peut envoyer des messages libres
+  // En production, après approbation, on peut aussi envoyer des messages libres
+  const message = `🔔 *NOUVELLE COMMANDE DISPONIBLE!*\n\n` +
+    `📋 *ID:* ${orderId.slice(0, 8)}\n` +
+    `💰 *Total:* ${totalPrice} DT\n\n` +
+    `🍕 *Restaurant:*\n${restaurantName}\n\n` +
+    `👤 *Client:*\n${customerName}\n` +
+    `📍 *Adresse:*\n${address}\n\n` +
+    `✅ Ouvrez l'application pour accepter la commande`;
+
+  try {
+    // Utiliser body au lieu de ContentSid pour un message libre
+    const result = await twilioClient.messages.create({
+      body: message,
+      from: whatsappFrom,
+      to: whatsappTo,
+    });
+
+    console.log(`[WhatsApp] ✅ Message WhatsApp envoyé à ${whatsappTo}: ${result.sid}`);
+    return true;
+  } catch (error: any) {
+    console.error(`[WhatsApp] ❌ Erreur envoi WhatsApp à ${whatsappTo}:`, error.message);
+    console.error(`[WhatsApp] Code erreur: ${error.code}`);
+    
+    if (error.code === 21211) {
+      console.error(`[WhatsApp] ⚠️ Numéro invalide: ${whatsappTo}`);
+    } else if (error.code === 21608) {
+      console.error(`[WhatsApp] ⚠️ Numéro non autorisé. En mode Sandbox, ajoutez ce numéro dans Twilio Console.`);
+    } else if (error.code === 63007) {
+      console.error(`[WhatsApp] ⚠️ Template requis. Le livreur doit d'abord rejoindre le Sandbox.`);
+      console.error(`[WhatsApp] 💡 Solution: Le livreur doit envoyer le code Sandbox à son numéro WhatsApp.`);
+    } else if (error.code === 21610) {
+      console.error(`[WhatsApp] ⚠️ Message non autorisé. Utilisez un template pour le premier message.`);
+    }
+    
+    return false;
+  }
+}
+
+/**
+ * Envoie des notifications WhatsApp à tous les livreurs disponibles pour une nouvelle commande
+ * WhatsApp sonne toujours, même téléphone éteint
+ * @param orderId ID de la commande
+ * @param restaurantName Nom du restaurant
+ * @param customerName Nom du client
+ * @param totalPrice Prix total
+ * @param address Adresse de livraison
+ * @param maxDrivers Nombre maximum de livreurs à notifier
+ */
+export async function sendWhatsAppToDrivers(
+  orderId: string,
+  restaurantName: string,
+  customerName: string,
+  totalPrice: string,
+  address: string,
+  maxDrivers: number = 999
+): Promise<number> {
+  console.log('[WhatsApp] 🔔 sendWhatsAppToDrivers appelé pour commande:', orderId.slice(0, 8));
+  
+  if (!twilioClient) {
+    console.error('[WhatsApp] ❌ Twilio non configuré, WhatsApp non envoyé');
+    return 0;
+  }
+
+  try {
+    // Récupérer tous les livreurs disponibles
+    const availableDrivers = await storage.getAvailableDrivers();
+    
+    if (availableDrivers.length === 0) {
+      console.log('[WhatsApp] ⚠️ Aucun livreur disponible');
+      return 0;
+    }
+
+    // Limiter le nombre de livreurs si nécessaire
+    const driversToNotify = availableDrivers.slice(0, maxDrivers);
+
+    console.log(`[WhatsApp] Envoi WhatsApp à ${driversToNotify.length} livreur(s) sur ${availableDrivers.length} disponible(s)`);
+
+    // Envoyer WhatsApp à chaque livreur (en parallèle, non-bloquant)
+    const results = await Promise.allSettled(
+      driversToNotify.map(driver => 
+        sendWhatsAppToDriver(
+          driver.phone,
+          orderId,
+          customerName,
+          totalPrice,
+          address,
+          restaurantName
+        )
+      )
+    );
+
+    // Compter les succès
+    const successCount = results.filter(r => r.status === 'fulfilled' && r.value === true).length;
+    const failureCount = results.length - successCount;
+
+    console.log(`[WhatsApp] 📊 Messages envoyés: ${successCount} succès, ${failureCount} échecs sur ${driversToNotify.length} livreurs`);
+    
+    return successCount;
+  } catch (error: any) {
+    console.error('[WhatsApp] ❌ Erreur lors de l\'envoi des messages WhatsApp:', error);
+    return 0;
+  }
+}
+

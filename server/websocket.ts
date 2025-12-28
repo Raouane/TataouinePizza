@@ -275,6 +275,23 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
     // Ne pas bloquer si SMS échoue
   }
 
+  // Envoyer des notifications WhatsApp à tous les livreurs disponibles
+  // WhatsApp sonne toujours, même téléphone éteint (solution fiable)
+  try {
+    const { sendWhatsAppToDrivers } = await import('./services/sms-service.js');
+    const whatsappCount = await sendWhatsAppToDrivers(
+      orderData.orderId,
+      orderData.restaurantName,
+      orderData.customerName,
+      orderData.totalPrice,
+      orderData.address
+    );
+    console.log(`[WebSocket] 📱 ${whatsappCount} message(s) WhatsApp envoyé(s) (sonnerie garantie)`);
+  } catch (whatsappError: any) {
+    console.error('[WebSocket] ❌ Erreur envoi WhatsApp:', whatsappError);
+    // Ne pas bloquer si WhatsApp échoue
+  }
+
   // Démarrer le timer d'acceptation (20 secondes)
   startAcceptanceTimer(orderData.orderId);
 
