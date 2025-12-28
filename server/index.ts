@@ -41,7 +41,11 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"], // Tailwind nécessite unsafe-inline
+        styleSrc: [
+          "'self'", 
+          "'unsafe-inline'", // Tailwind nécessite unsafe-inline
+          "https://fonts.googleapis.com", // Google Fonts CSS
+        ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Vite nécessite unsafe-eval en dev
         imgSrc: [
           "'self'",
@@ -50,7 +54,11 @@ app.use(
           "http:", // Autoriser HTTP en dev (peut être retiré en production)
         ],
         connectSrc: ["'self'", "https:", "http:"], // Pour les API externes
-        fontSrc: ["'self'", "data:"],
+        fontSrc: [
+          "'self'", 
+          "data:",
+          "https://fonts.gstatic.com", // Google Fonts fichiers de polices
+        ],
         objectSrc: ["'none'"],
         mediaSrc: ["'self'"],
         frameSrc: ["'none'"],
