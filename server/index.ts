@@ -53,7 +53,15 @@ app.use(
           "https:", // Autoriser toutes les images HTTPS (pour les images externes)
           "http:", // Autoriser HTTP en dev (peut être retiré en production)
         ],
-        connectSrc: ["'self'", "https:", "http:"], // Pour les API externes
+        connectSrc: [
+          "'self'", 
+          "https:", 
+          "http:",
+          "ws://localhost:5000", // HMR WebSocket (même port que le serveur)
+          "ws://localhost:5173", // HMR WebSocket (port Vite alternatif)
+          "ws://127.0.0.1:5000",
+          "ws://127.0.0.1:5173",
+        ], // Pour les API externes et HMR WebSocket
         fontSrc: [
           "'self'", 
           "data:",
