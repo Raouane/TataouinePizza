@@ -307,16 +307,31 @@ export async function sendWhatsAppToDriver(
     ? formattedPhone 
     : `whatsapp:${formattedPhone}`;
 
-  // Message WhatsApp avec emojis et formatage
-  // Note: En mode Sandbox, si le livreur a déjà rejoint, on peut envoyer des messages libres
-  // En production, après approbation, on peut aussi envoyer des messages libres
-  const message = `🔔 *NOUVELLE COMMANDE DISPONIBLE!*\n\n` +
-    `📋 *ID:* ${orderId.slice(0, 8)}\n` +
-    `💰 *Total:* ${totalPrice} DT\n\n` +
-    `🍕 *Restaurant:*\n${restaurantName}\n\n` +
-    `👤 *Client:*\n${customerName}\n` +
-    `📍 *Adresse:*\n${address}\n\n` +
-    `✅ Ouvrez l'application pour accepter la commande`;
+  // Message WhatsApp amélioré avec instructions simples
+  const message = `╔═══════════════════════════╗
+║  🍕 NOUVELLE COMMANDE 🍕  ║
+╚═══════════════════════════╝
+
+📋 *Commande #${orderId.slice(0, 8)}*
+💰 *Montant:* ${totalPrice} DT
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+🏪 *RESTAURANT*
+${restaurantName}
+
+👤 *CLIENT*
+${customerName}
+
+📍 *ADRESSE*
+${address}
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ *RÉPONDEZ RAPIDEMENT:*
+
+✅ Tapez *A* pour ACCEPTER
+❌ Tapez *R* pour REFUSER
+
+⏱️ *Délai: 20 secondes*`;
 
   try {
     // Utiliser body au lieu de ContentSid pour un message libre
