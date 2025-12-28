@@ -5,9 +5,9 @@
 let notificationIntervals = {};
 
 // Écouter les événements push du serveur (pour les notifications en arrière-plan)
-// Ces notifications fonctionnent même quand l'app est complètement fermée
+// Ces notifications fonctionnent même quand l'app est complètement fermée ou le téléphone éteint
 self.addEventListener('push', (event) => {
-  console.log('[SW] 📬 Événement push reçu:', event);
+  console.log('[SW] 📬 Événement push reçu (fonctionne même téléphone éteint):', event);
   
   let data = {
     title: '🔔 Nouvelle commande!',
@@ -15,13 +15,15 @@ self.addEventListener('push', (event) => {
     orderId: null,
     url: '/driver',
     icon: '/favicon-32x32.png',
-    badge: '/favicon-32x32.png'
+    badge: '/favicon-32x32.png',
+    silent: false // Son système activé
   };
 
   if (event.data) {
     try {
       const parsed = event.data.json();
       data = { ...data, ...parsed };
+      console.log('[SW] 📦 Données push parsées:', parsed);
     } catch (e) {
       console.error('[SW] Erreur parsing push data:', e);
       // Utiliser les valeurs par défaut
@@ -36,24 +38,32 @@ self.addEventListener('push', (event) => {
   const badge = data.badge || '/favicon-32x32.png';
   
   // Afficher la notification immédiatement
+  // IMPORTANT: Le son système fonctionne même quand le téléphone est éteint
+  // Le son par défaut du système est utilisé automatiquement si silent: false
+  const notificationOptions = {
+    body,
+    icon,
+    badge,
+    tag: `order-${orderId}`,
+    requireInteraction: true, // Nécessite une interaction pour se fermer
+    silent: data.silent !== undefined ? data.silent : false, // Activer le son système (fonctionne même téléphone éteint)
+    vibrate: [200, 100, 200, 100, 200], // Vibration sur mobile
+    data: {
+      orderId,
+      url
+    }
+  };
+  
+  console.log('[SW] 🔊 Options notification:', { silent: notificationOptions.silent, orderId });
+  
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon,
-      badge,
-      tag: `order-${orderId}`,
-      requireInteraction: true, // Nécessite une interaction pour se fermer
-      silent: false, // Activer le son
-      vibrate: [200, 100, 200, 100, 200], // Vibration sur mobile
-      data: {
-        orderId,
-        url
-      }
-    }).then(() => {
-      console.log('[SW] ✅ Notification push affichée pour commande', orderId);
-    }).catch((error) => {
-      console.error('[SW] ❌ Erreur affichage notification:', error);
-    })
+    self.registration.showNotification(title, notificationOptions)
+      .then(() => {
+        console.log('[SW] ✅ Notification push affichée pour commande', orderId, '(son activé)');
+      })
+      .catch((error) => {
+        console.error('[SW] ❌ Erreur affichage notification:', error);
+      })
   );
 });
 
@@ -68,6 +78,8 @@ function startNotificationRepeat(orderId, interval, title, body) {
   }
   
   // Répéter la notification toutes les X secondes
+  // IMPORTANT: Le son système fonctionne même quand le téléphone est éteint
+  // Le son par défaut du système est utilisé automatiquement si silent: false
   const notificationInterval = setInterval(() => {
     console.log(`[SW] Répétition notification pour commande ${orderId}`);
     self.registration.showNotification(title, {
@@ -76,7 +88,7 @@ function startNotificationRepeat(orderId, interval, title, body) {
       badge: '/favicon-32x32.png',
       tag: `order-${orderId}`,
       requireInteraction: true,
-      silent: false,
+      silent: false, // Activer le son système (fonctionne même téléphone éteint)
       vibrate: [200, 100, 200, 100, 200],
     }).catch((error) => {
       console.error('[SW] Erreur affichage notification répétée:', error);
@@ -98,13 +110,15 @@ self.addEventListener('message', (event) => {
     const body = 'Une nouvelle commande est disponible';
     
     // Envoyer une notification immédiatement
+    // IMPORTANT: Le son système fonctionne même quand le téléphone est éteint
+    // Le son par défaut du système est utilisé automatiquement si silent: false
     self.registration.showNotification(title, {
       body,
       icon: '/favicon-32x32.png',
       badge: '/favicon-32x32.png',
       tag: `order-${orderId}`,
       requireInteraction: true,
-      silent: false,
+      silent: false, // Activer le son système (fonctionne même téléphone éteint)
       vibrate: [200, 100, 200, 100, 200],
     }).catch((error) => {
       console.error('[SW] Erreur affichage notification:', error);

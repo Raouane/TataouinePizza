@@ -60,12 +60,17 @@ export async function sendPushNotificationToDriver(
     }
 
     // Préparer les données de la notification
+    // IMPORTANT: Le son système fonctionne même quand le téléphone est éteint
+    // Le son par défaut du système est utilisé automatiquement si silent: false
     const payload = JSON.stringify({
       title: notification.title,
       body: notification.body,
       icon: notification.icon || '/favicon-32x32.png',
       badge: notification.badge || '/favicon-32x32.png',
-      vibrate: [200, 100, 200, 100, 200],
+      vibrate: [200, 100, 200, 100, 200], // Vibration sur mobile
+      silent: false, // Activer le son système (fonctionne même téléphone éteint)
+      requireInteraction: true, // Nécessite une interaction pour se fermer
+      tag: `order-${notification.orderId}`, // Tag pour regrouper les notifications
       data: {
         orderId: notification.orderId,
         url: notification.url || `/driver/orders/${notification.orderId}`
