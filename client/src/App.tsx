@@ -21,6 +21,7 @@ import Profile from "@/pages/profile";
 import AdminLogin from "@/pages/admin-login";
 import AdminDashboard from "@/pages/admin-dashboard";
 import DriverLogin from "@/pages/driver-login";
+import DriverAutoLogin from "@/pages/driver-auto-login";
 import DriverDashboard from "@/pages/driver-dashboard";
 import RestaurantLogin from "@/pages/restaurant-login";
 import RestaurantDashboard from "@/pages/restaurant-dashboard";
