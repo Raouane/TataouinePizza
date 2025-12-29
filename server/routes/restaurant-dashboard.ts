@@ -38,11 +38,11 @@ export function registerRestaurantDashboardRoutes(app: Express): void {
       
       if (!ENABLE_DEMO_OTP) {
         // Mode production réel : envoyer SMS
-        try {
-          await sendOtpSms(phone, code, "restaurant");
+        const smsResult = await sendOtpSms(phone, code, "restaurant");
+        if (smsResult.success) {
           console.log(`[RESTAURANT OTP] ✅ Code OTP envoyé par SMS à ${phone}`);
-        } catch (smsError: any) {
-          console.error(`[RESTAURANT OTP] ⚠️ Erreur envoi SMS (code stocké en base):`, smsError.message);
+        } else {
+          console.error(`[RESTAURANT OTP] ⚠️ Erreur envoi SMS (code stocké en base):`, smsResult.error?.message);
           // Ne pas bloquer si SMS échoue, le code est quand même stocké en base
         }
       } else {

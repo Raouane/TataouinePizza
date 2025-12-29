@@ -48,17 +48,17 @@ export function registerDriverDashboardRoutes(app: Express): void {
       
       if (!ENABLE_DEMO_OTP) {
         // Mode production réel : envoyer SMS
-        try {
-          await sendOtpSms(phone, code, "driver");
+        const smsResult = await sendOtpSms(phone, code, "driver");
+        if (smsResult.success) {
           console.log(`[DRIVER OTP] ✅ Code OTP envoyé par SMS à ${phone}`);
-        } catch (smsError: any) {
+        } else {
           smsFailed = true;
-          smsErrorCode = smsError.code;
-          console.error(`[DRIVER OTP] ⚠️ Erreur envoi SMS (code stocké en base):`, smsError.message);
-          console.error(`[DRIVER OTP] ⚠️ Code erreur: ${smsError.code}`);
+          smsErrorCode = smsResult.error?.code;
+          console.error(`[DRIVER OTP] ⚠️ Erreur envoi SMS (code stocké en base):`, smsResult.error?.message);
+          console.error(`[DRIVER OTP] ⚠️ Code erreur: ${smsResult.error?.code}`);
           
           // Si erreur de limite quotidienne (63038), on retournera le code dans la réponse
-          if (smsError.code === 63038 || smsError.message?.includes('limite') || smsError.message?.includes('limit')) {
+          if (smsResult.error?.code === 63038 || smsResult.error?.message?.includes('limite') || smsResult.error?.message?.includes('limit')) {
             console.log(`[DRIVER OTP] 💡 Limite quotidienne atteinte, code retourné dans la réponse: ${code}`);
           }
         }
@@ -79,7 +79,7 @@ export function registerDriverDashboardRoutes(app: Express): void {
       if (ENABLE_DEMO_OTP) {
         response.demoCode = process.env.DEMO_OTP_CODE || "1234";
         response.code = code; // Retourner aussi le vrai code en mode démo
-      } else if (smsFailed && (smsErrorCode === "63038" || smsErrorCode === undefined)) {
+      } else if (smsFailed && (smsErrorCode === 63038 || smsErrorCode === "63038" || smsErrorCode === undefined)) {
         // Si SMS échoué (limite quotidienne ou autre erreur), retourner le code
         response.code = code;
         response.smsFailed = true;

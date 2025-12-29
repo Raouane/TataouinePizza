@@ -216,15 +216,16 @@ export async function sendSMSToDrivers(
  * @param phone Numéro de téléphone du destinataire
  * @param code Code OTP à envoyer
  * @param userType Type d'utilisateur (driver ou restaurant)
+ * @returns Résultat de l'envoi avec success et error si échec
  */
 export async function sendOtpSms(
   phone: string,
   code: string,
   userType: "driver" | "restaurant" = "driver"
-): Promise<void> {
+): Promise<{ success: boolean; error?: any }> {
   if (!twilioClient) {
     console.warn('[SMS OTP] ⚠️ Twilio non configuré, SMS OTP non envoyé');
-    return;
+    return { success: false, error: { code: 'NO_TWILIO', message: 'Twilio non configuré' } };
   }
 
   const formattedPhone = formatPhoneNumber(phone);
@@ -249,7 +250,7 @@ export async function sendOtpSms(
 
       console.log(`[SMS OTP] ✅ SMS OTP envoyé au numéro vérifié: ${result.sid}`);
       console.log(`[SMS OTP] Code OTP: ${code} (pour ${phone})`);
-      return;
+      return { success: true };
     }
 
     // En production, envoyer au numéro réel du livreur/restaurant
@@ -262,13 +263,16 @@ export async function sendOtpSms(
     });
 
     console.log(`[SMS OTP] ✅ SMS OTP envoyé à ${formattedPhone}: ${result.sid}`);
+    return { success: true };
   } catch (error: any) {
     console.error(`[SMS OTP] ❌ Erreur envoi SMS OTP à ${formattedPhone}:`, error.message);
     if (error.code === 21211) {
       console.error(`[SMS OTP] ⚠️ Numéro invalide: ${formattedPhone}`);
+    } else if (error.code === 63038) {
+      console.error(`[SMS OTP] ⚠️ Limite quotidienne atteinte (50 messages/jour)`);
     }
-    // Ne pas throw l'erreur pour ne pas bloquer le processus si SMS échoue
-    // Le code OTP est quand même stocké en base et peut être utilisé
+    // Retourner l'erreur pour que l'appelant puisse la gérer
+    return { success: false, error };
   }
 }
 
