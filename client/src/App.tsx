@@ -111,6 +111,7 @@ function Router() {
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
       <Route path="/driver/login" component={DriverLogin} />
+      <Route path="/driver/auto-login" component={DriverAutoLogin} />
       <Route path="/driver/dashboard" component={DriverDashboard} />
       <Route path="/restaurant/login" component={RestaurantLogin} />
       <Route path="/restaurant/dashboard" component={RestaurantDashboard} />

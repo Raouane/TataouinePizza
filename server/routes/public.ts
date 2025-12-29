@@ -687,8 +687,12 @@ export function registerPublicRoutes(app: Express): void {
           { type: "driver", id: driverId }
         );
 
-        // Rediriger vers le dashboard avec la commande
-        return res.redirect(`/driver/dashboard?order=${orderId}&accepted=true`);
+        // Générer un token JWT temporaire pour connexion automatique
+        const { generateDriverToken } = await import("../auth.js");
+        const token = generateDriverToken(driver.id, driver.phone);
+
+        // Rediriger vers la page d'auto-login qui stockera le token et redirigera vers le dashboard
+        return res.redirect(`/driver/auto-login?token=${token}&driverId=${driver.id}&driverName=${encodeURIComponent(driver.name)}&driverPhone=${encodeURIComponent(driver.phone)}&order=${orderId}&accepted=true`);
       }
 
       // Si phone fourni, trouver le livreur par téléphone

@@ -25,6 +25,10 @@ export function generateToken(adminId: string, email: string): string {
   return jwt.sign({ id: adminId, email }, JWT_SECRET, { expiresIn: "7d" });
 }
 
+export function generateDriverToken(driverId: string, phone: string): string {
+  return jwt.sign({ id: driverId, type: 'driver', phone }, JWT_SECRET, { expiresIn: "24h" });
+}
+
 export function verifyToken(token: string): { id: string; email: string } | null {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string };
