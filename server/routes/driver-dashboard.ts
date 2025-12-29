@@ -162,6 +162,26 @@ export function registerDriverDashboardRoutes(app: Express): void {
         status,
         { type: "driver", id: driverId }
       );
+      
+      // Si la commande est marquée comme "delivered", remettre le livreur en "available"
+      if (status === "delivered") {
+        console.log(`[Driver] ✅ Commande livrée, remise du livreur ${driverId} en statut "available"`);
+        
+        // Vérifier s'il a d'autres commandes en cours
+        const driverOrders = await storage.getOrdersByDriver(driverId);
+        const activeOrders = driverOrders.filter(o => 
+          o.status === "delivery" || o.status === "accepted" || o.status === "ready"
+        );
+        
+        if (activeOrders.length === 0) {
+          // Aucune autre commande en cours, remettre en "available"
+          await storage.updateDriver(driverId, { status: "available" });
+          console.log(`[Driver] ✅ Livreur ${driverId} remis en statut "available" (aucune autre commande en cours)`);
+        } else {
+          console.log(`[Driver] ⚠️ Livreur ${driverId} garde statut "on_delivery" (${activeOrders.length} autre(s) commande(s) en cours)`);
+        }
+      }
+      
       res.json(updatedOrder);
     } catch (error) {
       errorHandler.sendError(res, error);
