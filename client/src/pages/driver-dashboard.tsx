@@ -285,21 +285,7 @@ export default function DriverDashboard() {
   }, []);
 
   // Gérer la redirection depuis /accept avec paramètre order
-  useEffect(() => {
-    if (!token) return;
-    
-    const urlParams = new URLSearchParams(window.location.search);
-    const orderId = urlParams.get('order');
-    const accepted = urlParams.get('accepted');
-    
-    if (orderId && accepted === 'true') {
-      // Nettoyer l'URL
-      window.history.replaceState({}, '', '/driver/dashboard');
-      // Afficher la commande acceptée
-      showOrder(orderId, false);
-      toast.success("Commande acceptée !");
-    }
-  }, [token]);
+  // (Déplacé après la définition de showOrder pour éviter les erreurs)
 
   useEffect(() => {
     if (!token) {
@@ -650,6 +636,23 @@ export default function DriverDashboard() {
       setLoading(false);
     }
   };
+
+  // Gérer la redirection depuis /accept avec paramètre order
+  useEffect(() => {
+    if (!token || loading) return;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderId = urlParams.get('order');
+    const accepted = urlParams.get('accepted');
+    
+    if (orderId && accepted === 'true') {
+      // Nettoyer l'URL
+      window.history.replaceState({}, '', '/driver/dashboard');
+      // Recharger les commandes pour afficher la commande acceptée
+      fetchOrders();
+      toast.success("Commande acceptée !");
+    }
+  }, [token, loading]);
 
   const handleAcceptOrder = async (orderId: string) => {
     console.log(`[Driver] 🎯 Acceptation commande ${orderId}`);
