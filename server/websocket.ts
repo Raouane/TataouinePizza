@@ -12,12 +12,16 @@ const driverConnections = new Map<string, WebSocket>();
 // Key: orderId, Value: NodeJS.Timeout
 const orderAcceptanceTimers = new Map<string, NodeJS.Timeout>();
 
+// Map pour stocker les files d'attente Round Robin par commande
+// Key: orderId, Value: Array<{ driverId: string; notifiedAt: Date }>
+export const orderDriverQueues = new Map<string, Array<{ driverId: string; notifiedAt: Date }>>();
+
 // Map pour stocker les timers de heartbeat par connexion
 // Key: driverId, Value: NodeJS.Timeout
 const heartbeatTimers = new Map<string, NodeJS.Timeout>();
 
-// Durée du timer d'acceptation (20 secondes)
-const ACCEPTANCE_TIMEOUT = 20000; // 20 secondes
+// Durée du timer d'acceptation (2 minutes pour Round Robin)
+const ACCEPTANCE_TIMEOUT = 2 * 60 * 1000; // 2 minutes (120 secondes)
 
 // Timeout pour le heartbeat (30 secondes d'inactivité = connexion morte)
 const HEARTBEAT_TIMEOUT = 30000; // 30 secondes
@@ -300,8 +304,8 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
     // Ne pas bloquer si WhatsApp échoue
   }
 
-  // Démarrer le timer d'acceptation (20 secondes)
-  startAcceptanceTimer(orderData.orderId);
+  // PROMPT 3: Le timer Round Robin sera démarré par sendWhatsAppToDrivers
+  // (déjà géré dans sms-service.ts après l'envoi du premier message)
 
   // Réinitialiser le timer d'inactivité car il y a une nouvelle commande
   if (wssInstance) {
@@ -312,26 +316,53 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
 }
 
 /**
- * Démarre le timer d'acceptation pour une commande
+ * PROMPT 3: Démarre le timer Round Robin (2 minutes) pour une commande
+ * Si pas d'acceptation, passe au livreur suivant dans la file
  */
-function startAcceptanceTimer(orderId: string) {
+export async function startRoundRobinTimer(
+  orderId: string,
+  restaurantName: string,
+  customerName: string,
+  totalPrice: string,
+  address: string
+): Promise<void> {
   // Annuler le timer existant si présent
   const existingTimer = orderAcceptanceTimers.get(orderId);
   if (existingTimer) {
     clearTimeout(existingTimer);
   }
 
-  // Créer un nouveau timer
+  // Créer un nouveau timer de 2 minutes
   const timer = setTimeout(async () => {
-    console.log(`[WebSocket] Timer expiré pour commande ${orderId}`);
-    orderAcceptanceTimers.delete(orderId);
+    console.log(`[Round Robin] ⏱️ Timer expiré (2 min) pour commande ${orderId}`);
     
     // Vérifier si la commande a été acceptée
-    // Si non, on peut notifier les livreurs que le temps est écoulé
-    // ou réassigner automatiquement
+    const { storage } = await import("./storage.js");
+    const order = await storage.getOrderById(orderId);
+    
+    if (order && !order.driverId) {
+      // Commande pas encore acceptée, passer au livreur suivant
+      console.log(`[Round Robin] 🔄 Commande ${orderId} non acceptée, passage au livreur suivant...`);
+      
+      const { notifyNextDriverInQueue } = await import("./services/sms-service.js");
+      await notifyNextDriverInQueue(orderId, restaurantName, customerName, totalPrice, address);
+    } else {
+      // Commande acceptée, nettoyer la file
+      console.log(`[Round Robin] ✅ Commande ${orderId} acceptée, nettoyage de la file`);
+      orderDriverQueues.delete(orderId);
+      orderAcceptanceTimers.delete(orderId);
+    }
   }, ACCEPTANCE_TIMEOUT);
 
   orderAcceptanceTimers.set(orderId, timer);
+  console.log(`[Round Robin] ⏱️ Timer de 2 minutes démarré pour commande ${orderId}`);
+}
+
+/**
+ * Démarre le timer d'acceptation pour une commande (ancienne version, conservée pour compatibilité)
+ */
+function startAcceptanceTimer(orderId: string) {
+  startRoundRobinTimer(orderId, "", "", "", "");
 }
 
 /**

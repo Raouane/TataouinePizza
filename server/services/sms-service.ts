@@ -411,25 +411,16 @@ export async function sendWhatsAppToDrivers(
   }
 
   try {
-    // Pour WhatsApp, on envoie à TOUS les livreurs avec statut 'available' ou 'online'
-    // même s'ils ne sont pas connectés (c'est le but de WhatsApp : notifier même app fermée)
+    // PROMPT 3: ROUND ROBIN - Trier les livreurs par temps d'attente (plus ancien en premier)
     console.log('[WhatsApp] 🔍 Récupération de tous les livreurs...');
     const allDrivers = await storage.getAllDrivers();
     console.log(`[WhatsApp] 🔍 ${allDrivers.length} livreur(s) total dans la DB`);
-    
-    // Log tous les livreurs pour diagnostic
-    allDrivers.forEach(driver => {
-      console.log(`[WhatsApp] 🔍 - ${driver.name} (${driver.phone}) - statut: ${driver.status}`);
-    });
     
     const availableDrivers = allDrivers.filter(driver => 
       driver.status === 'available'
     );
     
     console.log(`[WhatsApp] 🔍 ${availableDrivers.length} livreur(s) avec statut available`);
-    availableDrivers.forEach(driver => {
-      console.log(`[WhatsApp] 🔍 - ${driver.name} (${driver.phone}) - statut: ${driver.status}`);
-    });
     
     if (availableDrivers.length === 0) {
       console.log('[WhatsApp] ⚠️ Aucun livreur disponible (statut available)');
@@ -437,44 +428,218 @@ export async function sendWhatsAppToDrivers(
       return 0;
     }
 
-    // OPTIMISATION: Envoyer seulement à Raouane (+33783698509) pour économiser les messages
-    // (Limite Twilio: 50 messages/jour en mode Trial)
-    const targetPhone = "+33783698509";
-    const driversToNotify = availableDrivers.filter(driver => driver.phone === targetPhone);
+    // Calculer le temps d'attente pour chaque livreur (basé sur sa dernière commande)
+    const driversWithWaitTime = await Promise.all(
+      availableDrivers.map(async (driver) => {
+        try {
+          const driverOrders = await storage.getOrdersByDriver(driver.id);
+          // Trouver la dernière commande assignée (livrée ou en cours)
+          const lastOrder = driverOrders
+            .filter(o => o.driverId === driver.id && (o.status === 'delivered' || o.status === 'delivery'))
+            .sort((a, b) => {
+              const dateA = a.assignedAt ? new Date(a.assignedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+              const dateB = b.assignedAt ? new Date(b.assignedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+              return dateB - dateA; // Plus récent en premier
+            })[0];
+          
+          // Temps d'attente = temps depuis la dernière commande (ou depuis toujours si jamais de commande)
+          const waitTime = lastOrder && lastOrder.assignedAt
+            ? Date.now() - new Date(lastOrder.assignedAt).getTime()
+            : Infinity; // Jamais de commande = priorité maximale
+          
+          return {
+            ...driver,
+            waitTime,
+            lastOrderDate: lastOrder?.assignedAt || null
+          };
+        } catch (error) {
+          console.error(`[WhatsApp] Erreur calcul temps attente pour ${driver.id}:`, error);
+          return {
+            ...driver,
+            waitTime: Infinity, // En cas d'erreur, priorité maximale
+            lastOrderDate: null
+          };
+        }
+      })
+    );
 
-    if (driversToNotify.length === 0) {
-      console.log(`[WhatsApp] ⚠️ Raouane (${targetPhone}) n'est pas disponible`);
-      console.log(`[WhatsApp] 💡 Livreurs disponibles: ${availableDrivers.map(d => `${d.name} (${d.phone})`).join(', ')}`);
-      console.log(`[WhatsApp] 💡 Vérifiez que le numéro exact est ${targetPhone} (avec le +)`);
+    // Trier par temps d'attente (plus ancien = plus grand waitTime = en premier)
+    driversWithWaitTime.sort((a, b) => b.waitTime - a.waitTime);
+
+    console.log('[WhatsApp] 📊 Livreurs triés par temps d\'attente (Round Robin):');
+    driversWithWaitTime.forEach((driver, index) => {
+      const waitMinutes = driver.waitTime === Infinity 
+        ? 'Jamais' 
+        : Math.floor(driver.waitTime / 60000);
+      console.log(`[WhatsApp]   ${index + 1}. ${driver.name} (${driver.phone}) - Attente: ${waitMinutes} min`);
+    });
+
+    // PROMPT 3: Envoyer WhatsApp UNIQUEMENT au premier livreur de la file
+    const firstDriver = driversWithWaitTime[0];
+    
+    if (!firstDriver) {
+      console.log('[WhatsApp] ⚠️ Aucun livreur à notifier');
       return 0;
     }
 
-    console.log(`[WhatsApp] 📤 Envoi WhatsApp uniquement à Raouane (${targetPhone}) sur ${availableDrivers.length} disponible(s)`);
-    console.log(`[WhatsApp] 💡 Optimisation: 1 seul message pour économiser la limite Twilio (50/jour)`);
+    // Créer/initialiser la file d'attente pour cette commande
+    const { orderDriverQueues } = await import('../websocket.js');
+    if (!orderDriverQueues.has(orderId)) {
+      orderDriverQueues.set(orderId, []);
+    }
+    const queue = orderDriverQueues.get(orderId)!;
+    
+    // Ajouter le livreur à la file avec timestamp
+    queue.push({
+      driverId: firstDriver.id,
+      notifiedAt: new Date()
+    });
+    
+    console.log(`[WhatsApp] 📤 Envoi WhatsApp au premier livreur de la file: ${firstDriver.name} (${firstDriver.phone})`);
+    console.log(`[WhatsApp] 📋 File d'attente: ${queue.length} livreur(s) notifié(s)`);
 
-    // Envoyer WhatsApp à chaque livreur (en parallèle, non-bloquant)
-    const results = await Promise.allSettled(
-      driversToNotify.map(driver => 
-        sendWhatsAppToDriver(
-          driver.phone,
-          orderId,
-          customerName,
-          totalPrice,
-          address,
-          restaurantName
-        )
-      )
+    // Envoyer WhatsApp au premier livreur
+    const result = await sendWhatsAppToDriver(
+      firstDriver.phone,
+      orderId,
+      customerName,
+      totalPrice,
+      address,
+      restaurantName
     );
 
-    // Compter les succès
-    const successCount = results.filter(r => r.status === 'fulfilled' && r.value === true).length;
-    const failureCount = results.length - successCount;
-
-    console.log(`[WhatsApp] 📊 Messages envoyés: ${successCount} succès, ${failureCount} échecs sur ${driversToNotify.length} livreurs`);
-    
-    return successCount;
+    if (result) {
+      console.log(`[WhatsApp] ✅ Message envoyé à ${firstDriver.name}`);
+      
+      // Démarrer le timer de 2 minutes pour cette commande
+      const { startRoundRobinTimer } = await import('../websocket.js');
+      startRoundRobinTimer(orderId, restaurantName, customerName, totalPrice, address);
+      
+      return 1;
+    } else {
+      console.log(`[WhatsApp] ❌ Échec envoi à ${firstDriver.name}, passage au suivant...`);
+      // En cas d'échec, passer au suivant immédiatement
+      return await notifyNextDriverInQueue(orderId, restaurantName, customerName, totalPrice, address);
+    }
   } catch (error: any) {
     console.error('[WhatsApp] ❌ Erreur lors de l\'envoi des messages WhatsApp:', error);
+    return 0;
+  }
+}
+
+/**
+ * PROMPT 3: Notifie le livreur suivant dans la file d'attente Round Robin
+ * Appelé après timeout (2 min) ou refus du livreur précédent
+ */
+export async function notifyNextDriverInQueue(
+  orderId: string,
+  restaurantName: string,
+  customerName: string,
+  totalPrice: string,
+  address: string
+): Promise<number> {
+  console.log(`[Round Robin] 🔄 Recherche du livreur suivant pour commande ${orderId}`);
+  
+  try {
+    // Récupérer la file d'attente pour cette commande
+    const { orderDriverQueues } = await import('../websocket.js');
+    const queue = orderDriverQueues.get(orderId);
+    
+    if (!queue || queue.length === 0) {
+      console.log(`[Round Robin] ⚠️ Aucune file d'attente pour commande ${orderId}`);
+      return 0;
+    }
+
+    // Récupérer tous les livreurs disponibles
+    const allDrivers = await storage.getAllDrivers();
+    const availableDrivers = allDrivers.filter(driver => 
+      driver.status === 'available'
+    );
+
+    if (availableDrivers.length === 0) {
+      console.log('[Round Robin] ⚠️ Aucun livreur disponible');
+      return 0;
+    }
+
+    // Calculer le temps d'attente pour chaque livreur disponible
+    const driversWithWaitTime = await Promise.all(
+      availableDrivers.map(async (driver) => {
+        try {
+          const driverOrders = await storage.getOrdersByDriver(driver.id);
+          const lastOrder = driverOrders
+            .filter(o => o.driverId === driver.id && (o.status === 'delivered' || o.status === 'delivery'))
+            .sort((a, b) => {
+              const dateA = a.assignedAt ? new Date(a.assignedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+              const dateB = b.assignedAt ? new Date(b.assignedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+              return dateB - dateA;
+            })[0];
+          
+          const waitTime = lastOrder && lastOrder.assignedAt
+            ? Date.now() - new Date(lastOrder.assignedAt).getTime()
+            : Infinity;
+          
+          return {
+            ...driver,
+            waitTime,
+            lastOrderDate: lastOrder?.assignedAt || null
+          };
+        } catch (error) {
+          return {
+            ...driver,
+            waitTime: Infinity,
+            lastOrderDate: null
+          };
+        }
+      })
+    );
+
+    // Trier par temps d'attente
+    driversWithWaitTime.sort((a, b) => b.waitTime - a.waitTime);
+
+    // Trouver le prochain livreur qui n'a pas encore été notifié
+    const notifiedDriverIds = new Set(queue.map(item => item.driverId));
+    const nextDriver = driversWithWaitTime.find(driver => !notifiedDriverIds.has(driver.id));
+
+    if (!nextDriver) {
+      console.log(`[Round Robin] ⚠️ Tous les livreurs disponibles ont déjà été notifiés pour commande ${orderId}`);
+      // Tous les livreurs ont été notifiés, nettoyer la file
+      orderDriverQueues.delete(orderId);
+      return 0;
+    }
+
+    // Ajouter le livreur à la file
+    queue.push({
+      driverId: nextDriver.id,
+      notifiedAt: new Date()
+    });
+
+    console.log(`[Round Robin] 📤 Notification du livreur suivant: ${nextDriver.name} (${nextDriver.phone})`);
+
+    // Envoyer WhatsApp au livreur suivant
+    const result = await sendWhatsAppToDriver(
+      nextDriver.phone,
+      orderId,
+      customerName,
+      totalPrice,
+      address,
+      restaurantName
+    );
+
+    if (result) {
+      console.log(`[Round Robin] ✅ Message envoyé à ${nextDriver.name}`);
+      
+      // Redémarrer le timer de 2 minutes
+      const { startRoundRobinTimer } = await import('../websocket.js');
+      await startRoundRobinTimer(orderId, restaurantName, customerName, totalPrice, address);
+      
+      return 1;
+    } else {
+      console.log(`[Round Robin] ❌ Échec envoi à ${nextDriver.name}, passage au suivant...`);
+      // En cas d'échec, passer au suivant récursivement
+      return await notifyNextDriverInQueue(orderId, restaurantName, customerName, totalPrice, address);
+    }
+  } catch (error: any) {
+    console.error('[Round Robin] ❌ Erreur:', error);
     return 0;
   }
 }

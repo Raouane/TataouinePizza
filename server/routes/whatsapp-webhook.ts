@@ -157,13 +157,27 @@ export function registerWhatsAppWebhookRoutes(app: Express): void {
           return res.status(400).send("Commande déjà prise");
         }
       } else if (response === "R" || response === "REFUSER") {
-        // Refuser la commande
+        // PROMPT 3: Refuser la commande - Passer au livreur suivant dans la file
         console.log(`[WhatsApp Webhook] ❌ Livreur ${driver.name} refuse la commande ${pendingOrder.id}`);
+        
+        // Enrichir la commande pour obtenir les infos nécessaires
+        const { OrderEnrichmentService } = await import("../services/order-enrichment-service.js");
+        const enrichedOrder = await OrderEnrichmentService.enrichWithRestaurant(pendingOrder);
         
         await sendWhatsAppConfirmation(
           driver.phone,
           `❌ *Commande refusée*\n\n` +
-          `La commande reste disponible pour d'autres livreurs.`
+          `La commande sera proposée à un autre livreur.`
+        );
+
+        // Passer au livreur suivant dans la file Round Robin
+        const { notifyNextDriverInQueue } = await import("../services/sms-service.js");
+        await notifyNextDriverInQueue(
+          pendingOrder.id,
+          enrichedOrder.restaurantName || "Restaurant",
+          pendingOrder.customerName,
+          pendingOrder.totalPrice.toString(),
+          pendingOrder.address
         );
 
         return res.status(200).send("Commande refusée");
