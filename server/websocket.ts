@@ -512,10 +512,26 @@ async function cleanupDriverConnection(driverId: string) {
     heartbeatTimers.delete(driverId);
   }
   
-  // Mettre le statut à "offline" lors de la déconnexion, SAUF si le livreur a des commandes actives
+  // Mettre le statut à "offline" lors de la déconnexion, SAUF :
+  // - Si le livreur est en "available" (choix explicite via bouton ON/OFF)
+  // - Si le livreur a des commandes actives (garder "on_delivery")
   try {
-    console.log(`[WebSocket] 🔍 Vérification commandes actives pour livreur ${driverId}...`);
+    console.log(`[WebSocket] 🔍 Vérification statut et commandes pour livreur ${driverId}...`);
     const { storage } = await import("./storage.js");
+    const driver = await storage.getDriverById(driverId);
+    
+    if (!driver) {
+      console.log(`[WebSocket] ⚠️ Livreur ${driverId} non trouvé`);
+      return;
+    }
+    
+    // Si le livreur est en "available", c'est un choix explicite → NE PAS changer
+    if (driver.status === "available") {
+      console.log(`[WebSocket] ✅ Livreur ${driverId} en "available" (choix explicite via bouton ON/OFF), statut préservé`);
+      return;
+    }
+    
+    // Vérifier les commandes actives
     const driverOrders = await storage.getOrdersByDriver(driverId);
     console.log(`[WebSocket] 📋 Livreur ${driverId}: ${driverOrders.length} commande(s) totale(s) trouvée(s)`);
     
@@ -533,7 +549,7 @@ async function cleanupDriverConnection(driverId: string) {
     }
     
     if (activeOrders.length === 0) {
-      // Aucune commande active, mettre à "offline"
+      // Aucune commande active, mettre à "offline" (sauf si déjà "available")
       console.log(`[WebSocket] 🔄 Mise à jour statut livreur ${driverId} à "offline"...`);
       await storage.updateDriver(driverId, { status: "offline" });
       console.log(`[WebSocket] ✅ Livreur ${driverId} mis à "offline" (déconnexion sans commande active)`);
