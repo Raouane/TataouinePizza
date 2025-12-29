@@ -436,11 +436,28 @@ export async function sendWhatsAppToDrivers(
     const allDrivers = await storage.getAllDrivers();
     console.log(`[WhatsApp] 🔍 ${allDrivers.length} livreur(s) total dans la DB`);
     
+    // LOGS DÉTAILLÉS POUR DIAGNOSTIC
+    console.log(`[WhatsApp] 📋 DÉTAILS DE TOUS LES LIVREURS:`);
+    allDrivers.forEach((driver, index) => {
+      console.log(`[WhatsApp]   ${index + 1}. ${driver.name}`);
+      console.log(`[WhatsApp]      - Téléphone: ${driver.phone}`);
+      console.log(`[WhatsApp]      - Statut: ${driver.status || 'NON DÉFINI'}`);
+      console.log(`[WhatsApp]      - ID: ${driver.id}`);
+      console.log(`[WhatsApp]      - Last Seen: ${driver.lastSeen ? new Date(driver.lastSeen).toISOString() : 'JAMAIS'}`);
+      console.log(`[WhatsApp]      - Disponible?: ${driver.status === 'available' ? '✅ OUI' : '❌ NON'}`);
+    });
+    
     const availableDrivers = allDrivers.filter(driver => 
       driver.status === 'available'
     );
     
     console.log(`[WhatsApp] 🔍 ${availableDrivers.length} livreur(s) avec statut available`);
+    
+    if (availableDrivers.length === 0) {
+      console.log(`[WhatsApp] ⚠️ PROBLÈME: Aucun livreur disponible !`);
+      console.log(`[WhatsApp] 💡 Statuts trouvés:`, allDrivers.map(d => `${d.name}: ${d.status || 'NON DÉFINI'}`).join(', '));
+      console.log(`[WhatsApp] 💡 SOLUTION: Mettez au moins un livreur en statut "available" via l'admin ou l'app livreur`);
+    }
     
     if (availableDrivers.length === 0) {
       console.log('[WhatsApp] ⚠️ Aucun livreur disponible (statut available)');
