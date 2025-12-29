@@ -662,8 +662,21 @@ export function registerPublicRoutes(app: Express): void {
           `);
         }
 
+        // Vérifier l'état actuel de la commande AVANT d'essayer de l'accepter
+        const order = await storage.getOrderById(orderId);
+        if (!order) {
+          return res.status(404).send(`
+            <html>
+              <body style="font-family: Arial; text-align: center; padding: 50px;">
+                <h1>❌ Commande non trouvée</h1>
+                <p>Cette commande n'existe plus.</p>
+              </body>
+            </html>
+          `);
+        }
+
         // Vérifier d'abord si la commande est déjà acceptée par ce livreur
-        if (order.driverId === driverId && (order.status === 'delivery' || order.status === 'accepted')) {
+        if (order.driverId === driverId && (order.status === 'delivery' || order.status === 'accepted' || order.status === 'ready')) {
           console.log("[ACCEPT] ✅ Commande déjà acceptée par ce livreur, redirection vers dashboard");
           // Générer un token pour connexion automatique
           const { generateDriverToken } = await import("../auth.js");
@@ -671,18 +684,40 @@ export function registerPublicRoutes(app: Express): void {
           return res.redirect(`/driver/auto-login?token=${token}&driverId=${driver.id}&driverName=${encodeURIComponent(driver.name)}&driverPhone=${encodeURIComponent(driver.phone)}&order=${orderId}&accepted=true`);
         }
 
+        // Si la commande est déjà assignée à un autre livreur
+        if (order.driverId && order.driverId !== driverId) {
+          console.log("[ACCEPT] ⚠️ Commande déjà assignée à un autre livreur:", order.driverId);
+          return res.status(400).send(`
+            <html>
+              <body style="font-family: Arial; text-align: center; padding: 50px;">
+                <h1>❌ Commande déjà prise</h1>
+                <p>Cette commande a déjà été acceptée par un autre livreur.</p>
+                <a href="/driver/dashboard" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Voir mes commandes</a>
+              </body>
+            </html>
+          `);
+        }
+
         // Accepter la commande
-        const acceptedOrder = await OrderAcceptanceService.acceptOrder(orderId, driverId);
+        let acceptedOrder;
+        try {
+          acceptedOrder = await OrderAcceptanceService.acceptOrder(orderId, driverId);
+        } catch (error: any) {
+          // Si erreur car statut invalide mais c'est le même livreur, rediriger quand même
+          if (error.statusCode === 400 && order.driverId === driverId) {
+            console.log("[ACCEPT] ⚠️ Erreur acceptOrder mais même livreur, redirection vers dashboard");
+            const { generateDriverToken } = await import("../auth.js");
+            const token = generateDriverToken(driver.id, driver.phone);
+            return res.redirect(`/driver/auto-login?token=${token}&driverId=${driver.id}&driverName=${encodeURIComponent(driver.name)}&driverPhone=${encodeURIComponent(driver.phone)}&order=${orderId}&accepted=true`);
+          }
+          throw error;
+        }
 
         if (!acceptedOrder) {
-          // Commande déjà prise par un autre livreur ou statut invalide
-          console.log("[ACCEPT] ⚠️ Commande déjà prise ou statut invalide, vérification...");
-          
-          // Vérifier le statut actuel
+          // Commande prise entre-temps, vérifier à nouveau
           const currentOrder = await storage.getOrderById(orderId);
           if (currentOrder && currentOrder.driverId === driverId) {
-            // C'est le même livreur, rediriger vers dashboard
-            console.log("[ACCEPT] ✅ Commande déjà acceptée par ce livreur, redirection");
+            console.log("[ACCEPT] ✅ Commande prise entre-temps par ce livreur, redirection");
             const { generateDriverToken } = await import("../auth.js");
             const token = generateDriverToken(driver.id, driver.phone);
             return res.redirect(`/driver/auto-login?token=${token}&driverId=${driver.id}&driverName=${encodeURIComponent(driver.name)}&driverPhone=${encodeURIComponent(driver.phone)}&order=${orderId}&accepted=true`);
