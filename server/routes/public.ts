@@ -794,13 +794,17 @@ export function registerPublicRoutes(app: Express): void {
           order.address
         );
 
-        // Afficher confirmation
+        // Générer un token JWT temporaire pour connexion automatique (optionnel, pour accéder au dashboard)
+        const { generateDriverToken } = await import("../auth.js");
+        const token = generateDriverToken(driver.id, driver.phone);
+
+        // Afficher confirmation avec lien vers dashboard (auto-login)
         return res.send(`
           <html>
             <body style="font-family: Arial; text-align: center; padding: 50px;">
               <h1>✅ Commande refusée</h1>
               <p>La commande sera proposée à un autre livreur.</p>
-              <a href="/driver/dashboard" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Voir mes commandes</a>
+              <a href="/driver/auto-login?token=${token}&driverId=${driver.id}&driverName=${encodeURIComponent(driver.name)}&driverPhone=${encodeURIComponent(driver.phone)}" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Voir mes commandes</a>
             </body>
           </html>
         `);
