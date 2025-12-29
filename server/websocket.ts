@@ -146,15 +146,16 @@ export function setupWebSocket(httpServer: Server): WebSocketServer {
 }
 
 /**
- * Met à jour le timestamp last_seen d'un livreur
+ * Met à jour le timestamp last_seen d'un livreur (SANS toucher au statut)
+ * Le statut est géré UNIQUEMENT par le bouton ON/OFF dans l'app livreur ou l'admin
  */
 async function updateDriverLastSeen(driverId: string) {
   try {
     await db
       .update(drivers)
       .set({ 
-        lastSeen: sql`NOW()`,
-        status: "available"
+        lastSeen: sql`NOW()`
+        // ✅ Le statut reste tel quel (géré par le bouton ON/OFF)
       })
       .where(eq(drivers.id, driverId));
   } catch (error) {
@@ -551,17 +552,30 @@ function startPeriodicCleanup(wss: WebSocketServer) {
       // (cette vérification est optionnelle car les timers se nettoient eux-mêmes)
     }
 
-    // Mettre à jour le statut des livreurs inactifs dans la DB
+    // ✅ Le statut est géré UNIQUEMENT par :
+    // - Le bouton ON/OFF dans l'app livreur (via /api/driver/toggle-status)
+    // - L'admin depuis le panneau admin
+    // 
+    // Timeout long (60 min) en secours uniquement pour les cas extrêmes
+    // (oubli après très longue inactivité, crash, etc.)
     try {
-      await db
+      const result = await db
         .update(drivers)
         .set({ 
-          status: sql`CASE 
-            WHEN last_seen < NOW() - INTERVAL '5 minutes' THEN 'offline'
-            ELSE status
-          END`
+          status: sql`'offline'`
         })
-        .where(sql`last_seen < NOW() - INTERVAL '5 minutes' AND status = 'available'`);
+        .where(
+          sql`last_seen < NOW() - INTERVAL '60 minutes' 
+              AND status = 'available'`
+        )
+        .returning({ id: drivers.id, name: drivers.name });
+      
+      if (result && result.length > 0) {
+        console.log(`[WebSocket] ⚠️ Timeout 60 min: ${result.length} livreur(s) passé(s) offline automatiquement (inactivité > 1h)`);
+        result.forEach(driver => {
+          console.log(`[WebSocket]   - ${driver.name} (${driver.id})`);
+        });
+      }
     } catch (error) {
       console.error("[WebSocket] Erreur mise à jour statut livreurs:", error);
     }

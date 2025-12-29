@@ -406,6 +406,11 @@ export async function sendWhatsAppToDrivers(
     const allDrivers = await storage.getAllDrivers();
     console.log(`[WhatsApp] 🔍 ${allDrivers.length} livreur(s) total dans la DB`);
     
+    // Log tous les livreurs pour diagnostic
+    allDrivers.forEach(driver => {
+      console.log(`[WhatsApp] 🔍 - ${driver.name} (${driver.phone}) - statut: ${driver.status}`);
+    });
+    
     const availableDrivers = allDrivers.filter(driver => 
       driver.status === 'available'
     );
@@ -416,7 +421,8 @@ export async function sendWhatsAppToDrivers(
     });
     
     if (availableDrivers.length === 0) {
-      console.log('[WhatsApp] ⚠️ Aucun livreur disponible (statut available/online)');
+      console.log('[WhatsApp] ⚠️ Aucun livreur disponible (statut available)');
+      console.log('[WhatsApp] 💡 Vérifiez que le livreur a bien le statut "available" dans la DB');
       return 0;
     }
 
@@ -427,7 +433,8 @@ export async function sendWhatsAppToDrivers(
 
     if (driversToNotify.length === 0) {
       console.log(`[WhatsApp] ⚠️ Raouane (${targetPhone}) n'est pas disponible`);
-      console.log(`[WhatsApp] 💡 Livreurs disponibles: ${availableDrivers.map(d => d.name).join(', ')}`);
+      console.log(`[WhatsApp] 💡 Livreurs disponibles: ${availableDrivers.map(d => `${d.name} (${d.phone})`).join(', ')}`);
+      console.log(`[WhatsApp] 💡 Vérifiez que le numéro exact est ${targetPhone} (avec le +)`);
       return 0;
     }
 
