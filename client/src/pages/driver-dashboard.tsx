@@ -73,6 +73,17 @@ export default function DriverDashboard() {
   const driverName = localStorage.getItem("driverName") || "Livreur";
   const driverId = localStorage.getItem("driverId");
   const token = localStorage.getItem("driverToken");
+  
+  // LOGS DÉTAILLÉS POUR DIAGNOSTIC
+  console.log("========================================");
+  console.log("[Driver Dashboard] 🔍 VÉRIFICATION AUTHENTIFICATION");
+  console.log("[Driver Dashboard] URL:", window.location.href);
+  console.log("[Driver Dashboard] 📋 État localStorage:");
+  console.log("  - driverToken:", token ? `${token.substring(0, 20)}...` : "❌ MANQUANT");
+  console.log("  - driverId:", driverId || "❌ MANQUANT");
+  console.log("  - driverName:", driverName || "❌ MANQUANT");
+  console.log("  - driverPhone:", localStorage.getItem("driverPhone") || "❌ MANQUANT");
+  console.log("========================================");
 
   // Push Notifications PWA
   const { isSupported: isPushSupported, isSubscribed: isPushSubscribed, subscribe: subscribePush, error: pushError } = usePushNotifications();
@@ -288,10 +299,17 @@ export default function DriverDashboard() {
   // (Déplacé après la définition de showOrder pour éviter les erreurs)
 
   useEffect(() => {
+    console.log("[Driver Dashboard] 🔍 useEffect - Vérification token");
+    console.log("[Driver Dashboard] Token présent:", !!token);
+    
     if (!token) {
+      console.error("[Driver Dashboard] ❌ AUCUN TOKEN - Redirection vers login");
+      console.error("[Driver Dashboard] 💡 Le livreur doit se connecter");
       setLocation("/driver/login");
       return;
     }
+    
+    console.log("[Driver Dashboard] ✅ Token présent, chargement du dashboard");
     
     fetchOrders();
     fetchStatus();

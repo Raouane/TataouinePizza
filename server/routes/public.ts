@@ -691,8 +691,19 @@ export function registerPublicRoutes(app: Express): void {
         const { generateDriverToken } = await import("../auth.js");
         const token = generateDriverToken(driver.id, driver.phone);
 
+        console.log("[ACCEPT] ✅ Token généré pour livreur:", driver.id);
+        console.log("[ACCEPT] 📋 Infos livreur:", {
+          id: driver.id,
+          name: driver.name,
+          phone: driver.phone,
+          tokenLength: token.length
+        });
+
         // Rediriger vers la page d'auto-login qui stockera le token et redirigera vers le dashboard
-        return res.redirect(`/driver/auto-login?token=${token}&driverId=${driver.id}&driverName=${encodeURIComponent(driver.name)}&driverPhone=${encodeURIComponent(driver.phone)}&order=${orderId}&accepted=true`);
+        const autoLoginUrl = `/driver/auto-login?token=${token}&driverId=${driver.id}&driverName=${encodeURIComponent(driver.name)}&driverPhone=${encodeURIComponent(driver.phone)}&order=${orderId}&accepted=true`;
+        console.log("[ACCEPT] 🔄 Redirection vers auto-login:", autoLoginUrl.substring(0, 100) + "...");
+        
+        return res.redirect(autoLoginUrl);
       }
 
       // Si phone fourni, trouver le livreur par téléphone
