@@ -288,7 +288,8 @@ export async function sendWhatsAppToDriver(
   customerName: string,
   totalPrice: string,
   address: string,
-  restaurantName: string
+  restaurantName: string,
+  driverId?: string  // Ajouter driverId optionnel pour éviter la recherche
 ): Promise<boolean> {
   if (!twilioClient) {
     console.warn('[WhatsApp] ⚠️ Twilio non configuré, WhatsApp non envoyé');
@@ -313,18 +314,33 @@ export async function sendWhatsAppToDriver(
   // URL de l'application
   const appUrl = process.env.APP_URL || "https://tataouine-pizza.onrender.com";
   
-  // Trouver le livreur par téléphone pour créer les liens uniques
+  // Créer les liens uniques avec driverId si fourni
   let acceptUrl = `${appUrl}/accept/${orderId}`;
   let refuseUrl = `${appUrl}/refuse/${orderId}`;
-  try {
-    const { storage } = await import("../storage.js");
-    const driver = await storage.getDriverByPhone(driverPhone.replace('whatsapp:', '').replace('+', ''));
-    if (driver) {
-      acceptUrl = `${appUrl}/accept/${orderId}?driverId=${driver.id}`;
-      refuseUrl = `${appUrl}/refuse/${orderId}?driverId=${driver.id}`;
+  
+  if (driverId) {
+    // Si driverId fourni directement, l'utiliser
+    acceptUrl = `${appUrl}/accept/${orderId}?driverId=${driverId}`;
+    refuseUrl = `${appUrl}/refuse/${orderId}?driverId=${driverId}`;
+    console.log('[WhatsApp] ✅ driverId fourni directement, liens créés avec driverId');
+  } else {
+    // Sinon, chercher le livreur par téléphone (fallback)
+    try {
+      const { storage } = await import("../storage.js");
+      const cleanPhone = driverPhone.replace('whatsapp:', '').replace('+', '');
+      console.log('[WhatsApp] 🔍 Recherche livreur par téléphone:', cleanPhone);
+      const driver = await storage.getDriverByPhone(cleanPhone);
+      if (driver) {
+        acceptUrl = `${appUrl}/accept/${orderId}?driverId=${driver.id}`;
+        refuseUrl = `${appUrl}/refuse/${orderId}?driverId=${driver.id}`;
+        console.log('[WhatsApp] ✅ Livreur trouvé, liens créés avec driverId:', driver.id);
+      } else {
+        console.warn('[WhatsApp] ⚠️ Livreur non trouvé par téléphone, utilisation des liens génériques');
+      }
+    } catch (error) {
+      console.error('[WhatsApp] ❌ Erreur recherche livreur:', error);
+      console.warn('[WhatsApp] ⚠️ Utilisation des liens génériques (sans driverId)');
     }
-  } catch (error) {
-    console.warn('[WhatsApp] Impossible de trouver le livreur pour les liens, utilisation des liens génériques');
   }
 
   // Message WhatsApp amélioré avec liens cliquables ET instructions texte
@@ -502,14 +518,15 @@ export async function sendWhatsAppToDrivers(
     console.log(`[WhatsApp] 📤 Envoi WhatsApp au premier livreur de la file: ${firstDriver.name} (${firstDriver.phone})`);
     console.log(`[WhatsApp] 📋 File d'attente: ${queue.length} livreur(s) notifié(s)`);
 
-    // Envoyer WhatsApp au premier livreur
+    // Envoyer WhatsApp au premier livreur avec driverId directement
     const result = await sendWhatsAppToDriver(
       firstDriver.phone,
       orderId,
       customerName,
       totalPrice,
       address,
-      restaurantName
+      restaurantName,
+      firstDriver.id  // Passer driverId directement
     );
 
     if (result) {
