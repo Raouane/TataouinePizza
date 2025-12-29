@@ -313,19 +313,21 @@ export async function sendWhatsAppToDriver(
   // URL de l'application
   const appUrl = process.env.APP_URL || "https://tataouine-pizza.onrender.com";
   
-  // Trouver le livreur par téléphone pour créer le lien unique
+  // Trouver le livreur par téléphone pour créer les liens uniques
   let acceptUrl = `${appUrl}/accept/${orderId}`;
+  let refuseUrl = `${appUrl}/refuse/${orderId}`;
   try {
     const { storage } = await import("../storage.js");
     const driver = await storage.getDriverByPhone(driverPhone.replace('whatsapp:', '').replace('+', ''));
     if (driver) {
       acceptUrl = `${appUrl}/accept/${orderId}?driverId=${driver.id}`;
+      refuseUrl = `${appUrl}/refuse/${orderId}?driverId=${driver.id}`;
     }
   } catch (error) {
-    console.warn('[WhatsApp] Impossible de trouver le livreur pour le lien, utilisation du lien générique');
+    console.warn('[WhatsApp] Impossible de trouver le livreur pour les liens, utilisation des liens génériques');
   }
 
-  // Message WhatsApp amélioré avec gain et lien d'acceptation
+  // Message WhatsApp amélioré avec liens cliquables ET instructions texte
   const message = `🍕 *NOUVELLE COMMANDE*
 
 🏪 *Resto:* ${restaurantName}
@@ -336,13 +338,15 @@ export async function sendWhatsAppToDriver(
 
 ⚡ *RÉPONDEZ RAPIDEMENT:*
 
-✅ Tapez *A* pour ACCEPTER
-❌ Tapez *R* pour REFUSER
-
-🔗 *Ou cliquez ici:*
+✅ *ACCEPTER:*
 ${acceptUrl}
 
-⏱️ *Délai: 20 secondes*`;
+❌ *REFUSER:*
+${refuseUrl}
+
+*Ou tapez A pour accepter, R pour refuser*
+
+⏱️ *Délai: 2 minutes*`;
 
   try {
     // Utiliser body au lieu de ContentSid pour un message libre

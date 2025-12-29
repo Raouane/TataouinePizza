@@ -717,5 +717,115 @@ export function registerPublicRoutes(app: Express): void {
       `);
     }
   });
+
+  // ============ ORDER REFUSAL (PUBLIC LINK) ============
+  
+  /**
+   * GET /refuse/:orderId
+   * Route publique pour refuser une commande via lien unique WhatsApp
+   * Passe au livreur suivant dans la file Round Robin
+   */
+  app.get("/refuse/:orderId", async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { driverId, phone } = req.query;
+
+      console.log("[REFUSE] 🔗 Lien de refus cliqué:", { orderId, driverId, phone });
+
+      // Si driverId fourni, refuser directement
+      if (driverId && typeof driverId === 'string') {
+        const { storage } = await import("../storage.js");
+        const { OrderEnrichmentService } = await import("../services/order-enrichment-service.js");
+        const { notifyNextDriverInQueue } = await import("../services/sms-service.js");
+
+        // Vérifier que le livreur existe
+        const driver = await storage.getDriverById(driverId);
+        if (!driver) {
+          return res.status(404).send(`
+            <html>
+              <body style="font-family: Arial; text-align: center; padding: 50px;">
+                <h1>❌ Livreur non trouvé</h1>
+                <p>Veuillez vous connecter à votre espace livreur.</p>
+                <a href="/driver/login" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Se connecter</a>
+              </body>
+            </html>
+          `);
+        }
+
+        // Récupérer la commande
+        const order = await storage.getOrderById(orderId);
+        if (!order) {
+          return res.status(404).send(`
+            <html>
+              <body style="font-family: Arial; text-align: center; padding: 50px;">
+                <h1>❌ Commande non trouvée</h1>
+                <p>Cette commande n'existe plus.</p>
+              </body>
+            </html>
+          `);
+        }
+
+        // Vérifier que la commande n'a pas déjà été acceptée
+        if (order.driverId && order.driverId !== driverId) {
+          return res.status(400).send(`
+            <html>
+              <body style="font-family: Arial; text-align: center; padding: 50px;">
+                <h1>❌ Commande déjà prise</h1>
+                <p>Cette commande a déjà été acceptée par un autre livreur.</p>
+                <a href="/driver/dashboard" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Voir mes commandes</a>
+              </body>
+            </html>
+          `);
+        }
+
+        // Enrichir la commande
+        const enrichedOrder = await OrderEnrichmentService.enrichWithRestaurant(order);
+
+        // Passer au livreur suivant dans la file Round Robin
+        await notifyNextDriverInQueue(
+          orderId,
+          enrichedOrder.restaurantName || "Restaurant",
+          order.customerName,
+          order.totalPrice.toString(),
+          order.address
+        );
+
+        // Afficher confirmation
+        return res.send(`
+          <html>
+            <body style="font-family: Arial; text-align: center; padding: 50px;">
+              <h1>✅ Commande refusée</h1>
+              <p>La commande sera proposée à un autre livreur.</p>
+              <a href="/driver/dashboard" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Voir mes commandes</a>
+            </body>
+          </html>
+        `);
+      }
+
+      // Si phone fourni, trouver le livreur par téléphone
+      if (phone && typeof phone === 'string') {
+        const { storage } = await import("../storage.js");
+        const driver = await storage.getDriverByPhone(phone.replace('whatsapp:', '').replace('+', ''));
+
+        if (driver) {
+          return res.redirect(`/refuse/${orderId}?driverId=${driver.id}`);
+        }
+      }
+
+      // Sinon, rediriger vers la page de login
+      return res.redirect(`/driver/login?refuse=${orderId}`);
+    } catch (error: any) {
+      console.error("[REFUSE] ❌ Erreur:", error);
+      return res.status(500).send(`
+        <html>
+          <body style="font-family: Arial; text-align: center; padding: 50px;">
+            <h1>❌ Erreur</h1>
+            <p>Une erreur est survenue lors du refus de la commande.</p>
+            <a href="/driver/login" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Se connecter</a>
+          </body>
+        </html>
+      `);
+    }
+  });
 }
 
