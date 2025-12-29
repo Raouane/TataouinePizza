@@ -662,10 +662,32 @@ export function registerPublicRoutes(app: Express): void {
           `);
         }
 
+        // Vérifier d'abord si la commande est déjà acceptée par ce livreur
+        if (order.driverId === driverId && (order.status === 'delivery' || order.status === 'accepted')) {
+          console.log("[ACCEPT] ✅ Commande déjà acceptée par ce livreur, redirection vers dashboard");
+          // Générer un token pour connexion automatique
+          const { generateDriverToken } = await import("../auth.js");
+          const token = generateDriverToken(driver.id, driver.phone);
+          return res.redirect(`/driver/auto-login?token=${token}&driverId=${driver.id}&driverName=${encodeURIComponent(driver.name)}&driverPhone=${encodeURIComponent(driver.phone)}&order=${orderId}&accepted=true`);
+        }
+
         // Accepter la commande
         const acceptedOrder = await OrderAcceptanceService.acceptOrder(orderId, driverId);
 
         if (!acceptedOrder) {
+          // Commande déjà prise par un autre livreur ou statut invalide
+          console.log("[ACCEPT] ⚠️ Commande déjà prise ou statut invalide, vérification...");
+          
+          // Vérifier le statut actuel
+          const currentOrder = await storage.getOrderById(orderId);
+          if (currentOrder && currentOrder.driverId === driverId) {
+            // C'est le même livreur, rediriger vers dashboard
+            console.log("[ACCEPT] ✅ Commande déjà acceptée par ce livreur, redirection");
+            const { generateDriverToken } = await import("../auth.js");
+            const token = generateDriverToken(driver.id, driver.phone);
+            return res.redirect(`/driver/auto-login?token=${token}&driverId=${driver.id}&driverName=${encodeURIComponent(driver.name)}&driverPhone=${encodeURIComponent(driver.phone)}&order=${orderId}&accepted=true`);
+          }
+          
           return res.status(400).send(`
             <html>
               <body style="font-family: Arial; text-align: center; padding: 50px;">
