@@ -1,9 +1,6 @@
 import { useEffect } from "react";
-import { useLocation } from "wouter";
 
 export default function DriverAutoLogin() {
-  const [, setLocation] = useLocation();
-
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
@@ -24,18 +21,23 @@ export default function DriverAutoLogin() {
       
       console.log("[Auto-Login] ✅ Token stocké, redirection vers dashboard");
       
-      // Rediriger vers le dashboard avec la commande si fournie
-      if (order && accepted === 'true') {
-        setLocation(`/driver/dashboard?order=${order}&accepted=true`);
-      } else {
-        setLocation("/driver/dashboard");
-      }
+      // IMPORTANT: Utiliser window.location.href au lieu de setLocation
+      // pour forcer un rechargement complet de la page et s'assurer
+      // que le token est bien lu par le dashboard
+      const dashboardUrl = order && accepted === 'true'
+        ? `/driver/dashboard?order=${order}&accepted=true`
+        : '/driver/dashboard';
+      
+      // Petit délai pour s'assurer que localStorage est bien écrit
+      setTimeout(() => {
+        window.location.href = dashboardUrl;
+      }, 100);
     } else {
       // Si paramètres manquants, rediriger vers login
       console.log("[Auto-Login] ⚠️ Paramètres manquants, redirection vers login");
-      setLocation("/driver/login");
+      window.location.href = '/driver/login';
     }
-  }, [setLocation]);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-100 flex items-center justify-center">
