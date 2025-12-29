@@ -447,27 +447,68 @@ export async function sendWhatsAppToDrivers(
       console.log(`[WhatsApp]      - Disponible?: ${driver.status === 'available' ? '✅ OUI' : '❌ NON'}`);
     });
     
-    const availableDrivers = allDrivers.filter(driver => 
+    // Vérification automatique : Corriger les livreurs en "on_delivery" sans commande en cours
+    for (const driver of allDrivers) {
+      if (driver.status === 'on_delivery') {
+        const driverOrders = await storage.getOrdersByDriver(driver.id);
+        const activeOrders = driverOrders.filter(o => 
+          o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready'
+        );
+        
+        if (activeOrders.length === 0) {
+          console.log(`[WhatsApp] 🔧 CORRECTION AUTO: ${driver.name} est en "on_delivery" mais n'a pas de commande en cours`);
+          console.log(`[WhatsApp] 🔧 Remise automatique en statut "available"`);
+          await storage.updateDriver(driver.id, { status: 'available' });
+          driver.status = 'available'; // Mettre à jour aussi dans la liste locale
+        }
+      }
+    }
+    
+    // Filtrer les livreurs disponibles
+    const availableDriversWithActiveStatus = allDrivers.filter(driver => 
       driver.status === 'available'
     );
     
-    console.log(`[WhatsApp] 🔍 ${availableDrivers.length} livreur(s) avec statut available`);
+    console.log(`[WhatsApp] 🔍 ${availableDriversWithActiveStatus.length} livreur(s) avec statut available`);
     
-    if (availableDrivers.length === 0) {
-      console.log(`[WhatsApp] ⚠️ PROBLÈME: Aucun livreur disponible !`);
-      console.log(`[WhatsApp] 💡 Statuts trouvés:`, allDrivers.map(d => `${d.name}: ${d.status || 'NON DÉFINI'}`).join(', '));
-      console.log(`[WhatsApp] 💡 SOLUTION: Mettez au moins un livreur en statut "available" via l'admin ou l'app livreur`);
+    // PROMPT: Limiter à 2 commandes maximum par livreur - Vérifier les commandes actives
+    const MAX_ACTIVE_ORDERS_PER_DRIVER = 2;
+    const availableDriversWithOrderCheck = await Promise.all(
+      availableDriversWithActiveStatus.map(async (driver) => {
+        const driverOrders = await storage.getOrdersByDriver(driver.id);
+        const activeOrders = driverOrders.filter(o => 
+          o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready'
+        );
+        return {
+          driver,
+          activeOrdersCount: activeOrders.length,
+          canAcceptMore: activeOrders.length < MAX_ACTIVE_ORDERS_PER_DRIVER
+        };
+      })
+    );
+    
+    const trulyAvailableDrivers = availableDriversWithOrderCheck
+      .filter(({ canAcceptMore }) => canAcceptMore)
+      .map(({ driver }) => driver);
+    
+    console.log(`[WhatsApp] 🔍 ${trulyAvailableDrivers.length} livreur(s) disponible(s) (moins de ${MAX_ACTIVE_ORDERS_PER_DRIVER} commande(s) en cours)`);
+    
+    const excludedDrivers = availableDriversWithOrderCheck.filter(({ canAcceptMore }) => !canAcceptMore);
+    if (excludedDrivers.length > 0) {
+      console.log(`[WhatsApp] ⚠️ ${excludedDrivers.length} livreur(s) exclus (déjà ${MAX_ACTIVE_ORDERS_PER_DRIVER} commande(s) en cours):`);
+      excludedDrivers.forEach(({ driver, activeOrdersCount }) => {
+        console.log(`[WhatsApp]   - ${driver.name} (${driver.phone}) - ${activeOrdersCount} commande(s) active(s)`);
+      });
     }
     
-    if (availableDrivers.length === 0) {
-      console.log('[WhatsApp] ⚠️ Aucun livreur disponible (statut available)');
-      console.log('[WhatsApp] 💡 Vérifiez que le livreur a bien le statut "available" dans la DB');
+    if (trulyAvailableDrivers.length === 0) {
+      console.log('[WhatsApp] ⚠️ Aucun livreur disponible sans commande en cours');
       return 0;
     }
 
     // Calculer le temps d'attente pour chaque livreur (basé sur sa dernière commande)
     const driversWithWaitTime = await Promise.all(
-      availableDrivers.map(async (driver) => {
+      trulyAvailableDrivers.map(async (driver) => {
         try {
           const driverOrders = await storage.getOrdersByDriver(driver.id);
           // Trouver la dernière commande assignée (livrée ou en cours)
@@ -590,18 +631,55 @@ export async function notifyNextDriverInQueue(
 
     // Récupérer tous les livreurs disponibles
     const allDrivers = await storage.getAllDrivers();
-    const availableDrivers = allDrivers.filter(driver => 
+    
+    // Vérification automatique : Corriger les livreurs en "on_delivery" sans commande en cours
+    for (const driver of allDrivers) {
+      if (driver.status === 'on_delivery') {
+        const driverOrders = await storage.getOrdersByDriver(driver.id);
+        const activeOrders = driverOrders.filter(o => 
+          o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready'
+        );
+        
+        if (activeOrders.length === 0) {
+          console.log(`[Round Robin] 🔧 CORRECTION AUTO: ${driver.name} est en "on_delivery" mais n'a pas de commande en cours`);
+          await storage.updateDriver(driver.id, { status: 'available' });
+          driver.status = 'available';
+        }
+      }
+    }
+    
+    const availableDriversWithActiveStatus = allDrivers.filter(driver => 
       driver.status === 'available'
     );
 
-    if (availableDrivers.length === 0) {
-      console.log('[Round Robin] ⚠️ Aucun livreur disponible');
+    // PROMPT: Limiter à 2 commandes maximum par livreur - Vérifier les commandes actives
+    const MAX_ACTIVE_ORDERS_PER_DRIVER = 2;
+    const availableDriversWithOrderCheck = await Promise.all(
+      availableDriversWithActiveStatus.map(async (driver) => {
+        const driverOrders = await storage.getOrdersByDriver(driver.id);
+        const activeOrders = driverOrders.filter(o => 
+          o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready'
+        );
+        return {
+          driver,
+          activeOrdersCount: activeOrders.length,
+          canAcceptMore: activeOrders.length < MAX_ACTIVE_ORDERS_PER_DRIVER
+        };
+      })
+    );
+    
+    const trulyAvailableDrivers = availableDriversWithOrderCheck
+      .filter(({ canAcceptMore }) => canAcceptMore)
+      .map(({ driver }) => driver);
+
+    if (trulyAvailableDrivers.length === 0) {
+      console.log(`[Round Robin] ⚠️ Aucun livreur disponible (tous ont déjà ${MAX_ACTIVE_ORDERS_PER_DRIVER} commande(s) en cours)`);
       return 0;
     }
 
     // Calculer le temps d'attente pour chaque livreur disponible
     const driversWithWaitTime = await Promise.all(
-      availableDrivers.map(async (driver) => {
+      trulyAvailableDrivers.map(async (driver) => {
         try {
           const driverOrders = await storage.getOrdersByDriver(driver.id);
           const lastOrder = driverOrders

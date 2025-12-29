@@ -3,6 +3,10 @@ import { db } from "../db.js";
 import { drivers } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
+/**
+ * Script pour remettre Raouane en statut "available"
+ * Usage: npm run script:update-driver-status
+ */
 async function updateDriverStatus() {
   const phone = "+33783698509";
   const name = "Raouane";

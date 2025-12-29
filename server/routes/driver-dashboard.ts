@@ -43,14 +43,24 @@ export function registerDriverDashboardRoutes(app: Express): void {
       // Envoyer le code par SMS uniquement si ENABLE_DEMO_OTP=false (mode production réel)
       const ENABLE_DEMO_OTP = process.env.ENABLE_DEMO_OTP === "true" || process.env.NODE_ENV !== "production";
       
+      let smsFailed = false;
+      let smsErrorCode: string | undefined;
+      
       if (!ENABLE_DEMO_OTP) {
         // Mode production réel : envoyer SMS
         try {
           await sendOtpSms(phone, code, "driver");
           console.log(`[DRIVER OTP] ✅ Code OTP envoyé par SMS à ${phone}`);
         } catch (smsError: any) {
+          smsFailed = true;
+          smsErrorCode = smsError.code;
           console.error(`[DRIVER OTP] ⚠️ Erreur envoi SMS (code stocké en base):`, smsError.message);
-          // Ne pas bloquer si SMS échoue, le code est quand même stocké en base
+          console.error(`[DRIVER OTP] ⚠️ Code erreur: ${smsError.code}`);
+          
+          // Si erreur de limite quotidienne (63038), on retournera le code dans la réponse
+          if (smsError.code === 63038 || smsError.message?.includes('limite') || smsError.message?.includes('limit')) {
+            console.log(`[DRIVER OTP] 💡 Limite quotidienne atteinte, code retourné dans la réponse: ${code}`);
+          }
         }
       } else {
         // Mode démo : afficher le code dans la console
@@ -59,9 +69,22 @@ export function registerDriverDashboardRoutes(app: Express): void {
         console.log(`[DRIVER OTP] 💡 Mode démo activé - Utilisez le code de démo: ${demoCode}`);
       }
       
-      const response: { message: string; demoCode?: string } = { message: "OTP sent" };
+      const response: { 
+        message: string; 
+        demoCode?: string; 
+        code?: string;
+        smsFailed?: boolean;
+      } = { message: "OTP sent" };
+      
       if (ENABLE_DEMO_OTP) {
         response.demoCode = process.env.DEMO_OTP_CODE || "1234";
+        response.code = code; // Retourner aussi le vrai code en mode démo
+      } else if (smsFailed && (smsErrorCode === "63038" || smsErrorCode === undefined)) {
+        // Si SMS échoué (limite quotidienne ou autre erreur), retourner le code
+        response.code = code;
+        response.smsFailed = true;
+        response.message = "OTP généré (SMS non envoyé - limite quotidienne atteinte ou erreur)";
+        console.log(`[DRIVER OTP] 📤 Code OTP retourné dans la réponse: ${code}`);
       }
       
       res.json(response);

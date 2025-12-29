@@ -94,7 +94,7 @@ export async function sendOtp(phone: string): Promise<{ code?: string }> {
 /**
  * Envoie un code OTP pour les livreurs (toujours activé)
  */
-export async function sendDriverOtp(phone: string): Promise<{ message: string }> {
+export async function sendDriverOtp(phone: string): Promise<{ message: string; code?: string; demoCode?: string; smsFailed?: boolean }> {
   const res = await fetch(`${API_BASE}/driver/otp/send`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

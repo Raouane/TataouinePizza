@@ -13,6 +13,7 @@ export default function DriverLogin() {
   const [otpCode, setOtpCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [smsFailed, setSmsFailed] = useState(false);
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,7 +21,25 @@ export default function DriverLogin() {
     setLoading(true);
 
     try {
-      await sendDriverOtp(phone);
+      const response = await sendDriverOtp(phone);
+      
+      // Si le SMS a échoué, afficher un message informatif
+      if (response.smsFailed) {
+        setSmsFailed(true);
+      } else {
+        setSmsFailed(false);
+      }
+      
+      // Si le code est retourné (mode démo ou SMS échoué), l'utiliser automatiquement
+      if (response.code) {
+        setOtpCode(response.code);
+        console.log(`[Driver Login] Code OTP reçu dans la réponse: ${response.code}`);
+      } else if (response.demoCode) {
+        // Mode démo avec code de démo
+        setOtpCode(response.demoCode);
+        console.log(`[Driver Login] Code de démo utilisé: ${response.demoCode}`);
+      }
+      
       setStep("otp");
     } catch (err: any) {
       setError(err.message || "Erreur lors de l'envoi du code");
@@ -152,6 +171,16 @@ export default function DriverLogin() {
                 </div>
               )}
 
+              {smsFailed && (
+                <div className="flex gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-orange-800">
+                    <p className="font-medium">⚠️ SMS non envoyé</p>
+                    <p className="text-orange-700">La limite quotidienne de SMS est atteinte. Le code a été pré-rempli automatiquement.</p>
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={handleVerifyOtp} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">Code OTP</label>
@@ -183,6 +212,7 @@ export default function DriverLogin() {
                 onClick={() => {
                   setStep("phone");
                   setOtpCode("");
+                  setSmsFailed(false);
                   setError("");
                 }}
                 className="w-full text-sm text-primary hover:underline"

@@ -134,14 +134,14 @@ export function setupWebSocket(httpServer: Server): WebSocketServer {
     });
 
     // Gérer la déconnexion
-    ws.on("close", () => {
+    ws.on("close", async () => {
       console.log(`[WebSocket] Livreur ${driverId} déconnecté`);
-      cleanupDriverConnection(driverId);
+      await cleanupDriverConnection(driverId);
     });
 
-    ws.on("error", (error) => {
+    ws.on("error", async (error) => {
       console.error(`[WebSocket] Erreur pour livreur ${driverId}:`, error);
-      cleanupDriverConnection(driverId);
+      await cleanupDriverConnection(driverId);
     });
   });
 
@@ -480,12 +480,12 @@ function startHeartbeat(driverId: string, ws: WebSocket) {
   }
 
   // Créer un nouveau timer
-  const timer = setTimeout(() => {
+  const timer = setTimeout(async () => {
     console.log(`[WebSocket] Heartbeat timeout pour livreur ${driverId} - fermeture de la connexion`);
     if (ws.readyState === WebSocket.OPEN) {
       ws.close(1000, "Heartbeat timeout");
     }
-    cleanupDriverConnection(driverId);
+    await cleanupDriverConnection(driverId);
   }, HEARTBEAT_TIMEOUT);
 
   heartbeatTimers.set(driverId, timer);
@@ -500,13 +500,50 @@ function resetHeartbeat(driverId: string, ws: WebSocket) {
 
 /**
  * Nettoie les ressources d'une connexion livreur
+ * Met automatiquement le statut à "offline" sauf si le livreur a des commandes actives
  */
-function cleanupDriverConnection(driverId: string) {
+async function cleanupDriverConnection(driverId: string) {
+  console.log(`[WebSocket] 🧹 Nettoyage connexion pour livreur ${driverId}`);
+  
   driverConnections.delete(driverId);
   const heartbeatTimer = heartbeatTimers.get(driverId);
   if (heartbeatTimer) {
     clearTimeout(heartbeatTimer);
     heartbeatTimers.delete(driverId);
+  }
+  
+  // Mettre le statut à "offline" lors de la déconnexion, SAUF si le livreur a des commandes actives
+  try {
+    console.log(`[WebSocket] 🔍 Vérification commandes actives pour livreur ${driverId}...`);
+    const { storage } = await import("./storage.js");
+    const driverOrders = await storage.getOrdersByDriver(driverId);
+    console.log(`[WebSocket] 📋 Livreur ${driverId}: ${driverOrders.length} commande(s) totale(s) trouvée(s)`);
+    
+    const activeOrders = driverOrders.filter(o => 
+      o.status === "delivery" || o.status === "accepted" || o.status === "ready"
+    );
+    
+    console.log(`[WebSocket] 📊 Livreur ${driverId}: ${activeOrders.length} commande(s) active(s)`);
+    
+    if (activeOrders.length > 0) {
+      console.log(`[WebSocket] 📋 Détails des commandes actives:`);
+      activeOrders.forEach((order, index) => {
+        console.log(`[WebSocket]   ${index + 1}. Commande ${order.id.slice(0, 8)} - Statut: ${order.status}`);
+      });
+    }
+    
+    if (activeOrders.length === 0) {
+      // Aucune commande active, mettre à "offline"
+      console.log(`[WebSocket] 🔄 Mise à jour statut livreur ${driverId} à "offline"...`);
+      await storage.updateDriver(driverId, { status: "offline" });
+      console.log(`[WebSocket] ✅ Livreur ${driverId} mis à "offline" (déconnexion sans commande active)`);
+    } else {
+      // Le livreur a des commandes actives, garder "on_delivery"
+      console.log(`[WebSocket] ⚠️ Livreur ${driverId} déconnecté mais garde statut "on_delivery" (${activeOrders.length} commande(s) active(s))`);
+    }
+  } catch (error) {
+    console.error(`[WebSocket] ❌ Erreur lors de la mise à jour du statut du livreur ${driverId}:`, error);
+    console.error(`[WebSocket] ❌ Stack trace:`, error instanceof Error ? error.stack : 'N/A');
   }
 }
 
@@ -573,7 +610,7 @@ function startPeriodicCleanup(wss: WebSocketServer) {
     
     for (const driverId of deadConnections) {
       console.log(`[WebSocket] Suppression connexion morte: ${driverId}`);
-      cleanupDriverConnection(driverId);
+      await cleanupDriverConnection(driverId);
     }
 
     // Nettoyer les timers expirés (ils se nettoient normalement, mais on vérifie)
