@@ -636,14 +636,15 @@ export async function notifyNextDriverInQueue(
 
     console.log(`[Round Robin] 📤 Notification du livreur suivant: ${nextDriver.name} (${nextDriver.phone})`);
 
-    // Envoyer WhatsApp au livreur suivant
+    // Envoyer WhatsApp au livreur suivant avec driverId directement
     const result = await sendWhatsAppToDriver(
       nextDriver.phone,
       orderId,
       customerName,
       totalPrice,
       address,
-      restaurantName
+      restaurantName,
+      nextDriver.id  // Passer driverId directement
     );
 
     if (result) {
