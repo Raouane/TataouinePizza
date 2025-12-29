@@ -32,6 +32,8 @@
     "enrich-restaurants": "tsx script/enrich-all-restaurants.ts",
     "create-test-orders": "tsx script/create-test-orders.ts",
     "create-admin": "tsx script/create-admin.ts",
+    "script:update-driver-status": "tsx server/scripts/update-driver-status.ts",
+    "script:count-whatsapp-messages": "tsx server/scripts/count-whatsapp-messages.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:watch": "vitest --watch",

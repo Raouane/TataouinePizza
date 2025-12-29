@@ -90,7 +90,11 @@ export function registerWhatsAppWebhookRoutes(app: Express): void {
       const allOrders = await storage.getAllOrders();
       const pendingOrder = allOrders
         .filter(o => o.status === "accepted" && !o.driverId)
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+        .sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        })[0];
 
       if (!pendingOrder) {
         console.log("[WhatsApp Webhook] ⚠️ Aucune commande en attente");
