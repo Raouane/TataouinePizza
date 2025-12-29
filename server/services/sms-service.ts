@@ -307,29 +307,40 @@ export async function sendWhatsAppToDriver(
     ? formattedPhone 
     : `whatsapp:${formattedPhone}`;
 
-  // Message WhatsApp amélioré avec instructions simples
-  const message = `╔═══════════════════════════╗
-║  🍕 NOUVELLE COMMANDE 🍕  ║
-╚═══════════════════════════╝
+  // Commission fixe du livreur
+  const DRIVER_COMMISSION = 2.5; // TND fixe
 
+  // URL de l'application
+  const appUrl = process.env.APP_URL || "https://tataouine-pizza.onrender.com";
+  
+  // Trouver le livreur par téléphone pour créer le lien unique
+  let acceptUrl = `${appUrl}/accept/${orderId}`;
+  try {
+    const { storage } = await import("../storage.js");
+    const driver = await storage.getDriverByPhone(driverPhone.replace('whatsapp:', '').replace('+', ''));
+    if (driver) {
+      acceptUrl = `${appUrl}/accept/${orderId}?driverId=${driver.id}`;
+    }
+  } catch (error) {
+    console.warn('[WhatsApp] Impossible de trouver le livreur pour le lien, utilisation du lien générique');
+  }
+
+  // Message WhatsApp amélioré avec gain et lien d'acceptation
+  const message = `🍕 *NOUVELLE COMMANDE*
+
+🏪 *Resto:* ${restaurantName}
+💰 *Gain:* +${DRIVER_COMMISSION.toFixed(2)} TND
 📋 *Commande #${orderId.slice(0, 8)}*
-💰 *Montant:* ${totalPrice} DT
-
-━━━━━━━━━━━━━━━━━━━━━━━━
-🏪 *RESTAURANT*
-${restaurantName}
-
-👤 *CLIENT*
-${customerName}
-
-📍 *ADRESSE*
-${address}
-━━━━━━━━━━━━━━━━━━━━━━━━
+👤 *Client:* ${customerName}
+📍 *Adresse:* ${address}
 
 ⚡ *RÉPONDEZ RAPIDEMENT:*
 
 ✅ Tapez *A* pour ACCEPTER
 ❌ Tapez *R* pour REFUSER
+
+🔗 *Ou cliquez ici:*
+${acceptUrl}
 
 ⏱️ *Délai: 20 secondes*`;
 

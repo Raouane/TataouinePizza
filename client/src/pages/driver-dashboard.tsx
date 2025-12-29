@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +38,8 @@ const DRIVER_COMMISSION_RATE = 0.15; // 15% commission
 
 export default function DriverDashboard() {
   const [, setLocation] = useLocation();
+  const [match, params] = useRoute("/driver/dashboard");
+  
   const [availableOrders, setAvailableOrders] = useState<Order[]>([]);
   const [myOrders, setMyOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -281,6 +283,23 @@ export default function DriverDashboard() {
       soundIntervalsRef.current.clear();
     };
   }, []);
+
+  // Gérer la redirection depuis /accept avec paramètre order
+  useEffect(() => {
+    if (!token) return;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderId = urlParams.get('order');
+    const accepted = urlParams.get('accepted');
+    
+    if (orderId && accepted === 'true') {
+      // Nettoyer l'URL
+      window.history.replaceState({}, '', '/driver/dashboard');
+      // Afficher la commande acceptée
+      showOrder(orderId, false);
+      toast.success("Commande acceptée !");
+    }
+  }, [token]);
 
   useEffect(() => {
     if (!token) {
@@ -752,45 +771,14 @@ export default function DriverDashboard() {
 
   // Utiliser les helpers centralisés (déjà importés)
 
-  // MVP: Workflow simplifié - fusionner "En attente" et "En livraison" en un seul onglet "Mes livraisons"
+  // PROMPT 1: Liste commune DÉSACTIVÉE - Afficher uniquement les commandes en cours du livreur
+  // Écran vide si pas de mission
   const activeDeliveryOrders = myOrders.filter(o => ["accepted", "ready", "delivery"].includes(o.status));
   const deliveredOrders = myOrders.filter(o => o.status === "delivered");
 
-  // Toutes les commandes à afficher (disponibles + en cours)
-  const allOrdersToShow = [
-    // Afficher TOUTES les commandes disponibles (pas seulement celles "visibles")
-    ...availableOrders.filter(order => {
-      const hasNoDriver = !order.driverId;
-      const isVisible = visibleOrderIds.has(order.id);
-      const hasTimer = orderTimersRef.current.has(order.id);
-      
-      // LOG pour chaque commande filtrée
-      if (!hasNoDriver) {
-        console.log(`[DEBUG] ❌ Commande ${order.id.slice(0, 8)}... filtrée: a un driverId (${order.driverId})`);
-      } else {
-        console.log(`[DEBUG] ✅ Commande ${order.id.slice(0, 8)}... PASSERA le filtre:`, {
-          hasNoDriver,
-          isVisible,
-          hasTimer,
-          status: order.status,
-          restaurantName: order.restaurantName,
-          visibleOrderIds: Array.from(visibleOrderIds)
-        });
-      }
-      
-      return hasNoDriver;
-    }),
-    // + toutes les commandes en cours du livreur
-    ...activeDeliveryOrders,
-  ];
-
-  // LOG : Résumé de ce qui sera affiché
-  console.log("[DEBUG] 📊 Résumé des commandes:");
-  console.log(`  - Commandes disponibles (total): ${availableOrders.length}`);
-  console.log(`  - Commandes disponibles (sans driver): ${availableOrders.filter(o => !o.driverId).length}`);
-  console.log(`  - Commandes en cours: ${activeDeliveryOrders.length}`);
-  console.log(`  - TOTAL à afficher: ${allOrdersToShow.length}`);
-  console.log(`  - IDs à afficher:`, allOrdersToShow.map(o => o.id.slice(0, 8)));
+  // Ne plus afficher les commandes disponibles (liste commune désactivée)
+  // Afficher uniquement les commandes en cours du livreur
+  const allOrdersToShow = [...activeDeliveryOrders];
 
   // Calculer les statistiques
   const totalEarnings = deliveredOrders.reduce((sum, o) => sum + Number(o.totalPrice) * DRIVER_COMMISSION_RATE, 0);
@@ -965,9 +953,9 @@ export default function DriverDashboard() {
         ) : allOrdersToShow.length === 0 ? (
           <Card className="p-12 text-center">
             <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">Aucune commande</h3>
+            <h3 className="text-lg font-medium mb-2">Aucune mission en cours</h3>
             <p className="text-muted-foreground">
-              Les commandes disponibles et en cours apparaîtront ici.
+              Vous recevrez une notification WhatsApp lorsqu'une nouvelle commande sera disponible.
             </p>
           </Card>
         ) : (

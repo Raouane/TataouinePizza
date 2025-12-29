@@ -113,6 +113,13 @@ export function registerWhatsAppWebhookRoutes(app: Express): void {
         );
 
         if (acceptedOrder) {
+          // Mettre le livreur en statut "on_delivery" (OCCUPÉ)
+          await storage.updateDriver(driver.id, { status: "on_delivery" });
+
+          // Enrichir la commande avec les détails du restaurant
+          const { OrderEnrichmentService } = await import("../services/order-enrichment-service.js");
+          const enrichedOrder = await OrderEnrichmentService.enrichWithRestaurant(acceptedOrder);
+
           // Mettre à jour le statut à "delivery"
           await OrderService.updateStatus(
             pendingOrder.id,
@@ -120,13 +127,24 @@ export function registerWhatsAppWebhookRoutes(app: Express): void {
             { type: "driver", id: driver.id }
           );
 
-          // Envoyer une confirmation WhatsApp
+          // URL de l'espace livreur
+          const appUrl = process.env.APP_URL || "https://tataouine-pizza.onrender.com";
+          const driverDashboardUrl = `${appUrl}/driver/dashboard?order=${pendingOrder.id}&accepted=true`;
+
+          // Envoyer une confirmation WhatsApp avec toutes les infos et le lien
           await sendWhatsAppConfirmation(
             driver.phone,
             `✅ *Commande acceptée !*\n\n` +
             `📋 Commande #${pendingOrder.id.slice(0, 8)}\n` +
-            `🚗 Statut: En route vers le client\n\n` +
-            `Ouvrez l'application pour plus de détails.`
+            `💰 Gain: +2.50 TND\n` +
+            `🏪 Restaurant: ${enrichedOrder.restaurantName || 'Restaurant'}\n` +
+            `👤 Client: ${pendingOrder.customerName}\n` +
+            `📍 Adresse: ${pendingOrder.address}\n` +
+            (pendingOrder.customerLat && pendingOrder.customerLng 
+              ? `🗺️ GPS: ${pendingOrder.customerLat}, ${pendingOrder.customerLng}\n`
+              : '') +
+            `\n🔗 *Ouvrez votre espace livreur:*\n${driverDashboardUrl}\n\n` +
+            `Toutes les informations sont disponibles dans l'application.`
           );
 
           console.log(`[WhatsApp Webhook] ✅ Commande ${pendingOrder.id} acceptée par ${driver.name}`);

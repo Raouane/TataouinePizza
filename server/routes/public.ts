@@ -627,5 +627,95 @@ export function registerPublicRoutes(app: Express): void {
       errorHandler.sendError(res, error);
     }
   });
+
+  // ============ ORDER ACCEPTANCE (PUBLIC LINK) ============
+  
+  /**
+   * GET /accept/:orderId
+   * Route publique pour accepter une commande via lien unique WhatsApp
+   * Redirige vers le dashboard livreur avec la commande acceptée
+   */
+  app.get("/accept/:orderId", async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { driverId, phone } = req.query; // Paramètres optionnels pour identifier le livreur
+
+      console.log("[ACCEPT] 🔗 Lien d'acceptation cliqué:", { orderId, driverId, phone });
+
+      // Si driverId fourni, accepter directement
+      if (driverId && typeof driverId === 'string') {
+        const { OrderAcceptanceService } = await import("../services/order-acceptance-service.js");
+        const { OrderService } = await import("../services/order-service.js");
+        const { storage } = await import("../storage.js");
+
+        // Vérifier que le livreur existe
+        const driver = await storage.getDriverById(driverId);
+        if (!driver) {
+          return res.status(404).send(`
+            <html>
+              <body style="font-family: Arial; text-align: center; padding: 50px;">
+                <h1>❌ Livreur non trouvé</h1>
+                <p>Veuillez vous connecter à votre espace livreur.</p>
+                <a href="/driver/login" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Se connecter</a>
+              </body>
+            </html>
+          `);
+        }
+
+        // Accepter la commande
+        const acceptedOrder = await OrderAcceptanceService.acceptOrder(orderId, driverId);
+
+        if (!acceptedOrder) {
+          return res.status(400).send(`
+            <html>
+              <body style="font-family: Arial; text-align: center; padding: 50px;">
+                <h1>❌ Commande déjà prise</h1>
+                <p>Cette commande a déjà été acceptée par un autre livreur.</p>
+                <a href="/driver/dashboard" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Voir mes commandes</a>
+              </body>
+            </html>
+          `);
+        }
+
+        // Mettre le livreur en statut "on_delivery" (OCCUPÉ)
+        await storage.updateDriver(driverId, { status: "on_delivery" });
+
+        // Mettre à jour le statut de la commande à "delivery"
+        await OrderService.updateStatus(
+          orderId,
+          "delivery",
+          { type: "driver", id: driverId }
+        );
+
+        // Rediriger vers le dashboard avec la commande
+        return res.redirect(`/driver/dashboard?order=${orderId}&accepted=true`);
+      }
+
+      // Si phone fourni, trouver le livreur par téléphone
+      if (phone && typeof phone === 'string') {
+        const { storage } = await import("../storage.js");
+        const driver = await storage.getDriverByPhone(phone.replace('whatsapp:', '').replace('+', ''));
+
+        if (driver) {
+          // Rediriger avec driverId
+          return res.redirect(`/accept/${orderId}?driverId=${driver.id}`);
+        }
+      }
+
+      // Sinon, rediriger vers la page de login avec un message
+      return res.redirect(`/driver/login?accept=${orderId}`);
+    } catch (error: any) {
+      console.error("[ACCEPT] ❌ Erreur:", error);
+      return res.status(500).send(`
+        <html>
+          <body style="font-family: Arial; text-align: center; padding: 50px;">
+            <h1>❌ Erreur</h1>
+            <p>Une erreur est survenue lors de l'acceptation de la commande.</p>
+            <a href="/driver/login" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Se connecter</a>
+          </body>
+        </html>
+      `);
+    }
+  });
 }
 
