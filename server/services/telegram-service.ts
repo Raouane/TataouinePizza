@@ -266,6 +266,22 @@ class TelegramService {
       console.log(`[Telegram] 🔊 Début envoi alerte sonore PUISSANTE avec audio à ${chatId}`);
       console.log(`[Telegram] 🎵 URL audio: ${audioUrl}`);
       
+      // Vérifier que l'URL est accessible avant d'envoyer
+      try {
+        console.log(`[Telegram] 🔍 Vérification accessibilité de l'URL audio...`);
+        const testResponse = await fetch(audioUrl, { method: 'HEAD' });
+        if (!testResponse.ok) {
+          console.error(`[Telegram] ❌ URL audio non accessible: ${testResponse.status} ${testResponse.statusText}`);
+          console.error(`[Telegram] 💡 Vérifiez que le fichier est bien servi par le serveur et accessible publiquement`);
+        } else {
+          const contentType = testResponse.headers.get('content-type');
+          console.log(`[Telegram] ✅ URL audio accessible (Content-Type: ${contentType || 'N/A'})`);
+        }
+      } catch (urlError: any) {
+        console.error(`[Telegram] ⚠️ Erreur lors de la vérification de l'URL audio:`, urlError.message);
+        console.error(`[Telegram] 💡 L'URL peut ne pas être accessible publiquement. Vérifiez votre configuration.`);
+      }
+      
       const alerts = [];
       
       // ENVOYER PLUSIEURS FICHIERS AUDIO EN SUCCESSION (sonnerie PUISSANTE)

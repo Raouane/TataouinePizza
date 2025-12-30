@@ -69,7 +69,7 @@ export function serveStatic(app: Express) {
         console.log(`[STATIC]   Est fichier: ${stats.isFile()}`);
         if (stats.isFile()) {
           console.log(`[STATIC] 📦 Fichier servi depuis fallback: ${req.path}`);
-          // Définir le bon Content-Type pour les images
+          // Définir le bon Content-Type pour les images et fichiers audio
           const ext = path.extname(fallbackPath).toLowerCase();
           const contentTypeMap: Record<string, string> = {
             '.jpeg': 'image/jpeg',
@@ -79,6 +79,10 @@ export function serveStatic(app: Express) {
             '.svg': 'image/svg+xml',
             '.webp': 'image/webp',
             '.ico': 'image/x-icon',
+            '.mp3': 'audio/mpeg',
+            '.m4a': 'audio/mp4',
+            '.ogg': 'audio/ogg',
+            '.wav': 'audio/wav',
           };
           if (contentTypeMap[ext]) {
             res.setHeader('Content-Type', contentTypeMap[ext]);
