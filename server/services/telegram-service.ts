@@ -26,6 +26,7 @@ class TelegramService {
   async sendMessage(chatId: string, message: string, options?: {
     parseMode?: 'HTML' | 'Markdown' | 'MarkdownV2';
     replyMarkup?: any;
+    disableNotification?: boolean;
   }): Promise<{ success: boolean; error?: any; messageId?: number }> {
     if (!this.isConfigured) {
       return { success: false, error: 'Telegram bot non configuré' };
@@ -37,6 +38,7 @@ class TelegramService {
       const payload: any = {
         chat_id: chatId,
         text: message,
+        disable_notification: options?.disableNotification ?? false, // Par défaut, les notifications sont activées (sonnerie)
       };
 
       if (options?.parseMode) {
@@ -80,6 +82,49 @@ class TelegramService {
     }
   }
 
+  /**
+   * Envoie une alerte sonore distincte et répétée pour attirer l'attention du livreur
+   * Envoie plusieurs messages courts en succession pour créer une sonnerie
+   */
+  async sendSoundAlert(chatId: string, orderId: string): Promise<boolean> {
+    if (!this.isConfigured) {
+      return false;
+    }
+
+    try {
+      // Message d'alerte sonore - répété 3 fois pour créer une sonnerie longue et distincte
+      const alertMessage = `🔔🔔🔔 NOUVELLE COMMANDE #${orderId.slice(0, 8)} 🔔🔔🔔\n\n⚡⚡⚡ URGENT ⚡⚡⚡`;
+      
+      console.log(`[Telegram] 🔊 Envoi alerte sonore à ${chatId}`);
+      
+      // Envoyer 3 messages en succession rapide pour créer une sonnerie répétée
+      const alerts = [];
+      for (let i = 0; i < 3; i++) {
+        const result = await this.sendMessage(chatId, alertMessage, {
+          disableNotification: false, // S'assurer que la notification sonne
+        });
+        alerts.push(result.success);
+        
+        // Attendre 500ms entre chaque message pour créer une sonnerie répétée
+        if (i < 2) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      const allSuccess = alerts.every(success => success);
+      if (allSuccess) {
+        console.log(`[Telegram] ✅ Alerte sonore envoyée (3 messages)`);
+      } else {
+        console.warn(`[Telegram] ⚠️ Certaines alertes sonores ont échoué`);
+      }
+
+      return allSuccess;
+    } catch (error: any) {
+      console.error('[Telegram] ❌ Erreur alerte sonore:', error);
+      return false;
+    }
+  }
+
   async sendOrderNotification(
     driverTelegramId: string,
     orderId: string,
@@ -97,6 +142,11 @@ class TelegramService {
     const DRIVER_COMMISSION = 2.5;
     const appUrl = process.env.APP_URL || "https://tataouine-pizza.onrender.com";
     
+    // URL principale vers la PWA pour commencer la livraison
+    const pwaUrl = driverId 
+      ? `${appUrl}/driver/dashboard?order=${orderId}&driverId=${driverId}`
+      : `${appUrl}/driver/dashboard?order=${orderId}`;
+    
     let acceptUrl = `${appUrl}/accept/${orderId}`;
     let refuseUrl = `${appUrl}/refuse/${orderId}`;
     
@@ -105,6 +155,14 @@ class TelegramService {
       refuseUrl = `${appUrl}/refuse/${orderId}?driverId=${driverId}`;
     }
 
+    // ÉTAPE 1: Envoyer l'alerte sonore (sonnerie distincte et longue)
+    console.log(`[Telegram] 🔊 Envoi alerte sonore à livreur ${driverTelegramId}`);
+    await this.sendSoundAlert(driverTelegramId, orderId);
+    
+    // Attendre 1 seconde après l'alerte sonore avant d'envoyer le message principal
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // ÉTAPE 2: Envoyer le message principal avec tous les détails et le lien PWA
     const message = `🍕 <b>NOUVELLE COMMANDE</b>
 
 🏪 <b>Resto:</b> ${restaurantName}
@@ -114,6 +172,9 @@ class TelegramService {
 📍 <b>Adresse:</b> ${address}
 
 ⚡ <b>RÉPONDEZ RAPIDEMENT:</b>
+
+📱 <b>COMMENCER LA LIVRAISON:</b>
+${pwaUrl}
 
 ✅ <b>ACCEPTER:</b>
 ${acceptUrl}
@@ -129,6 +190,12 @@ ${refuseUrl}
       inline_keyboard: [
         [
           {
+            text: '📱 Commencer la livraison',
+            url: pwaUrl
+          }
+        ],
+        [
+          {
             text: '✅ Accepter',
             url: acceptUrl
           },
@@ -136,21 +203,16 @@ ${refuseUrl}
             text: '❌ Refuser',
             url: refuseUrl
           }
-        ],
-        [
-          {
-            text: '📱 Ouvrir l\'app',
-            url: `${appUrl}/driver/dashboard?order=${orderId}`
-          }
         ]
       ]
     };
 
-    console.log(`[Telegram] 📤 Envoi notification à livreur ${driverTelegramId}`);
+    console.log(`[Telegram] 📤 Envoi message détaillé à livreur ${driverTelegramId}`);
     
     const result = await this.sendMessage(driverTelegramId, message, {
       parseMode: 'HTML',
-      replyMarkup
+      replyMarkup,
+      disableNotification: false // S'assurer que ce message sonne aussi
     });
 
     if (result.success) {
