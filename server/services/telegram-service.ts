@@ -258,7 +258,9 @@ class TelegramService {
       
       // Utiliser le fichier audio hébergé sur votre serveur
       // Note: Le fichier s'appelle alert.mp3.mp3 (double extension)
-      let audioUrl = `${appUrl}/public/audio/alert.mp3.mp3`;
+      // IMPORTANT: Dans notre config, les fichiers de client/public sont servis à la racine (/),
+      // donc l'URL correcte est /audio/alert.mp3.mp3 (SANS /public devant)
+      let audioUrl = `${appUrl}/audio/alert.mp3.mp3`;
       
       // Si le fichier n'existe pas, essayer alert.mp3
       // audioUrl = `${appUrl}/public/audio/alert.mp3`;
