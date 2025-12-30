@@ -204,7 +204,30 @@ export function CreateOrderDialog({
   const updateItem = (index: number, field: keyof OrderItemForm, value: any) => {
     const newItems = [...form.items];
     newItems[index] = { ...newItems[index], [field]: value };
+    
+    // Si on change de pizza, réinitialiser la taille si elle n'est plus disponible
+    if (field === "pizzaId") {
+      const pizza = pizzas.find(p => p.id === value);
+      if (pizza && pizza.prices && pizza.prices.length > 0) {
+        const availableSizes = pizza.prices.map(p => p.size);
+        const currentSize = newItems[index].size;
+        // Si la taille actuelle n'est pas disponible, utiliser la première taille disponible
+        if (!availableSizes.includes(currentSize)) {
+          newItems[index].size = availableSizes[0] as "small" | "medium" | "large";
+        }
+      }
+    }
+    
     setForm({ ...form, items: newItems });
+  };
+
+  // Fonction pour obtenir les tailles disponibles pour une pizza
+  const getAvailableSizes = (pizzaId: string): string[] => {
+    const pizza = pizzas.find(p => p.id === pizzaId);
+    if (!pizza || !pizza.prices || pizza.prices.length === 0) {
+      return ["small", "medium", "large"]; // Par défaut, toutes les tailles
+    }
+    return pizza.prices.map(p => p.size);
   };
 
   const getPizzaName = (pizzaId: string) => {
@@ -373,11 +396,34 @@ export function CreateOrderDialog({
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="small">Petite (S)</SelectItem>
-                                  <SelectItem value="medium">Moyenne (M)</SelectItem>
-                                  <SelectItem value="large">Grande (L)</SelectItem>
+                                  {(() => {
+                                    const availableSizes = getAvailableSizes(item.pizzaId);
+                                    const sizeLabels: Record<string, string> = {
+                                      small: "Petite (S)",
+                                      medium: "Moyenne (M)",
+                                      large: "Grande (L)",
+                                    };
+                                    return ["small", "medium", "large"]
+                                      .filter(size => availableSizes.includes(size))
+                                      .map(size => (
+                                        <SelectItem key={size} value={size}>
+                                          {sizeLabels[size]}
+                                        </SelectItem>
+                                      ));
+                                  })()}
                                 </SelectContent>
                               </Select>
+                              {(() => {
+                                const availableSizes = getAvailableSizes(item.pizzaId);
+                                if (availableSizes.length === 0) {
+                                  return (
+                                    <p className="text-xs text-red-500 mt-1">
+                                      ⚠️ Aucune taille disponible pour ce produit
+                                    </p>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </div>
 
                             <div>
