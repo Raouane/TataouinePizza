@@ -222,6 +222,11 @@ export function registerDriverDashboardRoutes(app: Express): void {
         throw errorHandler.badRequest("Cette commande a déjà été prise par un autre livreur");
       }
       
+      // Mettre le livreur en statut "on_delivery" (OCCUPÉ)
+      // Le statut de la commande reste "accepted" ou "ready" jusqu'à ce que le livreur clique sur "Commencer Livraison"
+      await storage.updateDriver(driverId, { status: "on_delivery" });
+      console.log(`[Driver] ✅ Livreur ${driverId} mis en statut "on_delivery" après acceptation de la commande ${req.params.id}`);
+      
       res.json(acceptedOrder);
     } catch (error) {
       errorHandler.sendError(res, error);
