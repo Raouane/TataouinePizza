@@ -2,36 +2,22 @@
 
 ## 📋 Comment l'Admin est Notifié
 
-### 1. **Webhook n8n (Automatique)**
-Quand aucune commande ne peut être assignée à un livreur, le système envoie automatiquement un webhook n8n :
-
-- **Événement**: `no-drivers-available`
-- **Déclenchement**: Quand tous les livreurs ont atteint leur limite (2 commandes actives) ou sont hors ligne
-- **Données envoyées**:
-  ```json
-  {
-    "event": "no-drivers-available",
-    "orderId": "uuid-de-la-commande",
-    "restaurantName": "Nom du restaurant",
-    "customerName": "Nom du client",
-    "address": "Adresse de livraison",
-    "totalPrice": "25.50",
-    "timestamp": "2024-01-15T10:30:00Z",
-    "message": "Aucun livreur disponible - Tous les livreurs sont surchargés (2 commandes en cours)"
-  }
-  ```
-
-### 2. **Dashboard Admin (Visuel)**
+### 1. **Dashboard Admin (Visuel)**
 Le dashboard admin affiche maintenant :
 - **Alerte orange** en haut de la liste des commandes quand il y a des commandes en attente
 - **Compteur** du nombre de commandes en attente
 - **Temps d'attente moyen** calculé automatiquement
 - **Badge** sur chaque commande en attente
 
-### 3. **Statistiques**
+### 2. **Statistiques**
 Dans le dialog de statistiques, une section spéciale affiche :
 - Le nombre de commandes en attente de livreur
 - Mise en évidence visuelle (carte orange)
+
+### 3. **Logs Serveur (Debug)**
+Les alertes sont également loggées dans la console serveur pour le debugging :
+- Message d'alerte avec détails de la commande
+- Informations sur le client, restaurant, prix, adresse
 
 ## 🔄 Comment le Système Continue à Chercher
 
@@ -80,18 +66,17 @@ Un livreur est considéré disponible si :
    - Prioriser les commandes VIP
    - Délai maximum avant annulation automatique
 
-## 📱 Configuration n8n
+## 📱 Notifications Externes (Optionnel)
 
-Pour recevoir les alertes, configurez dans `.env`:
+Si vous souhaitez recevoir des notifications externes (SMS, Email, Telegram), vous pouvez :
 
-```env
-N8N_WEBHOOK_URL=https://votre-n8n.com/webhook
-N8N_WEBHOOK_TOKEN=votre-token-secret
-```
+1. **Créer un webhook personnalisé** dans votre système
+2. **Utiliser les logs serveur** pour déclencher des actions
+3. **Intégrer avec n8n** en lisant les logs ou en créant un endpoint personnalisé
 
-### Workflow n8n Recommandé
+### Exemple Workflow Personnalisé
 
-1. **Réception webhook** `no-drivers-available`
+1. **Surveiller les logs** ou créer un endpoint API
 2. **Envoi SMS au client** (optionnel)
    - Message: "Votre commande est en préparation. Délai estimé: 30-45 minutes"
 3. **Notification admin** (SMS, Email, Telegram)
@@ -134,11 +119,12 @@ Pour modifier, éditez dans:
 ## 📊 Monitoring
 
 ### Logs Serveur
-Les alertes sont loggées dans la console:
+Les alertes sont loggées dans la console pour le debugging:
 ```
 [ADMIN ALERT] 🚨 AUCUN LIVREUR DISPONIBLE - Alerte administration
 [ADMIN ALERT] Commande [ID] en attente - Tous les livreurs sont surchargés
-[ADMIN ALERT] ✅ Alerte envoyée à l'administration via webhook n8n
+[ADMIN ALERT] Client: [Nom] - Restaurant: [Nom]
+[ADMIN ALERT] Prix: [Montant] TND - Adresse: [Adresse]
 ```
 
 ### Dashboard Admin
