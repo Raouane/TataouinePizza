@@ -104,12 +104,17 @@ export function registerAdminCrudRoutes(app: Express): void {
   // Créer une commande manuellement (pour commandes par téléphone)
   app.post("/api/admin/orders", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     console.log("[ADMIN ORDER] 📞 Création commande manuelle par admin");
+    console.log("[ADMIN ORDER] 📦 Données reçues:", JSON.stringify(req.body, null, 2));
     try {
       const validation = validate(insertOrderSchema, req.body);
       if (!validation.success) {
+        console.error("[ADMIN ORDER] ❌ Erreur validation:", validation.error.errors);
         return res.status(400).json({ 
           error: "Invalid order data",
-          details: process.env.NODE_ENV === "development" ? validation.error.errors : undefined
+          details: validation.error.errors.map(e => ({
+            path: e.path.join('.'),
+            message: e.message
+          }))
         });
       }
       const data = validation.data;

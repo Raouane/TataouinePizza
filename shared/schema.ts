@@ -187,7 +187,16 @@ export const insertOrderSchema = z.object({
   paymentMethod: z.enum(["cash", "card", "online"]).optional(),
   notes: z.string().optional(),
 }).refine(
-  (data) => data.items.length > 0 || (data.items.length === 0 && data.notes && data.notes.trim().length > 0),
+  (data) => {
+    // Soit au moins 1 item, soit des notes non vides pour commande spéciale
+    if (data.items.length > 0) {
+      return true;
+    }
+    if (data.items.length === 0 && data.notes && data.notes.trim().length > 0) {
+      return true;
+    }
+    return false;
+  },
   {
     message: "Soit au moins 1 item requis, soit des notes obligatoires pour commande spéciale",
     path: ["items"],

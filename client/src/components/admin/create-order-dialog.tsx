@@ -117,19 +117,20 @@ export function CreateOrderDialog({
         notes = `COMMANDE SPÉCIALE: ${notes}`;
       }
 
-      await createAdminOrder(
-        {
-          restaurantId: form.restaurantId,
-          customerName: form.customerName,
-          phone: form.phone,
-          address: form.address,
-          addressDetails: form.addressDetails || undefined,
-          items: orderItems,
-          paymentMethod: form.paymentMethod,
-          notes: notes,
-        },
-        token
-      );
+      const orderData = {
+        restaurantId: form.restaurantId,
+        customerName: form.customerName,
+        phone: form.phone,
+        address: form.address,
+        addressDetails: form.addressDetails || undefined,
+        items: orderItems,
+        paymentMethod: form.paymentMethod || "cash",
+        notes: notes,
+      };
+
+      console.log('[CreateOrder] 📤 Données envoyées:', JSON.stringify(orderData, null, 2));
+
+      await createAdminOrder(orderData, token);
 
       toast.success("Commande créée avec succès !");
       setForm(defaultForm);
