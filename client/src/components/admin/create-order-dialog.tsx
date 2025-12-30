@@ -76,6 +76,12 @@ export function CreateOrderDialog({
   useEffect(() => {
     if (form.restaurantId) {
       const filtered = pizzas.filter(p => p.restaurantId === form.restaurantId);
+      console.log('[CreateOrder] Pizzas filtrées pour restaurant:', {
+        restaurantId: form.restaurantId,
+        totalPizzas: pizzas.length,
+        filteredCount: filtered.length,
+        pizzas: filtered.map(p => p.name)
+      });
       setSelectedRestaurantPizzas(filtered);
     } else {
       setSelectedRestaurantPizzas([]);
