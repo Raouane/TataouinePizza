@@ -1,6 +1,18 @@
 // Service Worker pour répéter les notifications même en arrière-plan
 // Fonctionne même quand l'écran est éteint ou l'app en arrière-plan
 
+// Cache basique pour assets statiques (PRIORITÉ 3 - Cache Minimum)
+const CACHE_NAME = 'tataouine-pizza-v1';
+const STATIC_ASSETS = [
+  '/',
+  '/driver',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/favicon-32x32.png',
+  '/favicon-16x16.png',
+];
+
 // Stocker les intervalles de notification
 let notificationIntervals = {};
 // Stocker le nombre d'erreurs consécutives pour chaque commande
@@ -289,6 +301,17 @@ self.addEventListener('activate', (event) => {
 // Installer le Service Worker
 self.addEventListener('install', (event) => {
   console.log('[SW] Service Worker installé');
+  
+  // Cache initial des assets statiques
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log('[SW] 📦 Cache initial des assets statiques');
+      return cache.addAll(STATIC_ASSETS).catch((err) => {
+        console.warn('[SW] ⚠️ Erreur cache initial (non bloquant):', err);
+      });
+    })
+  );
+  
   // Forcer l'activation immédiate
   self.skipWaiting();
 });
