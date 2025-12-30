@@ -101,12 +101,13 @@ class TelegramService {
   }
 
   /**
-   * Envoie un fichier audio directement depuis le système de fichiers (plus fiable que URL)
+   * Envoie un message vocal directement depuis le système de fichiers (notification automatique plus forte)
+   * IMPORTANT: Utiliser sendVoice au lieu de sendAudio car les messages vocaux ont une notification automatique
    * @param chatId ID du chat Telegram
    * @param filePath Chemin vers le fichier audio sur le serveur
    * @param caption Texte optionnel avec l'audio
    */
-  async sendAudioFile(
+  async sendVoiceFile(
     chatId: string,
     filePath: string,
     caption?: string
@@ -122,7 +123,8 @@ class TelegramService {
         return { success: false, error: 'Fichier audio non trouvé' };
       }
 
-      const url = `https://api.telegram.org/bot${this.botToken}/sendAudio`;
+      // Utiliser sendVoice au lieu de sendAudio pour une notification automatique plus forte
+      const url = `https://api.telegram.org/bot${this.botToken}/sendVoice`;
       
       // Lire le fichier
       const fileBuffer = fs.readFileSync(filePath);
@@ -132,18 +134,19 @@ class TelegramService {
       const formData = new FormData();
       
       // Créer un Blob à partir du buffer
-      // Note: Dans Node.js, on peut utiliser Blob directement avec le buffer
-      const audioBlob = new Blob([fileBuffer], { type: 'audio/mpeg' });
+      // Note: Telegram accepte MP3 pour sendVoice, mais OGG/OPUS est recommandé
+      const audioBlob = new Blob([fileBuffer], { type: 'audio/ogg' });
       
       formData.append('chat_id', chatId);
-      formData.append('audio', audioBlob, fileName);
+      formData.append('voice', audioBlob, fileName);
       formData.append('disable_notification', 'false'); // FORCER la sonnerie
       
       if (caption) {
         formData.append('caption', caption);
       }
 
-      console.log(`[Telegram] 🎵 Envoi fichier audio DIRECT à ${chatId} (${fileName}, ${fileBuffer.length} bytes)`);
+      console.log(`[Telegram] 🎤 Envoi message VOCAL DIRECT à ${chatId} (${fileName}, ${fileBuffer.length} bytes)`);
+      console.log(`[Telegram] 💡 Les messages vocaux ont une notification automatique plus forte`);
 
       const response = await fetch(url, {
         method: 'POST',
@@ -154,7 +157,7 @@ class TelegramService {
       const data = await response.json();
 
       if (!data.ok) {
-        console.error('[Telegram] ❌ Erreur API sendAudio (fichier direct):', JSON.stringify(data, null, 2));
+        console.error('[Telegram] ❌ Erreur API sendVoice (fichier direct):', JSON.stringify(data, null, 2));
         console.error('[Telegram] ❌ Code erreur:', data.error_code);
         console.error('[Telegram] ❌ Description:', data.description);
         
@@ -165,15 +168,15 @@ class TelegramService {
         };
       }
 
-      console.log(`[Telegram] ✅ Audio envoyé directement (ID: ${data.result?.message_id})`);
-      console.log(`[Telegram] ✅ Fichier audio: ${data.result?.audio?.file_name || fileName}`);
+      console.log(`[Telegram] ✅ Message vocal envoyé (ID: ${data.result?.message_id})`);
+      console.log(`[Telegram] ✅ Notification automatique déclenchée`);
       
       return { 
         success: true, 
         messageId: data.result?.message_id 
       };
     } catch (error: any) {
-      console.error('[Telegram] ❌ Erreur envoi audio (fichier direct):', error);
+      console.error('[Telegram] ❌ Erreur envoi message vocal (fichier direct):', error);
       console.error('[Telegram] ❌ Stack:', error.stack);
       
       // Si l'envoi direct échoue (problème de compatibilité), retourner une erreur
@@ -184,6 +187,21 @@ class TelegramService {
         messageId: undefined 
       };
     }
+  }
+
+  /**
+   * Envoie un fichier audio directement depuis le système de fichiers (plus fiable que URL)
+   * @param chatId ID du chat Telegram
+   * @param filePath Chemin vers le fichier audio sur le serveur
+   * @param caption Texte optionnel avec l'audio
+   */
+  async sendAudioFile(
+    chatId: string,
+    filePath: string,
+    caption?: string
+  ): Promise<{ success: boolean; error?: any; messageId?: number }> {
+    // Utiliser sendVoiceFile en priorité car les messages vocaux ont une notification automatique
+    return await this.sendVoiceFile(chatId, filePath, caption);
   }
 
   /**
@@ -378,16 +396,16 @@ class TelegramService {
         let result;
         
         if (useDirectFile) {
-          // Envoyer le fichier directement (plus fiable)
-          result = await this.sendAudioFile(
+          // Envoyer le fichier directement (plus fiable) - utilise sendVoice pour notification automatique
+          result = await this.sendVoiceFile(
             chatId,
             actualFilePath,
             `🔔 Alerte ${i + 1}/${NUM_AUDIO}`
           );
         } else {
-          // Fallback: utiliser l'URL
-          console.log(`[Telegram] 🎵 Tentative avec URL: ${audioUrl}`);
-          result = await this.sendAudio(
+          // Fallback: utiliser l'URL avec sendVoice (notification automatique)
+          console.log(`[Telegram] 🎤 Tentative avec URL (sendVoice): ${audioUrl}`);
+          result = await this.sendVoice(
             chatId,
             audioUrl,
             `🔔 Alerte ${i + 1}/${NUM_AUDIO}`
@@ -397,16 +415,16 @@ class TelegramService {
         alerts.push(result);
         
         if (!result.success) {
-          console.error(`[Telegram] ❌ Échec envoi audio ${i + 1}/${NUM_AUDIO}:`, result.error);
+          console.error(`[Telegram] ❌ Échec envoi message vocal ${i + 1}/${NUM_AUDIO}:`, result.error);
           // Si l'envoi direct échoue, essayer avec l'URL en fallback
           if (useDirectFile && i === 0) {
             console.log(`[Telegram] 💡 Tentative avec URL en fallback...`);
             useDirectFile = false;
-            result = await this.sendAudio(chatId, audioUrl, `🔔 Alerte ${i + 1}/${NUM_AUDIO}`);
+            result = await this.sendVoice(chatId, audioUrl, `🔔 Alerte ${i + 1}/${NUM_AUDIO}`);
             alerts[i] = result;
           }
         } else {
-          console.log(`[Telegram] ✅ Audio ${i + 1}/${NUM_AUDIO} envoyé avec succès`);
+          console.log(`[Telegram] ✅ Message vocal ${i + 1}/${NUM_AUDIO} envoyé avec succès (notification automatique)`);
         }
         
         // Attendre entre chaque audio pour créer une sonnerie répétée
