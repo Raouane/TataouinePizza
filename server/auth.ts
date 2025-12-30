@@ -29,9 +29,9 @@ export function generateDriverToken(driverId: string, phone: string): string {
   return jwt.sign({ id: driverId, type: 'driver', phone }, JWT_SECRET, { expiresIn: "24h" });
 }
 
-export function verifyToken(token: string): { id: string; email: string } | null {
+export function verifyToken(token: string): { id: string; email?: string; phone?: string; type?: string } | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email?: string; phone?: string; type?: string };
     return decoded;
   } catch {
     return null;
@@ -98,7 +98,16 @@ export function authenticateAdmin(req: AuthRequest, res: Response, next: NextFun
     return;
   }
 
-  console.log(`[AUTH] ✅ Token valide pour admin: ${decoded.email} (ID: ${decoded.id})`);
-  req.admin = decoded;
+  // Gérer les deux types de tokens : admin (avec email) et driver (avec phone)
+  if (decoded.email) {
+    console.log(`[AUTH] ✅ Token valide pour admin: ${decoded.email} (ID: ${decoded.id})`);
+  } else if (decoded.phone) {
+    console.log(`[AUTH] ✅ Token valide pour livreur: ${decoded.phone} (ID: ${decoded.id})`);
+  } else {
+    console.log(`[AUTH] ✅ Token valide (ID: ${decoded.id})`);
+  }
+  
+  // Pour compatibilité, on met toujours dans req.admin même pour les livreurs
+  req.admin = decoded as { id: string; email: string };
   next();
 }
