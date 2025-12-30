@@ -441,6 +441,13 @@ class TelegramService {
 
     const DRIVER_COMMISSION_RATE = 0.15; // 15% commission
     const gain = (Number(totalPrice) * DRIVER_COMMISSION_RATE).toFixed(2);
+    const appUrl = process.env.APP_URL || "https://tataouine-pizza.onrender.com";
+    
+    // Lien d'acceptation uniquement
+    let acceptUrl = `${appUrl}/accept/${orderId}`;
+    if (driverId) {
+      acceptUrl = `${appUrl}/accept/${orderId}?driverId=${driverId}`;
+    }
     
     // Récupérer l'adresse du restaurant depuis la commande
     let restaurantAddress = "";
@@ -464,14 +471,17 @@ class TelegramService {
     // Attendre 2 secondes après les audios pour que la sonnerie soit bien entendue
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // ÉTAPE 2: Message simplifié et réorganisé
+    // ÉTAPE 2: Message simplifié et réorganisé avec UN SEUL lien d'acceptation
     const message = `<b>👤 ${customerName}</b> - <b>💰 +${gain} TND</b>
 
 🏪 <b>${restaurantName}</b>
 ${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
 
 👤 <b>${customerName}</b>
-📍 ${address}`;
+📍 ${address}
+
+✅ <b>ACCEPTER:</b>
+${acceptUrl}`;
 
     console.log(`[Telegram] 📤 Envoi message simplifié à livreur ${driverTelegramId} (avec sonnerie)`);
     
