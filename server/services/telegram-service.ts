@@ -286,7 +286,7 @@ ${refuseUrl}
 
       console.log(`[Telegram] 🔍 ${driversWithTelegram.length} livreur(s) avec Telegram trouvé(s) (available ou on_delivery)`);
 
-      const MAX_ACTIVE_ORDERS_PER_DRIVER = 2;
+      const MAX_ACTIVE_ORDERS_PER_DRIVER = 1;
       const driversWithOrderCheck = await Promise.all(
         driversWithTelegram.map(async (driver) => {
           const driverOrders = await storage.getOrdersByDriver(driver.id);

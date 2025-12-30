@@ -168,6 +168,33 @@ async function updateDriverLastSeen(driverId: string) {
 }
 
 /**
+ * Alerte l'administration quand aucun livreur n'est disponible pour une commande
+ */
+async function alertAdministrationNoDriversAvailable(orderData: OrderNotification): Promise<void> {
+  try {
+    console.log('[ADMIN ALERT] 🚨 AUCUN LIVREUR DISPONIBLE - Alerte administration');
+    console.log(`[ADMIN ALERT] Commande ${orderData.orderId} en attente - Tous les livreurs sont surchargés`);
+    
+    // Envoyer un webhook n8n pour alerter l'administration
+    const { sendN8nWebhook } = await import('./webhooks/n8n-webhook.js');
+    await sendN8nWebhook('no-drivers-available', {
+      orderId: orderData.orderId,
+      restaurantName: orderData.restaurantName,
+      customerName: orderData.customerName,
+      address: orderData.address,
+      totalPrice: orderData.totalPrice,
+      timestamp: new Date().toISOString(),
+      message: 'Aucun livreur disponible - Tous les livreurs sont surchargés (1 commande en cours)'
+    });
+    
+    console.log('[ADMIN ALERT] ✅ Alerte envoyée à l\'administration via webhook n8n');
+  } catch (error: any) {
+    console.error('[ADMIN ALERT] ❌ Erreur envoi alerte administration:', error);
+    // Ne pas bloquer le flux si l'alerte échoue
+  }
+}
+
+/**
  * Notifie tous les livreurs connectés d'une nouvelle commande
  */
 export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
@@ -222,31 +249,42 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
     // Ne pas bloquer si push échoue
   }
 
-  // SMS DÉSACTIVÉS - On utilise uniquement WhatsApp pour économiser la limite Twilio
-  // Les SMS consomment aussi la limite de 50 messages/jour, donc on les désactive
-  console.log('[WebSocket] 📱 SMS désactivés - Utilisation uniquement WhatsApp');
+  // WHATSAPP DÉSACTIVÉ - On utilise uniquement Telegram et Push Notifications
+  console.log('[WebSocket] 📱 WhatsApp désactivé - Utilisation uniquement Telegram et Push Notifications');
 
-  // Envoyer des notifications WhatsApp à tous les livreurs disponibles
-  // WhatsApp sonne toujours, même téléphone éteint (solution fiable)
+  // Envoyer des notifications Telegram à tous les livreurs disponibles
   try {
-    console.log("[WebSocket] 📞 Appel sendWhatsAppToDrivers pour commande:", orderData.orderId);
-    const { sendWhatsAppToDrivers } = await import('./services/sms-service.js');
-    const whatsappCount = await sendWhatsAppToDrivers(
+    console.log("[WebSocket] 📞 Envoi notification Telegram pour commande:", orderData.orderId);
+    const { telegramService } = await import('./services/telegram-service.js');
+    const telegramCount = await telegramService.sendToAllAvailableDrivers(
       orderData.orderId,
       orderData.restaurantName,
       orderData.customerName,
       orderData.totalPrice,
       orderData.address
     );
-    console.log(`[WebSocket] 📱 ${whatsappCount} message(s) WhatsApp envoyé(s) (sonnerie garantie)`);
-  } catch (whatsappError: any) {
-    console.error('[WebSocket] ❌ Erreur envoi WhatsApp:', whatsappError);
-    console.error('[WebSocket] ❌ Stack:', whatsappError.stack);
-    // Ne pas bloquer si WhatsApp échoue
+    console.log(`[WebSocket] 📱 ${telegramCount} notification(s) Telegram envoyée(s)`);
+    
+    // Démarrer le timer Round Robin si un livreur a été notifié
+    if (telegramCount > 0) {
+      const { startRoundRobinTimer } = await import('./websocket.js');
+      startRoundRobinTimer(
+        orderData.orderId,
+        orderData.restaurantName,
+        orderData.customerName,
+        orderData.totalPrice,
+        orderData.address
+      );
+    } else {
+      // Aucun livreur disponible - alerter l'administration
+      await alertAdministrationNoDriversAvailable(orderData);
+    }
+  } catch (telegramError: any) {
+    console.error('[WebSocket] ❌ Erreur envoi Telegram:', telegramError);
+    console.error('[WebSocket] ❌ Stack:', telegramError.stack);
+    // Alerter l'administration même en cas d'erreur
+    await alertAdministrationNoDriversAvailable(orderData);
   }
-
-  // PROMPT 3: Le timer Round Robin sera démarré par sendWhatsAppToDrivers
-  // (déjà géré dans sms-service.ts après l'envoi du premier message)
 
   // Réinitialiser le timer d'inactivité car il y a une nouvelle commande
   if (wssInstance) {
