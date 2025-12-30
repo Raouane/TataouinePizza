@@ -1,4 +1,6 @@
 import { storage } from '../storage.js';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Service Telegram pour envoyer des notifications aux livreurs
@@ -90,6 +92,92 @@ class TelegramService {
       };
     } catch (error: any) {
       console.error('[Telegram] ❌ Erreur réseau:', error);
+      return { 
+        success: false, 
+        error: error.message || 'Erreur réseau',
+        messageId: undefined 
+      };
+    }
+  }
+
+  /**
+   * Envoie un fichier audio directement depuis le système de fichiers (plus fiable que URL)
+   * @param chatId ID du chat Telegram
+   * @param filePath Chemin vers le fichier audio sur le serveur
+   * @param caption Texte optionnel avec l'audio
+   */
+  async sendAudioFile(
+    chatId: string,
+    filePath: string,
+    caption?: string
+  ): Promise<{ success: boolean; error?: any; messageId?: number }> {
+    if (!this.isConfigured) {
+      return { success: false, error: 'Telegram bot non configuré' };
+    }
+
+    try {
+      // Vérifier que le fichier existe
+      if (!fs.existsSync(filePath)) {
+        console.error(`[Telegram] ❌ Fichier audio non trouvé: ${filePath}`);
+        return { success: false, error: 'Fichier audio non trouvé' };
+      }
+
+      const url = `https://api.telegram.org/bot${this.botToken}/sendAudio`;
+      
+      // Lire le fichier
+      const fileBuffer = fs.readFileSync(filePath);
+      const fileName = path.basename(filePath);
+      
+      // Créer FormData pour envoyer le fichier (Node.js 18+ supporte FormData globalement)
+      const formData = new FormData();
+      
+      // Créer un Blob à partir du buffer
+      // Note: Dans Node.js, on peut utiliser Blob directement avec le buffer
+      const audioBlob = new Blob([fileBuffer], { type: 'audio/mpeg' });
+      
+      formData.append('chat_id', chatId);
+      formData.append('audio', audioBlob, fileName);
+      formData.append('disable_notification', 'false'); // FORCER la sonnerie
+      
+      if (caption) {
+        formData.append('caption', caption);
+      }
+
+      console.log(`[Telegram] 🎵 Envoi fichier audio DIRECT à ${chatId} (${fileName}, ${fileBuffer.length} bytes)`);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        // Ne pas définir Content-Type, fetch le fera automatiquement avec la boundary
+      });
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        console.error('[Telegram] ❌ Erreur API sendAudio (fichier direct):', JSON.stringify(data, null, 2));
+        console.error('[Telegram] ❌ Code erreur:', data.error_code);
+        console.error('[Telegram] ❌ Description:', data.description);
+        
+        return { 
+          success: false, 
+          error: data.description || 'Erreur Telegram API',
+          messageId: undefined 
+        };
+      }
+
+      console.log(`[Telegram] ✅ Audio envoyé directement (ID: ${data.result?.message_id})`);
+      console.log(`[Telegram] ✅ Fichier audio: ${data.result?.audio?.file_name || fileName}`);
+      
+      return { 
+        success: true, 
+        messageId: data.result?.message_id 
+      };
+    } catch (error: any) {
+      console.error('[Telegram] ❌ Erreur envoi audio (fichier direct):', error);
+      console.error('[Telegram] ❌ Stack:', error.stack);
+      
+      // Si l'envoi direct échoue (problème de compatibilité), retourner une erreur
+      // Le code appelant utilisera l'URL en fallback
       return { 
         success: false, 
         error: error.message || 'Erreur réseau',
@@ -253,36 +341,32 @@ class TelegramService {
     }
 
     try {
-      // URL du fichier audio d'alerte (doit être accessible publiquement)
-      const appUrl = process.env.APP_URL || 'https://tataouine-pizza.onrender.com';
-      
-      // Utiliser le fichier audio hébergé sur votre serveur
-      // Note: Le fichier s'appelle alert.mp3.mp3 (double extension)
-      // IMPORTANT: Dans notre config, les fichiers de client/public sont servis à la racine (/),
-      // donc l'URL correcte est /audio/alert.mp3.mp3 (SANS /public devant)
-      let audioUrl = `${appUrl}/audio/alert.mp3.mp3`;
-      
-      // Si le fichier n'existe pas, essayer alert.mp3
-      // audioUrl = `${appUrl}/public/audio/alert.mp3`;
-      
       console.log(`[Telegram] 🔊 Début envoi alerte sonore PUISSANTE avec audio à ${chatId}`);
-      console.log(`[Telegram] 🎵 URL audio: ${audioUrl}`);
       
-      // Vérifier que l'URL est accessible avant d'envoyer
-      try {
-        console.log(`[Telegram] 🔍 Vérification accessibilité de l'URL audio...`);
-        const testResponse = await fetch(audioUrl, { method: 'HEAD' });
-        if (!testResponse.ok) {
-          console.error(`[Telegram] ❌ URL audio non accessible: ${testResponse.status} ${testResponse.statusText}`);
-          console.error(`[Telegram] 💡 Vérifiez que le fichier est bien servi par le serveur et accessible publiquement`);
-        } else {
-          const contentType = testResponse.headers.get('content-type');
-          console.log(`[Telegram] ✅ URL audio accessible (Content-Type: ${contentType || 'N/A'})`);
-        }
-      } catch (urlError: any) {
-        console.error(`[Telegram] ⚠️ Erreur lors de la vérification de l'URL audio:`, urlError.message);
-        console.error(`[Telegram] 💡 L'URL peut ne pas être accessible publiquement. Vérifiez votre configuration.`);
+      // PRIORITÉ 1: Essayer d'envoyer le fichier directement depuis le système de fichiers
+      // C'est plus fiable que d'utiliser une URL
+      const projectRoot = process.cwd();
+      const audioFilePath = path.resolve(projectRoot, 'client', 'public', 'audio', 'alert.mp3.mp3');
+      const audioFilePathAlt = path.resolve(projectRoot, 'client', 'public', 'audio', 'alert.mp3');
+      
+      let useDirectFile = false;
+      let actualFilePath = audioFilePath;
+      
+      if (fs.existsSync(audioFilePath)) {
+        useDirectFile = true;
+        actualFilePath = audioFilePath;
+        console.log(`[Telegram] 📁 Fichier audio trouvé localement: ${actualFilePath}`);
+      } else if (fs.existsSync(audioFilePathAlt)) {
+        useDirectFile = true;
+        actualFilePath = audioFilePathAlt;
+        console.log(`[Telegram] 📁 Fichier audio trouvé localement (alt): ${actualFilePath}`);
+      } else {
+        console.log(`[Telegram] ⚠️ Fichier audio non trouvé localement, utilisation de l'URL`);
       }
+      
+      // PRIORITÉ 2: Si le fichier n'existe pas localement, utiliser l'URL
+      const appUrl = process.env.APP_URL || 'https://tataouine-pizza.onrender.com';
+      const audioUrl = `${appUrl}/audio/alert.mp3.mp3`;
       
       const alerts = [];
       
@@ -291,16 +375,36 @@ class TelegramService {
       const AUDIO_INTERVAL = 400; // Intervalle entre chaque audio (ms)
       
       for (let i = 0; i < NUM_AUDIO; i++) {
-        const result = await this.sendAudio(
-          chatId,
-          audioUrl,
-          `🔔 Alerte ${i + 1}/${NUM_AUDIO}` // Caption court pour chaque audio
-        );
+        let result;
+        
+        if (useDirectFile) {
+          // Envoyer le fichier directement (plus fiable)
+          result = await this.sendAudioFile(
+            chatId,
+            actualFilePath,
+            `🔔 Alerte ${i + 1}/${NUM_AUDIO}`
+          );
+        } else {
+          // Fallback: utiliser l'URL
+          console.log(`[Telegram] 🎵 Tentative avec URL: ${audioUrl}`);
+          result = await this.sendAudio(
+            chatId,
+            audioUrl,
+            `🔔 Alerte ${i + 1}/${NUM_AUDIO}`
+          );
+        }
         
         alerts.push(result);
         
         if (!result.success) {
           console.error(`[Telegram] ❌ Échec envoi audio ${i + 1}/${NUM_AUDIO}:`, result.error);
+          // Si l'envoi direct échoue, essayer avec l'URL en fallback
+          if (useDirectFile && i === 0) {
+            console.log(`[Telegram] 💡 Tentative avec URL en fallback...`);
+            useDirectFile = false;
+            result = await this.sendAudio(chatId, audioUrl, `🔔 Alerte ${i + 1}/${NUM_AUDIO}`);
+            alerts[i] = result;
+          }
         } else {
           console.log(`[Telegram] ✅ Audio ${i + 1}/${NUM_AUDIO} envoyé avec succès`);
         }
