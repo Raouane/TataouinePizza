@@ -3,6 +3,12 @@
 
 // Stocker les intervalles de notification
 let notificationIntervals = {};
+// Stocker le nombre d'erreurs consécutives pour chaque commande
+let notificationErrors = {};
+// Stocker les timeouts pour arrêter automatiquement après un certain temps
+let notificationTimeouts = {};
+// Durée maximale de répétition (5 minutes)
+const MAX_REPEAT_DURATION = 5 * 60 * 1000; // 5 minutes en millisecondes
 
 // Écouter les événements push du serveur (pour les notifications en arrière-plan)
 // Ces notifications fonctionnent même quand l'app est complètement fermée ou le téléphone éteint
@@ -67,6 +73,20 @@ self.addEventListener('push', (event) => {
   );
 });
 
+// Fonction pour afficher une notification avec gestion d'erreur
+async function showNotificationSafely(title, options) {
+  try {
+    await self.registration.showNotification(title, options);
+    return true;
+  } catch (error) {
+    // Si l'erreur est liée aux permissions, on retourne false
+    if (error.message && error.message.includes('permission')) {
+      return false;
+    }
+    throw error; // Re-lancer les autres erreurs
+  }
+}
+
 // Fonction pour démarrer la répétition de notifications
 function startNotificationRepeat(orderId, interval, title, body) {
   console.log(`[SW] Démarrage répétition notification pour commande ${orderId}, intervalle: ${interval}ms`);
@@ -74,15 +94,20 @@ function startNotificationRepeat(orderId, interval, title, body) {
   // Arrêter l'intervalle existant si présent
   if (notificationIntervals[orderId]) {
     clearInterval(notificationIntervals[orderId]);
+    delete notificationIntervals[orderId];
     console.log(`[SW] Intervalle existant arrêté pour ${orderId}`);
   }
+  
+  // Réinitialiser le compteur d'erreurs
+  notificationErrors[orderId] = 0;
   
   // Répéter la notification toutes les X secondes
   // IMPORTANT: Le son système fonctionne même quand le téléphone est éteint
   // Le son par défaut du système est utilisé automatiquement si silent: false
-  const notificationInterval = setInterval(() => {
+  const notificationInterval = setInterval(async () => {
     console.log(`[SW] Répétition notification pour commande ${orderId}`);
-    self.registration.showNotification(title, {
+    
+    const notificationOptions = {
       body,
       icon: '/favicon-32x32.png',
       badge: '/favicon-32x32.png',
@@ -90,14 +115,59 @@ function startNotificationRepeat(orderId, interval, title, body) {
       requireInteraction: true,
       silent: false, // Activer le son système (fonctionne même téléphone éteint)
       vibrate: [200, 100, 200, 100, 200],
-    }).catch((error) => {
+    };
+    
+    try {
+      const success = await showNotificationSafely(title, notificationOptions);
+      if (success) {
+        // Réinitialiser le compteur d'erreurs en cas de succès
+        notificationErrors[orderId] = 0;
+      } else {
+        // Permission refusée, arrêter la répétition
+        console.warn(`[SW] ⚠️ Permissions non accordées pour ${orderId}, arrêt de la répétition`);
+        clearInterval(notificationInterval);
+        delete notificationIntervals[orderId];
+        delete notificationErrors[orderId];
+        if (notificationTimeouts[orderId]) {
+          clearTimeout(notificationTimeouts[orderId]);
+          delete notificationTimeouts[orderId];
+        }
+      }
+    } catch (error) {
       console.error('[SW] Erreur affichage notification répétée:', error);
-    });
+      // Incrémenter le compteur d'erreurs
+      notificationErrors[orderId] = (notificationErrors[orderId] || 0) + 1;
+      
+      // Arrêter la répétition après 3 erreurs consécutives
+      if (notificationErrors[orderId] >= 3) {
+        console.warn(`[SW] ⚠️ Trop d'erreurs (${notificationErrors[orderId]}) pour ${orderId}, arrêt de la répétition`);
+        clearInterval(notificationInterval);
+        delete notificationIntervals[orderId];
+        delete notificationErrors[orderId];
+        if (notificationTimeouts[orderId]) {
+          clearTimeout(notificationTimeouts[orderId]);
+          delete notificationTimeouts[orderId];
+        }
+      }
+    }
   }, interval);
   
   // Stocker l'intervalle pour pouvoir l'arrêter plus tard
   notificationIntervals[orderId] = notificationInterval;
-  console.log(`[SW] ✅ Répétition notification démarrée pour ${orderId}`);
+  
+  // Arrêter automatiquement après MAX_REPEAT_DURATION
+  const timeout = setTimeout(() => {
+    console.log(`[SW] ⏰ Timeout atteint pour ${orderId}, arrêt automatique de la répétition`);
+    if (notificationIntervals[orderId]) {
+      clearInterval(notificationIntervals[orderId]);
+      delete notificationIntervals[orderId];
+      delete notificationErrors[orderId];
+      delete notificationTimeouts[orderId];
+    }
+  }, MAX_REPEAT_DURATION);
+  
+  notificationTimeouts[orderId] = timeout;
+  console.log(`[SW] ✅ Répétition notification démarrée pour ${orderId} (arrêt automatique dans ${MAX_REPEAT_DURATION / 1000}s)`);
 }
 
 // Écouter les messages du client (pour quand l'app est ouverte)
@@ -135,6 +205,16 @@ self.addEventListener('message', (event) => {
     if (notificationIntervals[orderId]) {
       clearInterval(notificationIntervals[orderId]);
       delete notificationIntervals[orderId];
+      delete notificationErrors[orderId];
+    }
+    
+    // Arrêter aussi le timeout s'il existe
+    if (notificationTimeouts[orderId]) {
+      clearTimeout(notificationTimeouts[orderId]);
+      delete notificationTimeouts[orderId];
+    }
+    
+    if (notificationIntervals[orderId] || notificationTimeouts[orderId]) {
       console.log(`[SW] ✅ Répétition notification arrêtée pour ${orderId}`);
     } else {
       console.log(`[SW] ⚠️ Aucun intervalle trouvé pour ${orderId}`);
