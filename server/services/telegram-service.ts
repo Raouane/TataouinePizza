@@ -439,20 +439,22 @@ class TelegramService {
       return false;
     }
 
-    const DRIVER_COMMISSION = 2.5;
-    const appUrl = process.env.APP_URL || "https://tataouine-pizza.onrender.com";
+    const DRIVER_COMMISSION_RATE = 0.15; // 15% commission
+    const gain = (Number(totalPrice) * DRIVER_COMMISSION_RATE).toFixed(2);
     
-    // URL principale vers la PWA pour commencer la livraison
-    const pwaUrl = driverId 
-      ? `${appUrl}/driver/dashboard?order=${orderId}&driverId=${driverId}`
-      : `${appUrl}/driver/dashboard?order=${orderId}`;
-    
-    let acceptUrl = `${appUrl}/accept/${orderId}`;
-    let refuseUrl = `${appUrl}/refuse/${orderId}`;
-    
-    if (driverId) {
-      acceptUrl = `${appUrl}/accept/${orderId}?driverId=${driverId}`;
-      refuseUrl = `${appUrl}/refuse/${orderId}?driverId=${driverId}`;
+    // Récupérer l'adresse du restaurant depuis la commande
+    let restaurantAddress = "";
+    try {
+      const { storage } = await import("../storage.js");
+      const order = await storage.getOrderById(orderId);
+      if (order?.restaurantId) {
+        const restaurant = await storage.getRestaurantById(order.restaurantId);
+        if (restaurant?.address) {
+          restaurantAddress = restaurant.address;
+        }
+      }
+    } catch (error) {
+      console.error('[Telegram] ⚠️ Erreur récupération adresse restaurant:', error);
     }
 
     // ÉTAPE 1: Envoyer plusieurs fichiers audio (sonnerie PUISSANTE)
@@ -460,60 +462,22 @@ class TelegramService {
     await this.sendSoundAlert(driverTelegramId, orderId);
     
     // Attendre 2 secondes après les audios pour que la sonnerie soit bien entendue
-    // (5 audios × 400ms = ~2 secondes + marge)
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // ÉTAPE 2: Envoyer UN SEUL message texte avec tous les détails et le lien PWA
-    const message = `🍕 <b>NOUVELLE COMMANDE</b>
+    // ÉTAPE 2: Message simplifié et réorganisé
+    const message = `<b>👤 ${customerName}</b> - <b>💰 +${gain} TND</b>
 
-🏪 <b>Resto:</b> ${restaurantName}
-💰 <b>Gain:</b> +${DRIVER_COMMISSION.toFixed(2)} TND
-📋 <b>Commande #${orderId.slice(0, 8)}</b>
-👤 <b>Client:</b> ${customerName}
-📍 <b>Adresse:</b> ${address}
+🏪 <b>${restaurantName}</b>
+${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
 
-⚡ <b>RÉPONDEZ RAPIDEMENT:</b>
+👤 <b>${customerName}</b>
+📍 ${address}`;
 
-📱 <b>COMMENCER LA LIVRAISON:</b>
-${pwaUrl}
-
-✅ <b>ACCEPTER:</b>
-${acceptUrl}
-
-❌ <b>REFUSER:</b>
-${refuseUrl}
-
-<i>Ou tapez A pour accepter, R pour refuser</i>
-
-⏱️ <b>Délai: 2 minutes</b>`;
-
-    const replyMarkup = {
-      inline_keyboard: [
-        [
-          {
-            text: '📱 Commencer la livraison',
-            url: pwaUrl
-          }
-        ],
-        [
-          {
-            text: '✅ Accepter',
-            url: acceptUrl
-          },
-          {
-            text: '❌ Refuser',
-            url: refuseUrl
-          }
-        ]
-      ]
-    };
-
-    console.log(`[Telegram] 📤 Envoi UN SEUL message détaillé à livreur ${driverTelegramId} (avec sonnerie)`);
+    console.log(`[Telegram] 📤 Envoi message simplifié à livreur ${driverTelegramId} (avec sonnerie)`);
     
-    // UN SEUL MESSAGE TEXTE avec sonnerie activée
+    // UN SEUL MESSAGE TEXTE avec sonnerie activée, SANS boutons
     const result = await this.sendMessage(driverTelegramId, message, {
       parseMode: 'HTML',
-      replyMarkup,
       disableNotification: false // FORCER la sonnerie pour le message aussi
     });
 
