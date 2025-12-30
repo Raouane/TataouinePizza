@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Minus, X, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import type { Restaurant, Pizza, OrderItem } from "@/lib/api";
 import { createAdminOrder } from "@/lib/api";
 
@@ -47,7 +46,6 @@ interface OrderFormData {
   addressDetails: string;
   paymentMethod: string;
   notes: string;
-  specialOrderDescription: string; // Description pour commande spéciale (produits non listés)
   items: OrderItemForm[];
 }
 
@@ -59,7 +57,6 @@ const defaultForm: OrderFormData = {
   addressDetails: "",
   paymentMethod: "cash",
   notes: "",
-  specialOrderDescription: "",
   items: [],
 };
 
@@ -100,9 +97,9 @@ export function CreateOrderDialog({
       return;
     }
 
-    // Accepter soit des items, soit une description de commande spéciale
-    if (form.items.length === 0 && !form.specialOrderDescription.trim()) {
-      toast.error("Veuillez ajouter au moins un article OU décrire la commande spéciale");
+    // Si pas d'items, les notes deviennent obligatoires (commande spéciale)
+    if (form.items.length === 0 && !form.notes) {
+      toast.error("Pour une commande spéciale sans produits, veuillez ajouter une description dans les notes");
       return;
     }
 
@@ -114,15 +111,10 @@ export function CreateOrderDialog({
         quantity: item.quantity,
       }));
 
-      // Construire les notes : description spéciale + notes optionnelles
-      let finalNotes = "";
-      if (form.specialOrderDescription.trim()) {
-        finalNotes = `📋 COMMANDE SPÉCIALE (produits non listés):\n${form.specialOrderDescription.trim()}`;
-        if (form.notes.trim()) {
-          finalNotes += `\n\n📝 Notes supplémentaires:\n${form.notes.trim()}`;
-        }
-      } else if (form.notes.trim()) {
-        finalNotes = form.notes.trim();
+      // Pour les commandes spéciales, ajouter un préfixe aux notes
+      let notes = form.notes || undefined;
+      if (form.items.length === 0 && notes) {
+        notes = `COMMANDE SPÉCIALE: ${notes}`;
       }
 
       await createAdminOrder(
@@ -134,7 +126,7 @@ export function CreateOrderDialog({
           addressDetails: form.addressDetails || undefined,
           items: orderItems,
           paymentMethod: form.paymentMethod,
-          notes: finalNotes || undefined,
+          notes: notes,
         },
         token
       );
@@ -144,6 +136,7 @@ export function CreateOrderDialog({
       onOpenChange(false);
       onSuccess();
     } catch (err: any) {
+      console.error('[CreateOrder] Erreur création commande:', err);
       toast.error(err.message || "Erreur lors de la création de la commande");
     } finally {
       setIsSubmitting(false);

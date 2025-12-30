@@ -183,8 +183,16 @@ export const insertOrderSchema = z.object({
     pizzaId: z.string(),
     size: z.enum(["small", "medium", "large"]),
     quantity: z.number().min(1),
-  })).min(1, "Au moins 1 item requis"),
-});
+  })),
+  paymentMethod: z.enum(["cash", "card", "online"]).optional(),
+  notes: z.string().optional(),
+}).refine(
+  (data) => data.items.length > 0 || (data.items.length === 0 && data.notes && data.notes.trim().length > 0),
+  {
+    message: "Soit au moins 1 item requis, soit des notes obligatoires pour commande spéciale",
+    path: ["items"],
+  }
+);
 
 export const verifyOtpSchema = z.object({
   phone: z.string(),

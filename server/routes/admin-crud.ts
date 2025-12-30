@@ -118,20 +118,15 @@ export function registerAdminCrudRoutes(app: Express): void {
       const restaurant = await storage.getRestaurantById(data.restaurantId);
       if (!restaurant) return res.status(404).json({ error: "Restaurant not found" });
       
-      // Accepter soit des items, soit une commande spéciale (notes)
-      // Si pas d'items, on doit avoir des notes pour une commande spéciale
-      if (!data.items || data.items.length === 0) {
-        if (!data.notes || !data.notes.trim()) {
-          return res.status(400).json({ 
-            error: "Veuillez ajouter au moins un article OU décrire la commande spéciale dans les notes" 
-          });
-        }
-        // Commande spéciale sans items - prix minimum (livraison)
-        const deliveryFee = 2.0;
-        totalPrice = deliveryFee;
-        orderItemsDetails = [];
-      } else {
-        // Commande normale avec items
+      // Gérer les commandes spéciales (sans items) ou normales (avec items)
+      const isSpecialOrder = data.items.length === 0;
+      
+      let totalPrice = 0;
+      const orderItemsDetails: Array<{ name: string; size: string; quantity: number }> = [];
+      const orderItemsData: Array<{ pizzaId: string; size: string; quantity: number; pricePerUnit: string }> = [];
+      
+      if (!isSpecialOrder) {
+        // Calculate total price and validate pizzas belong to restaurant
         const pizzaIds = Array.from(new Set(data.items.map(item => item.pizzaId)));
         const pizzas = await storage.getPizzasByIds(pizzaIds);
         const pizzaMap = new Map(pizzas.map(p => [p.id, p]));
@@ -144,9 +139,6 @@ export function registerAdminCrudRoutes(app: Express): void {
           }
           priceMap.get(price.pizzaId)!.push(price);
         }
-        
-        let totalPrice = 0;
-        const orderItemsDetails: Array<{ name: string; size: string; quantity: number }> = [];
         
         for (const item of data.items) {
           const pizza = pizzaMap.get(item.pizzaId);
@@ -165,25 +157,20 @@ export function registerAdminCrudRoutes(app: Express): void {
             size: item.size,
             quantity: item.quantity,
           });
-        }
-        
-        const deliveryFee = 2.0;
-        totalPrice += deliveryFee;
-        
-        orderItemsData = data.items.map(item => {
-          const pizzaPrices = priceMap.get(item.pizzaId) || [];
-          const sizePrice = pizzaPrices.find((p: any) => p.size === item.size);
-          if (!sizePrice) {
-            throw new Error(`Price not found for pizza ${item.pizzaId} size ${item.size}`);
-          }
-          return {
+          
+          orderItemsData.push({
             pizzaId: item.pizzaId,
             size: item.size,
             quantity: item.quantity,
             pricePerUnit: sizePrice.price,
-          };
-        });
+          });
+        }
       }
+      
+      // Pour les commandes spéciales, appliquer uniquement les frais de livraison
+      // Pour les commandes normales, ajouter les frais de livraison
+      const deliveryFee = 2.0;
+      totalPrice += deliveryFee;
       
       // Status initial pour commande manuelle : "accepted" (prête pour le restaurant)
       const initialStatus = "accepted";
