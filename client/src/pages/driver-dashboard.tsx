@@ -794,32 +794,39 @@ export default function DriverDashboard() {
         throw new Error(err.error || "Erreur");
       }
       
-      // Rafraîchir les commandes pour vérifier s'il y en a d'autres
+      // Rafraîchir les commandes et récupérer les nouvelles données
       await fetchOrders();
       
-      // Attendre un peu pour que fetchOrders se termine
-      setTimeout(() => {
-        const updatedMyOrders = myOrders.filter(o => 
-          o.status === "delivery" || o.status === "accepted" || o.status === "ready"
+      // Récupérer directement les nouvelles commandes depuis l'API pour vérifier s'il y en a d'autres
+      const myRes = await fetch("/api/driver/orders", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      let activeOrdersCount = 0;
+      if (myRes.ok) {
+        const updatedOrders = await myRes.json();
+        activeOrdersCount = updatedOrders.filter((o: Order) => 
+          o.id !== orderId && // Exclure la commande qui vient d'être livrée
+          (o.status === "delivery" || o.status === "accepted" || o.status === "ready")
+        ).length;
+      }
+      
+      // Toast de félicitation amélioré avec la somme gagnée
+      if (activeOrdersCount === 0) {
+        toast.success(
+          `🎉 Félicitations ! Livraison terminée avec succès !\n💰 Vous avez gagné ${gain} TND pour cette livraison !\n\nMerci pour votre excellent travail !`,
+          {
+            duration: 6000, // Afficher plus longtemps
+          }
         );
-        
-        // Toast de félicitation amélioré avec la somme gagnée
-        if (updatedMyOrders.length === 0) {
-          toast.success(
-            `🎉 Félicitations ! Livraison terminée avec succès !\n💰 Vous avez gagné ${gain} TND pour cette livraison !\n\nMerci pour votre excellent travail !`,
-            {
-              duration: 6000, // Afficher plus longtemps
-            }
-          );
-        } else {
-          toast.success(
-            `🎉 Livraison terminée !\n💰 Vous avez gagné ${gain} TND pour cette livraison !\n\n📦 ${updatedMyOrders.length} autre(s) commande(s) en cours.`,
-            {
-              duration: 5000,
-            }
-          );
-        }
-      }, 500);
+      } else {
+        toast.success(
+          `🎉 Livraison terminée !\n💰 Vous avez gagné ${gain} TND pour cette livraison !\n\n📦 ${activeOrdersCount} autre(s) commande(s) en cours.`,
+          {
+            duration: 5000,
+          }
+        );
+      }
       
     } catch (err: any) {
       setError(err.message);
