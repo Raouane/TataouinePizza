@@ -279,23 +279,28 @@ ${refuseUrl}
 
     try {
       const allDrivers = await storage.getAllDrivers();
-      const availableDrivers = allDrivers.filter(d => 
-        d.status === 'available' && d.telegramId
+      // Inclure les livreurs "available" ET "on_delivery" qui ont Telegram
+      const driversWithTelegram = allDrivers.filter(d => 
+        (d.status === 'available' || d.status === 'on_delivery') && d.telegramId
       );
 
-      console.log(`[Telegram] 🔍 ${availableDrivers.length} livreur(s) avec Telegram trouvé(s)`);
+      console.log(`[Telegram] 🔍 ${driversWithTelegram.length} livreur(s) avec Telegram trouvé(s) (available ou on_delivery)`);
 
       const MAX_ACTIVE_ORDERS_PER_DRIVER = 2;
       const driversWithOrderCheck = await Promise.all(
-        availableDrivers.map(async (driver) => {
+        driversWithTelegram.map(async (driver) => {
           const driverOrders = await storage.getOrdersByDriver(driver.id);
           const activeOrders = driverOrders.filter(o => 
             o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready'
           );
+          const canAcceptMore = activeOrders.length < MAX_ACTIVE_ORDERS_PER_DRIVER;
+          
+          console.log(`[Telegram] 📊 ${driver.name} (${driver.status}): ${activeOrders.length} commande(s) active(s) - ${canAcceptMore ? '✅ Peut accepter' : '❌ Limite atteinte'}`);
+          
           return {
             driver,
             activeOrdersCount: activeOrders.length,
-            canAcceptMore: activeOrders.length < MAX_ACTIVE_ORDERS_PER_DRIVER
+            canAcceptMore
           };
         })
       );
@@ -304,7 +309,7 @@ ${refuseUrl}
         .filter(({ canAcceptMore }) => canAcceptMore)
         .map(({ driver }) => driver);
 
-      console.log(`[Telegram] 🔍 ${trulyAvailableDrivers.length} livreur(s) disponible(s)`);
+      console.log(`[Telegram] 🔍 ${trulyAvailableDrivers.length} livreur(s) disponible(s) (available ou on_delivery avec < ${MAX_ACTIVE_ORDERS_PER_DRIVER} commande(s))`);
 
       if (trulyAvailableDrivers.length === 0) {
         console.log('[Telegram] ⚠️ Aucun livreur disponible avec Telegram');

@@ -508,45 +508,55 @@ export async function sendWhatsAppToDrivers(
       }
     }
     
-    // Filtrer les livreurs disponibles
-    const availableDriversWithActiveStatus = allDrivers.filter(driver => 
-      driver.status === 'available'
-    );
-    
-    console.log(`[WhatsApp] 🔍 ${availableDriversWithActiveStatus.length} livreur(s) avec statut available`);
-    
-    // PROMPT: Limiter à 2 commandes maximum par livreur - Vérifier les commandes actives
+    // IMPORTANT: Inclure les livreurs "available" ET "on_delivery" qui peuvent encore accepter des commandes
+    // Un livreur en "on_delivery" avec moins de 2 commandes actives peut recevoir une nouvelle commande
     const MAX_ACTIVE_ORDERS_PER_DRIVER = 2;
-    const availableDriversWithOrderCheck = await Promise.all(
-      availableDriversWithActiveStatus.map(async (driver) => {
+    
+    // Vérifier tous les livreurs (available + on_delivery) et leurs commandes actives
+    const driversWithOrderCheck = await Promise.all(
+      allDrivers.map(async (driver) => {
+        // Ne considérer que les livreurs "available" ou "on_delivery"
+        if (driver.status !== 'available' && driver.status !== 'on_delivery') {
+          return {
+            driver,
+            activeOrdersCount: 999, // Exclure les autres statuts
+            canAcceptMore: false
+          };
+        }
+        
         const driverOrders = await storage.getOrdersByDriver(driver.id);
         const activeOrders = driverOrders.filter(o => 
           o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready'
         );
+        
+        const canAcceptMore = activeOrders.length < MAX_ACTIVE_ORDERS_PER_DRIVER;
+        
+        console.log(`[WhatsApp] 📊 ${driver.name} (${driver.status}): ${activeOrders.length} commande(s) active(s) - ${canAcceptMore ? '✅ Peut accepter' : '❌ Limite atteinte'}`);
+        
         return {
           driver,
           activeOrdersCount: activeOrders.length,
-          canAcceptMore: activeOrders.length < MAX_ACTIVE_ORDERS_PER_DRIVER
+          canAcceptMore
         };
       })
     );
     
+    // Filtrer uniquement les livreurs qui peuvent accepter plus de commandes
+    const availableDriversWithOrderCheck = driversWithOrderCheck.filter(({ canAcceptMore }) => canAcceptMore);
+    
     const trulyAvailableDrivers = availableDriversWithOrderCheck
-      .filter(({ canAcceptMore }) => canAcceptMore)
       .map(({ driver }) => driver);
     
-    console.log(`[WhatsApp] 🔍 ${trulyAvailableDrivers.length} livreur(s) disponible(s) (moins de ${MAX_ACTIVE_ORDERS_PER_DRIVER} commande(s) en cours)`);
-    
-    const excludedDrivers = availableDriversWithOrderCheck.filter(({ canAcceptMore }) => !canAcceptMore);
+    const excludedDrivers = driversWithOrderCheck.filter(({ canAcceptMore }) => !canAcceptMore);
     if (excludedDrivers.length > 0) {
-      console.log(`[WhatsApp] ⚠️ ${excludedDrivers.length} livreur(s) exclus (déjà ${MAX_ACTIVE_ORDERS_PER_DRIVER} commande(s) en cours):`);
+      console.log(`[WhatsApp] ⚠️ ${excludedDrivers.length} livreur(s) exclus (déjà ${MAX_ACTIVE_ORDERS_PER_DRIVER} commande(s) en cours ou statut incompatible):`);
       excludedDrivers.forEach(({ driver, activeOrdersCount }) => {
-        console.log(`[WhatsApp]   - ${driver.name} (${driver.phone}) - ${activeOrdersCount} commande(s) active(s)`);
+        console.log(`[WhatsApp]   - ${driver.name} (${driver.phone}) - Statut: ${driver.status} - ${activeOrdersCount} commande(s) active(s)`);
       });
     }
     
     if (trulyAvailableDrivers.length === 0) {
-      console.log('[WhatsApp] ⚠️ Aucun livreur disponible sans commande en cours');
+      console.log('[WhatsApp] ⚠️ Aucun livreur disponible (tous ont déjà 2 commandes en cours ou sont hors ligne)');
       return 0;
     }
 
