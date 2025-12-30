@@ -32,6 +32,7 @@ interface Order {
   restaurantAddress?: string;
   driverId?: string;
   createdAt?: string;
+  notes?: string;
 }
 
 const DRIVER_COMMISSION_RATE = 0.15; // 15% commission
@@ -1221,7 +1222,7 @@ export default function DriverDashboard() {
                           <Badge variant="default" className="bg-primary">📋 Commande Spéciale</Badge>
                         </div>
                         <p className="text-sm font-medium text-primary">
-                          {order.notes.split('\n').find(line => line.includes('COMMANDE SPÉCIALE'))?.replace('📋 COMMANDE SPÉCIALE (produits non listés):', '').trim() || order.notes}
+                          {order.notes.split('\n').find((line: string) => line.includes('COMMANDE SPÉCIALE'))?.replace('📋 COMMANDE SPÉCIALE (produits non listés):', '').trim() || order.notes}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           Produits non listés dans le catalogue - Voir détails pour plus d'infos
