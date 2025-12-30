@@ -186,22 +186,19 @@ export const insertOrderSchema = z.object({
   })),
   paymentMethod: z.enum(["cash", "card", "online"]).optional(),
   notes: z.string().optional(),
-}).refine(
-  (data) => {
-    // Soit au moins 1 item, soit des notes non vides pour commande spéciale
-    if (data.items.length > 0) {
-      return true;
+}).superRefine((data, ctx) => {
+  // Validation personnalisée : soit items, soit notes pour commande spéciale
+  if (data.items.length === 0) {
+    // Si pas d'items, les notes sont obligatoires
+    if (!data.notes || data.notes.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Pour une commande spéciale sans produits, des notes sont obligatoires",
+        path: ["notes"],
+      });
     }
-    if (data.items.length === 0 && data.notes && data.notes.trim().length > 0) {
-      return true;
-    }
-    return false;
-  },
-  {
-    message: "Soit au moins 1 item requis, soit des notes obligatoires pour commande spéciale",
-    path: ["items"],
   }
-);
+});
 
 export const verifyOtpSchema = z.object({
   phone: z.string(),

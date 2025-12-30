@@ -147,7 +147,11 @@ export function CreateOrderDialog({
       onSuccess();
     } catch (err: any) {
       console.error('[CreateOrder] Erreur création commande:', err);
-      toast.error(err.message || "Erreur lors de la création de la commande");
+      const errorMessage = err.message || "Erreur lors de la création de la commande";
+      console.error('[CreateOrder] Message d\'erreur complet:', errorMessage);
+      toast.error(errorMessage, {
+        duration: 5000,
+      });
     } finally {
       setIsSubmitting(false);
     }

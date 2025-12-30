@@ -245,7 +245,16 @@ export async function createAdminOrder(
   });
   if (!res.ok) {
     const error = await res.json();
-    throw new Error(error.error || "Failed to create order");
+    console.error('[API] Erreur création commande:', error);
+    // Construire un message d'erreur détaillé
+    let errorMessage = error.error || "Failed to create order";
+    if (error.details && Array.isArray(error.details)) {
+      const detailsMessages = error.details.map((d: any) => 
+        `${d.path || 'field'}: ${d.message}`
+      ).join(', ');
+      errorMessage = `${errorMessage} (${detailsMessages})`;
+    }
+    throw new Error(errorMessage);
   }
   return res.json();
 }
