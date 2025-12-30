@@ -89,6 +89,23 @@ export default function DriverDashboard() {
   // Push Notifications PWA
   const { isSupported: isPushSupported, isSubscribed: isPushSubscribed, subscribe: subscribePush, error: pushError } = usePushNotifications();
 
+  // Badge API - Afficher nombre de commandes en attente sur l'icône app (PRIORITÉ 2)
+  useEffect(() => {
+    if ('setAppBadge' in navigator && typeof (navigator as any).setAppBadge === 'function') {
+      const pendingCount = availableOrders.length;
+      
+      if (pendingCount > 0) {
+        (navigator as any).setAppBadge(pendingCount).catch((err: any) => {
+          console.log('[Badge] Erreur setAppBadge:', err);
+        });
+      } else {
+        (navigator as any).clearAppBadge().catch((err: any) => {
+          console.log('[Badge] Erreur clearAppBadge:', err);
+        });
+      }
+    }
+  }, [availableOrders.length]);
+
   // Nettoyer toutes les notifications répétées au démarrage (au cas où il y en aurait d'une session précédente)
   useEffect(() => {
     if ('serviceWorker' in navigator) {
