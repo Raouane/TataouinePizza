@@ -69,7 +69,7 @@ export default function DriverDashboard() {
   // Durées configurables
   const ORDER_VISIBLE_DURATION = 30000; // 30 secondes - temps d'affichage
   const ORDER_HIDDEN_DURATION = 10000; // 10 secondes - temps de masquage
-  const SOUND_REPEAT_INTERVAL = 5000; // 5 secondes - intervalle entre chaque répétition du son
+  const SOUND_REPEAT_INTERVAL = 35000; // 35 secondes - intervalle entre chaque répétition du son (optimisé pour éviter throttling Android/iOS)
   
   const driverName = localStorage.getItem("driverName") || "Livreur";
   const driverId = localStorage.getItem("driverId");
@@ -736,12 +736,14 @@ export default function DriverDashboard() {
         return;
       }
 
-      // Fallback sur API REST
+      // Fallback sur API REST avec Idempotency Key (anti double commande)
+      const idempotencyKey = `${orderId}-${driverId}-${Date.now()}`;
       const res = await fetch(`/api/driver/orders/${orderId}/accept`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}` 
+          Authorization: `Bearer ${token}`,
+          "Idempotency-Key": idempotencyKey // Anti double commande
         },
       });
       if (!res.ok) {
