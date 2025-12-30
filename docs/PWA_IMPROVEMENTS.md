@@ -74,7 +74,13 @@ app.post("/api/driver/orders/:id/accept", async (req, res) => {
 });
 ```
 
-**Status** : ⏳ À implémenter complètement
+**Status** : ✅ Implémenté
+
+**Détails** :
+- ✅ Frontend : Debounce + désactivation bouton
+- ✅ Backend : Idempotency Key avec Map en mémoire
+- ✅ Nettoyage automatique des clés après 1h
+- ✅ Génération clé côté client : `${orderId}-${driverId}-${timestamp}`
 
 ---
 
@@ -241,12 +247,13 @@ if ('serviceWorker' in navigator && 'sync' in ServiceWorkerRegistration.prototyp
 ### Corrections Critiques
 - [x] Nom fichier audio corrigé
 - [x] Précision "écran verrouillé"
-- [ ] Répétition notifications optimisée (30-45s)
+- [x] Répétition notifications optimisée (35s au lieu de 5s)
 
 ### Améliorations Prioritaires
-- [ ] Anti double commande (idempotency + debounce)
-- [ ] Badge API
-- [ ] Cache minimum
+- [x] Anti double commande (idempotency + debounce) ✅
+- [x] Badge API ✅
+- [x] Cache minimum ✅
+- [x] Optimiser répétition notifications (35s) ✅
 
 ### Améliorations Avancées
 - [ ] Workbox Integration
