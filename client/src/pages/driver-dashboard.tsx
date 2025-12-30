@@ -747,7 +747,7 @@ export default function DriverDashboard() {
         const err = await res.json();
         throw new Error(err.error || "Erreur");
       }
-      toast.success("C'est parti! Bonne livraison!");
+      toast.success("Livraison commencée ! Bonne route !");
       await fetchOrders();
     } catch (err: any) {
       setError(err.message);
@@ -772,7 +772,7 @@ export default function DriverDashboard() {
         const err = await res.json();
         throw new Error(err.error || "Erreur");
       }
-      toast.success("Commande livrée!");
+      toast.success("Livraison terminée ! Merci pour votre travail !");
       await fetchOrders();
     } catch (err: any) {
       setError(err.message);
@@ -1115,27 +1115,53 @@ export default function DriverDashboard() {
                         </div>
                       </div>
                       
-                      {/* Bouton swipe pour mobile */}
+                      {/* Boutons d'action selon le statut */}
                       {(() => {
-                        const shouldShowSwipe = isAvailable || isReady || isInDelivery;
-                        console.log(`[DriverDashboard] 🎯 SwipeButton pour ${order.id.slice(0, 8)}:`, {
-                          isAvailable,
-                          isReady,
-                          isInDelivery,
-                          shouldShowSwipe,
-                          status: order.status,
-                          swipeLabel,
-                          disabled: updating === order.id
-                        });
-                        return shouldShowSwipe ? (
-                          <SwipeButton
-                            onSwipe={swipeAction}
-                            disabled={updating === order.id}
-                            label={swipeLabel}
-                            icon={swipeIcon}
-                            color={swipeColor}
-                          />
-                        ) : (
+                        // Commande prête ou acceptée → Bouton "Commencer Livraison"
+                        if (isReady || order.status === "accepted") {
+                          return (
+                            <Button
+                              onClick={() => handleStartDelivery(order.id)}
+                              disabled={updating === order.id}
+                              className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                              size="lg"
+                            >
+                              <Bike className="w-5 h-5 mr-2" />
+                              {updating === order.id ? "En cours..." : "Commencer Livraison"}
+                            </Button>
+                          );
+                        }
+                        
+                        // Commande en livraison → Bouton "Terminer Livraison"
+                        if (isInDelivery) {
+                          return (
+                            <Button
+                              onClick={() => handleDelivered(order.id)}
+                              disabled={updating === order.id}
+                              className="w-full bg-green-600 hover:bg-green-700 text-white"
+                              size="lg"
+                            >
+                              <Check className="w-5 h-5 mr-2" />
+                              {updating === order.id ? "En cours..." : "Terminer Livraison"}
+                            </Button>
+                          );
+                        }
+                        
+                        // Commande disponible → Bouton "Accepter"
+                        if (isAvailable) {
+                          return (
+                            <SwipeButton
+                              onSwipe={swipeAction}
+                              disabled={updating === order.id}
+                              label={swipeLabel}
+                              icon={swipeIcon}
+                              color={swipeColor}
+                            />
+                          );
+                        }
+                        
+                        // Autres statuts → Message d'attente
+                        return (
                           <div className="text-center text-orange-600 font-medium py-2 px-4 bg-orange-100 rounded-lg text-sm">
                             En préparation...
                           </div>
