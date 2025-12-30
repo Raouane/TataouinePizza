@@ -39,6 +39,15 @@ async function createTestOrdersVariety() {
       process.exit(1);
     }
 
+    // Filtrer uniquement les restaurants ouverts
+    const openRestaurants = allRestaurants.filter(r => r.isOpen === true);
+    console.log(`📊 Restaurants trouvés: ${allRestaurants.length} (${openRestaurants.length} ouverts)\n`);
+
+    if (openRestaurants.length === 0) {
+      console.error("❌ Aucun restaurant ouvert trouvé. Veuillez ouvrir au moins un restaurant.");
+      process.exit(1);
+    }
+
     const allPizzas = await storage.getAllPizzas();
     if (allPizzas.length === 0) {
       console.error("❌ Aucun produit trouvé. Exécutez d'abord: npm run db:seed");
@@ -48,15 +57,41 @@ async function createTestOrdersVariety() {
     // Récupérer les prix
     const allPrices = await storage.getPizzaPricesByPizzaIds(allPizzas.map(p => p.id));
 
-    // Grouper les pizzas par restaurant
+    // Grouper les pizzas par restaurant (uniquement restaurants ouverts)
     const pizzasByRestaurant = new Map<string, typeof allPizzas>();
+    const openRestaurantIds = new Set(openRestaurants.map(r => r.id));
+    
     for (const pizza of allPizzas) {
-      if (!pizza.restaurantId) continue;
+      if (!pizza.restaurantId || !openRestaurantIds.has(pizza.restaurantId)) continue;
       if (!pizzasByRestaurant.has(pizza.restaurantId)) {
         pizzasByRestaurant.set(pizza.restaurantId, []);
       }
       pizzasByRestaurant.get(pizza.restaurantId)!.push(pizza);
     }
+
+    // Filtrer les restaurants qui ont des produits avec prix
+    const restaurantsWithProducts: typeof openRestaurants = [];
+    for (const restaurant of openRestaurants) {
+      const restaurantPizzas = pizzasByRestaurant.get(restaurant.id) || [];
+      const pizzasWithPrices = restaurantPizzas.filter(pizza => {
+        const prices = allPrices.filter(p => p.pizzaId === pizza.id);
+        return prices.length > 0;
+      });
+      
+      if (pizzasWithPrices.length > 0) {
+        restaurantsWithProducts.push(restaurant);
+        console.log(`✅ ${restaurant.name}: ${pizzasWithPrices.length} produit(s) avec prix`);
+      } else {
+        console.log(`⚠️  ${restaurant.name}: Aucun produit avec prix (ignoré)`);
+      }
+    }
+
+    if (restaurantsWithProducts.length === 0) {
+      console.error("\n❌ Aucun restaurant ouvert avec des produits configurés. Veuillez ajouter des produits avec prix.");
+      process.exit(1);
+    }
+
+    console.log(`\n📦 Utilisation de ${restaurantsWithProducts.length} restaurant(s) avec produits disponibles\n`);
 
     // Grouper les prix par pizza
     const pricesByPizza = new Map<string, typeof allPrices>();
@@ -231,10 +266,17 @@ async function createTestOrdersVariety() {
 
     for (const testOrder of testOrders) {
       try {
-        const restaurant = allRestaurants.find(r => r.id === testOrder.restaurantId);
+        // Vérifier que le restaurant est ouvert et a des produits
+        const restaurant = restaurantsWithProducts.find(r => r.id === testOrder.restaurantId);
         if (!restaurant) {
-          console.warn(`⚠️  Restaurant ${testOrder.restaurantId} non trouvé, skip`);
-          continue;
+          // Si le restaurant spécifié n'est pas disponible, utiliser le premier disponible
+          const fallbackRestaurant = restaurantsWithProducts[0];
+          if (!fallbackRestaurant) {
+            console.warn(`⚠️  Aucun restaurant disponible pour ${testOrder.customerName}, skip`);
+            continue;
+          }
+          testOrder.restaurantId = fallbackRestaurant.id;
+          console.log(`   ℹ️  Utilisation de ${fallbackRestaurant.name} (restaurant original non disponible)`);
         }
 
         let totalPrice = 0;
@@ -261,34 +303,50 @@ async function createTestOrdersVariety() {
             : Math.floor(Math.random() * 4) + 1; // 1-4 items pour normale
 
           const restaurantPizzas = pizzasByRestaurant.get(testOrder.restaurantId) || [];
-          const selectedPizzas = restaurantPizzas.slice(0, Math.min(numItems, restaurantPizzas.length));
-
-          for (const pizza of selectedPizzas) {
+          
+          // Filtrer uniquement les pizzas avec prix
+          const pizzasWithPrices = restaurantPizzas.filter(pizza => {
             const prices = pricesByPizza.get(pizza.id) || [];
-            if (prices.length === 0) continue;
+            return prices.length > 0;
+          });
 
-            // Choisir une taille aléatoire disponible
-            const availableSizes = prices.map(p => p.size);
-            const randomSize = availableSizes[Math.floor(Math.random() * availableSizes.length)];
-            const price = prices.find(p => p.size === randomSize);
-            if (!price) continue;
+          if (pizzasWithPrices.length === 0) {
+            console.warn(`⚠️  Aucun produit avec prix pour le restaurant ${testOrder.restaurantId}, création commande spéciale à la place`);
+            // Transformer en commande spéciale
+            testOrder.type = "special";
+            testOrder.notes = `COMMANDE SPÉCIALE: ${testOrder.notes || "Commande sans produits configurés"}`;
+            const estimatedPriceMatch = testOrder.notes?.match(/(\d+(?:\.\d+)?)\s*TND/i);
+            totalPrice = estimatedPriceMatch ? parseFloat(estimatedPriceMatch[1]) : 2.0;
+          } else {
+            const selectedPizzas = pizzasWithPrices.slice(0, Math.min(numItems, pizzasWithPrices.length));
 
-            const quantity = testOrder.type === "phone" 
-              ? Math.floor(Math.random() * 2) + 1 // 1-2 pour téléphone
-              : Math.floor(Math.random() * 3) + 1; // 1-3 pour normale
+            for (const pizza of selectedPizzas) {
+              const prices = pricesByPizza.get(pizza.id) || [];
+              if (prices.length === 0) continue;
 
-            totalPrice += Number(price.price) * quantity;
+              // Choisir une taille aléatoire disponible
+              const availableSizes = prices.map(p => p.size);
+              const randomSize = availableSizes[Math.floor(Math.random() * availableSizes.length)];
+              const price = prices.find(p => p.size === randomSize);
+              if (!price) continue;
 
-            orderItemsData.push({
-              pizzaId: pizza.id,
-              size: randomSize as "small" | "medium" | "large",
-              quantity: quantity,
-              pricePerUnit: price.price,
-            });
+              const quantity = testOrder.type === "phone" 
+                ? Math.floor(Math.random() * 2) + 1 // 1-2 pour téléphone
+                : Math.floor(Math.random() * 3) + 1; // 1-3 pour normale
+
+              totalPrice += Number(price.price) * quantity;
+
+              orderItemsData.push({
+                pizzaId: pizza.id,
+                size: randomSize as "small" | "medium" | "large",
+                quantity: quantity,
+                pricePerUnit: price.price,
+              });
+            }
+
+            // Ajouter frais de livraison
+            totalPrice += 2.0;
           }
-
-          // Ajouter frais de livraison
-          totalPrice += 2.0;
         }
 
         // Créer la commande
