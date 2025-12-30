@@ -133,6 +133,15 @@ export const orderItems = pgTable("order_items", {
   pricePerUnit: numeric("price_per_unit", { precision: 10, scale: 2 }).notNull(),
 });
 
+// Idempotency Keys (anti double commande - PRIORITÉ 1)
+export const idempotencyKeys = pgTable("idempotency_keys", {
+  key: varchar("key").primaryKey(), // Clé idempotency unique
+  orderId: varchar("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
+  driverId: varchar("driver_id").notNull().references(() => drivers.id, { onDelete: "cascade" }),
+  response: text("response").notNull(), // JSON stringifié de la réponse
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Zod Schemas for validation
 export const insertAdminUserSchema = createInsertSchema(adminUsers)
   .pick({ email: true, password: true })

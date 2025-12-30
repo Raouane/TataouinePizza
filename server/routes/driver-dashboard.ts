@@ -209,17 +209,13 @@ export function registerDriverDashboardRoutes(app: Express): void {
     }
   });
   
-  // Map pour stocker les clés idempotency (anti double commande)
-  // Key: idempotencyKey, Value: { orderId, driverId, result, timestamp }
-  const idempotencyStore = new Map<string, { orderId: string; driverId: string; result: any; timestamp: number }>();
-  
-  // Nettoyer les clés idempotency anciennes (plus de 1 heure)
-  setInterval(() => {
-    const oneHourAgo = Date.now() - 60 * 60 * 1000;
-    for (const [key, value] of idempotencyStore.entries()) {
-      if (value.timestamp < oneHourAgo) {
-        idempotencyStore.delete(key);
-      }
+  // Nettoyer les clés idempotency anciennes (plus de 1 heure) - toutes les heures
+  setInterval(async () => {
+    try {
+      await storage.deleteOldIdempotencyKeys(1);
+      console.log('[Idempotency] ✅ Nettoyage des clés idempotency anciennes effectué');
+    } catch (error) {
+      console.error('[Idempotency] ❌ Erreur nettoyage clés idempotency:', error);
     }
   }, 60 * 60 * 1000); // Nettoyage toutes les heures
 
@@ -228,16 +224,16 @@ export function registerDriverDashboardRoutes(app: Express): void {
       const driverId = getAuthenticatedDriverId(req);
       const orderId = req.params.id;
       
-      // IDEMPOTENCY KEY - Anti double commande (PRIORITÉ 1)
+      // IDEMPOTENCY KEY - Anti double commande (PRIORITÉ 1) - Stockage DB
       const idempotencyKey = req.headers['idempotency-key'] as string || 
                               req.body?.idempotencyKey as string;
       
       if (idempotencyKey) {
-        // Vérifier si cette requête a déjà été traitée
-        const existing = idempotencyStore.get(idempotencyKey);
+        // Vérifier si cette requête a déjà été traitée (en DB, pas en mémoire)
+        const existing = await storage.getIdempotencyKey(idempotencyKey);
         if (existing && existing.orderId === orderId && existing.driverId === driverId) {
-          console.log(`[Driver] ✅ Requête idempotente détectée (${idempotencyKey}), retour résultat en cache`);
-          return res.json(existing.result);
+          console.log(`[Driver] ✅ Requête idempotente détectée (${idempotencyKey}), retour résultat en cache DB`);
+          return res.json(existing.response);
         }
       }
       
@@ -255,14 +251,17 @@ export function registerDriverDashboardRoutes(app: Express): void {
       await storage.updateDriver(driverId, { status: "on_delivery" });
       console.log(`[Driver] ✅ Livreur ${driverId} mis en statut "on_delivery" après acceptation de la commande ${orderId}`);
       
-      // Stocker le résultat pour idempotency
+      // Stocker le résultat pour idempotency en DB (survit aux redémarrages serveur)
       if (idempotencyKey) {
-        idempotencyStore.set(idempotencyKey, {
-          orderId,
-          driverId,
-          result: acceptedOrder,
-          timestamp: Date.now()
-        });
+        try {
+          await storage.createIdempotencyKey(idempotencyKey, orderId, driverId, acceptedOrder);
+          console.log(`[Idempotency] ✅ Clé idempotency stockée en DB: ${idempotencyKey}`);
+        } catch (error: any) {
+          // Si la clé existe déjà (race condition), c'est OK, on continue
+          if (error?.code !== '23505') { // PostgreSQL unique violation
+            console.error('[Idempotency] ⚠️ Erreur stockage clé idempotency (non bloquant):', error);
+          }
+        }
       }
       
       res.json(acceptedOrder);

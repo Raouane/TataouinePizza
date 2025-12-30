@@ -69,7 +69,7 @@ export default function DriverDashboard() {
   // Durées configurables
   const ORDER_VISIBLE_DURATION = 30000; // 30 secondes - temps d'affichage
   const ORDER_HIDDEN_DURATION = 10000; // 10 secondes - temps de masquage
-  const SOUND_REPEAT_INTERVAL = 35000; // 35 secondes - intervalle entre chaque répétition du son (optimisé pour éviter throttling Android/iOS)
+  const SOUND_REPEAT_INTERVAL = 30000; // 30 secondes - intervalle entre chaque répétition du son (optimisé pour éviter throttling Android/iOS, recommandation ChatGPT)
   
   const driverName = localStorage.getItem("driverName") || "Livreur";
   const driverId = localStorage.getItem("driverId");
@@ -90,7 +90,17 @@ export default function DriverDashboard() {
   const { isSupported: isPushSupported, isSubscribed: isPushSubscribed, subscribe: subscribePush, error: pushError } = usePushNotifications();
 
   // Badge API - Afficher nombre de commandes en attente sur l'icône app (PRIORITÉ 2)
+  // Protection Safari : Badge API non supporté sur iOS/Safari
   useEffect(() => {
+    // Détecter iOS/Safari
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+    
+    // Badge API non supporté sur iOS/Safari, skip
+    if (isIOS || isSafari) {
+      return;
+    }
+    
     if ('setAppBadge' in navigator && typeof (navigator as any).setAppBadge === 'function') {
       const pendingCount = availableOrders.length;
       

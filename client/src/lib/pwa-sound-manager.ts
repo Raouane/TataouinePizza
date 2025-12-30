@@ -37,7 +37,7 @@ function loadCustomSound(): HTMLAudioElement {
 /**
  * Joue le son personnalisé (uniquement en foreground)
  */
-export function playCustomSound(repeat: boolean = false, interval: number = 35000) {
+export function playCustomSound(repeat: boolean = false, interval: number = 30000) {
   if (!isAppInForeground) {
     console.log('[Sound] App en background, son personnalisé ignoré (utilise notification système)');
     return;

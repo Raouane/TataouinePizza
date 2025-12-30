@@ -320,8 +320,17 @@ self.addEventListener('install', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   
-  // Cache First pour assets statiques uniquement
-  if (STATIC_ASSETS.some(asset => url.pathname === asset || url.pathname.endsWith(asset))) {
+  // Cache First pour assets statiques uniquement (match exact pour éviter cache involontaire d'API)
+  const isStaticAsset = STATIC_ASSETS.some(asset => {
+    // Match exact pour les routes
+    if (asset === '/' || asset === '/driver') {
+      return url.pathname === asset;
+    }
+    // Match exact ou endsWith pour les fichiers
+    return url.pathname === asset || url.pathname.endsWith(asset);
+  });
+  
+  if (isStaticAsset) {
     event.respondWith(
       caches.match(event.request).then((response) => {
         // Retourner depuis cache si disponible, sinon fetch

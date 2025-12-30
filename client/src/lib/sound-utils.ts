@@ -316,7 +316,7 @@ export function playOrderNotificationSound() {
   // Si l'app est en foreground et permission accordée, jouer le son personnalisé
   if (isInForeground() && hasAudioPermission()) {
     console.log("[Sound] 🎵 App en foreground, lecture son personnalisé");
-    playCustomSound(true, 35000); // Répéter toutes les 35 secondes (optimisé pour éviter throttling)
+    playCustomSound(true, 30000); // Répéter toutes les 30 secondes (optimisé pour éviter throttling Android/iOS)
   }
   
   // Notification système (fonctionne même en arrière-plan)

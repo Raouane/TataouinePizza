@@ -1,6 +1,6 @@
 import { db } from "./db.js";
 import { 
-  adminUsers, pizzas, pizzaPrices, otpCodes, orders, orderItems, drivers, restaurants, customers,
+  adminUsers, pizzas, pizzaPrices, otpCodes, orders, orderItems, drivers, restaurants, customers, idempotencyKeys,
   type Pizza, type InsertAdminUser, type AdminUser, type Order, type OrderItem, type OtpCode, type Driver, type InsertDriver, type Restaurant, type InsertRestaurant,
   type PizzaPrice, type InsertOrder, type Customer, type InsertCustomer,
   insertPizzaSchema, insertPizzaPriceSchema
@@ -962,6 +962,34 @@ export class DatabaseStorage implements IStorage {
       throw new Error("Failed to retrieve created order item");
     }
     return result[0];
+  }
+
+  // Idempotency Keys (anti double commande - PRIORITÉ 1)
+  async getIdempotencyKey(key: string): Promise<{ orderId: string; driverId: string; response: any } | undefined> {
+    const result = await db.select().from(idempotencyKeys).where(eq(idempotencyKeys.key, key));
+    if (!result || !result[0]) {
+      return undefined;
+    }
+    return {
+      orderId: result[0].orderId,
+      driverId: result[0].driverId,
+      response: JSON.parse(result[0].response)
+    };
+  }
+
+  async createIdempotencyKey(key: string, orderId: string, driverId: string, response: any): Promise<void> {
+    await db.insert(idempotencyKeys).values({
+      key,
+      orderId,
+      driverId,
+      response: JSON.stringify(response),
+      createdAt: new Date()
+    });
+  }
+
+  async deleteOldIdempotencyKeys(olderThanHours: number = 1): Promise<void> {
+    const cutoffTime = new Date(Date.now() - olderThanHours * 60 * 60 * 1000);
+    await db.delete(idempotencyKeys).where(sql`created_at < ${cutoffTime}`);
   }
 }
 
