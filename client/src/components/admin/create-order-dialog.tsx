@@ -117,16 +117,25 @@ export function CreateOrderDialog({
         notes = `COMMANDE SPÉCIALE: ${notes}`;
       }
 
-      const orderData = {
+      // Nettoyer les valeurs vides pour éviter les problèmes de validation
+      const orderData: any = {
         restaurantId: form.restaurantId,
-        customerName: form.customerName,
-        phone: form.phone,
-        address: form.address,
-        addressDetails: form.addressDetails || undefined,
+        customerName: form.customerName.trim(),
+        phone: form.phone.trim(),
+        address: form.address.trim(),
         items: orderItems,
         paymentMethod: form.paymentMethod || "cash",
-        notes: notes,
       };
+
+      // Ajouter seulement si non vide
+      if (form.addressDetails && form.addressDetails.trim()) {
+        orderData.addressDetails = form.addressDetails.trim();
+      }
+
+      // Ajouter notes seulement si non vide
+      if (notes && notes.trim()) {
+        orderData.notes = notes.trim();
+      }
 
       console.log('[CreateOrder] 📤 Données envoyées:', JSON.stringify(orderData, null, 2));
 
