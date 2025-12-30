@@ -220,6 +220,27 @@ self.addEventListener('message', (event) => {
       console.log(`[SW] ⚠️ Aucun intervalle trouvé pour ${orderId}`);
     }
   }
+  
+  if (event.data && event.data.type === 'STOP_ALL_NOTIFICATION_REPEAT') {
+    console.log(`[SW] Arrêt de toutes les notifications répétées`);
+    let stoppedCount = 0;
+    
+    // Arrêter tous les intervalles
+    for (const orderId in notificationIntervals) {
+      clearInterval(notificationIntervals[orderId]);
+      delete notificationIntervals[orderId];
+      delete notificationErrors[orderId];
+      stoppedCount++;
+    }
+    
+    // Arrêter tous les timeouts
+    for (const orderId in notificationTimeouts) {
+      clearTimeout(notificationTimeouts[orderId]);
+      delete notificationTimeouts[orderId];
+    }
+    
+    console.log(`[SW] ✅ ${stoppedCount} notification(s) répétée(s) arrêtée(s)`);
+  }
 });
 
 // Gérer le clic sur la notification

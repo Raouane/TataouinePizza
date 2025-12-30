@@ -88,6 +88,23 @@ export default function DriverDashboard() {
   // Push Notifications PWA
   const { isSupported: isPushSupported, isSubscribed: isPushSubscribed, subscribe: subscribePush, error: pushError } = usePushNotifications();
 
+  // Nettoyer toutes les notifications répétées au démarrage (au cas où il y en aurait d'une session précédente)
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then((registration) => {
+        // Envoyer un message pour arrêter toutes les notifications répétées
+        if (registration.active) {
+          registration.active.postMessage({
+            type: 'STOP_ALL_NOTIFICATION_REPEAT',
+          });
+          console.log('[Notifications] 🧹 Nettoyage des notifications répétées au démarrage');
+        }
+      }).catch((error) => {
+        console.error('[Notifications] ❌ Erreur nettoyage notifications:', error);
+      });
+    }
+  }, []);
+
   // S'abonner automatiquement aux push notifications au chargement (si supporté et pas déjà abonné)
   useEffect(() => {
     if (isPushSupported && !isPushSubscribed && token) {
