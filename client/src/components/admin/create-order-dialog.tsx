@@ -34,7 +34,7 @@ interface CreateOrderDialogProps {
 
 interface OrderItemForm {
   pizzaId: string;
-  size: "small" | "medium" | "large";
+  size: "small" | "medium" | "large" | null; // null pour produits par unité
   quantity: number;
 }
 
