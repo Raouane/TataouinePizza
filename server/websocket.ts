@@ -184,7 +184,7 @@ async function alertAdministrationNoDriversAvailable(orderData: OrderNotificatio
       address: orderData.address,
       totalPrice: orderData.totalPrice,
       timestamp: new Date().toISOString(),
-      message: 'Aucun livreur disponible - Tous les livreurs sont surchargés (1 commande en cours)'
+      message: 'Aucun livreur disponible - Tous les livreurs sont surchargés (2 commandes en cours)'
     });
     
     console.log('[ADMIN ALERT] ✅ Alerte envoyée à l\'administration via webhook n8n');
@@ -267,7 +267,6 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
     
     // Démarrer le timer Round Robin si un livreur a été notifié
     if (telegramCount > 0) {
-      const { startRoundRobinTimer } = await import('./websocket.js');
       startRoundRobinTimer(
         orderData.orderId,
         orderData.restaurantName,

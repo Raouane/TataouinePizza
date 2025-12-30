@@ -509,8 +509,8 @@ export async function sendWhatsAppToDrivers(
     }
     
     // IMPORTANT: Inclure les livreurs "available" ET "on_delivery" qui peuvent encore accepter des commandes
-    // Un livreur en "on_delivery" avec moins de 1 commande active peut recevoir une nouvelle commande
-    const MAX_ACTIVE_ORDERS_PER_DRIVER = 1;
+    // Un livreur en "on_delivery" avec moins de 2 commandes actives peut recevoir une nouvelle commande
+    const MAX_ACTIVE_ORDERS_PER_DRIVER = 2;
     
     // Vérifier tous les livreurs (available + on_delivery) et leurs commandes actives
     const driversWithOrderCheck = await Promise.all(
@@ -723,7 +723,7 @@ export async function notifyNextDriverInQueue(
     );
 
     // PROMPT: Limiter à 2 commandes maximum par livreur - Vérifier les commandes actives
-    const MAX_ACTIVE_ORDERS_PER_DRIVER = 1;
+    const MAX_ACTIVE_ORDERS_PER_DRIVER = 2;
     const availableDriversWithOrderCheck = await Promise.all(
       availableDriversWithActiveStatus.map(async (driver) => {
         const driverOrders = await storage.getOrdersByDriver(driver.id);
