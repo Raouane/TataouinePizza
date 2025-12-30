@@ -386,63 +386,38 @@ class TelegramService {
       const appUrl = process.env.APP_URL || 'https://tataouine-pizza.onrender.com';
       const audioUrl = `${appUrl}/audio/alert.mp3.mp3`;
       
-      const alerts = [];
+      // ENVOYER UN SEUL MESSAGE VOCAL (notification automatique)
+      let result;
       
-      // ENVOYER PLUSIEURS FICHIERS AUDIO EN SUCCESSION (sonnerie PUISSANTE)
-      const NUM_AUDIO = 5; // Nombre de fichiers audio à envoyer
-      const AUDIO_INTERVAL = 400; // Intervalle entre chaque audio (ms)
-      
-      for (let i = 0; i < NUM_AUDIO; i++) {
-        let result;
-        
-        if (useDirectFile) {
-          // Envoyer le fichier directement (plus fiable) - utilise sendVoice pour notification automatique
-          result = await this.sendVoiceFile(
-            chatId,
-            actualFilePath,
-            `🔔 Alerte ${i + 1}/${NUM_AUDIO}`
-          );
-        } else {
-          // Fallback: utiliser l'URL avec sendVoice (notification automatique)
-          console.log(`[Telegram] 🎤 Tentative avec URL (sendVoice): ${audioUrl}`);
-          result = await this.sendVoice(
-            chatId,
-            audioUrl,
-            `🔔 Alerte ${i + 1}/${NUM_AUDIO}`
-          );
-        }
-        
-        alerts.push(result);
-        
-        if (!result.success) {
-          console.error(`[Telegram] ❌ Échec envoi message vocal ${i + 1}/${NUM_AUDIO}:`, result.error);
-          // Si l'envoi direct échoue, essayer avec l'URL en fallback
-          if (useDirectFile && i === 0) {
-            console.log(`[Telegram] 💡 Tentative avec URL en fallback...`);
-            useDirectFile = false;
-            result = await this.sendVoice(chatId, audioUrl, `🔔 Alerte ${i + 1}/${NUM_AUDIO}`);
-            alerts[i] = result;
-          }
-        } else {
-          console.log(`[Telegram] ✅ Message vocal ${i + 1}/${NUM_AUDIO} envoyé avec succès (notification automatique)`);
-        }
-        
-        // Attendre entre chaque audio pour créer une sonnerie répétée
-        if (i < NUM_AUDIO - 1) {
-          await new Promise(resolve => setTimeout(resolve, AUDIO_INTERVAL));
-        }
-      }
-
-      const allSuccess = alerts.every(result => result.success);
-      if (allSuccess) {
-        console.log(`[Telegram] ✅ ${NUM_AUDIO} fichiers audio envoyés avec succès`);
-        console.log(`[Telegram] 💡 NOTE: Si le téléphone ne sonne pas, vérifiez que les notifications Telegram sont activées dans les paramètres du téléphone`);
+      if (useDirectFile) {
+        // Envoyer le fichier directement (plus fiable) - utilise sendVoice pour notification automatique
+        result = await this.sendVoiceFile(
+          chatId,
+          actualFilePath,
+          `🔔 Nouvelle commande disponible`
+        );
       } else {
-        const failedCount = alerts.filter(r => !r.success).length;
-        console.warn(`[Telegram] ⚠️ ${failedCount}/${NUM_AUDIO} fichiers audio ont échoué`);
+        // Fallback: utiliser l'URL avec sendVoice (notification automatique)
+        console.log(`[Telegram] 🎤 Tentative avec URL (sendVoice): ${audioUrl}`);
+        result = await this.sendVoice(
+          chatId,
+          audioUrl,
+          `🔔 Nouvelle commande disponible`
+        );
+      }
+      
+      if (!result.success) {
+        console.error(`[Telegram] ❌ Échec envoi message vocal:`, result.error);
+        // Si l'envoi direct échoue, essayer avec l'URL en fallback
+        if (useDirectFile) {
+          console.log(`[Telegram] 💡 Tentative avec URL en fallback...`);
+          result = await this.sendVoice(chatId, audioUrl, `🔔 Nouvelle commande disponible`);
+        }
+      } else {
+        console.log(`[Telegram] ✅ Message vocal envoyé avec succès (notification automatique)`);
       }
 
-      return allSuccess;
+      return result.success;
     } catch (error: any) {
       console.error('[Telegram] ❌ Erreur alerte sonore:', error);
       console.error('[Telegram] ❌ Stack:', error.stack);
