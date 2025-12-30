@@ -107,10 +107,10 @@ export function serveStatic(app: Express) {
       return next();
     }
     
-    // Ne pas intercepter les fichiers statiques (images, CSS, JS, etc.)
+    // Ne pas intercepter les fichiers statiques (images, CSS, JS, audio, etc.)
     // Si c'est un fichier statique qui n'a pas été trouvé, retourner 404 au lieu de index.html
     const ext = path.extname(req.path).toLowerCase();
-    const staticExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.css', '.js', '.woff', '.woff2', '.ttf', '.ico', '.json'];
+    const staticExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.css', '.js', '.woff', '.woff2', '.ttf', '.ico', '.json', '.mp3', '.m4a', '.ogg', '.wav'];
     if (staticExtensions.includes(ext)) {
       console.log(`[STATIC] ⚠️ Fichier statique non trouvé: ${req.path}`);
       return res.status(404).send('File not found');
