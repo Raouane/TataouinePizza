@@ -114,19 +114,23 @@ class TelegramService {
     }
 
     try {
+      // IMPORTANT: Telegram accepte les URLs HTTPS publiques pour les fichiers audio
+      // L'URL doit être accessible publiquement et le fichier doit être valide
       const url = `https://api.telegram.org/bot${this.botToken}/sendAudio`;
       
       const payload: any = {
         chat_id: chatId,
-        audio: audioUrl, // URL publique du fichier audio
+        audio: audioUrl, // URL publique du fichier audio (HTTPS requis)
         disable_notification: false, // FORCER la sonnerie
+        parse_mode: undefined, // Pas de parse_mode pour les fichiers audio
       };
 
       if (caption) {
         payload.caption = caption;
       }
 
-      console.log(`[Telegram] 🎵 Envoi fichier audio à ${chatId} (URL: ${audioUrl})`);
+      console.log(`[Telegram] 🎵 Envoi fichier audio à ${chatId}`);
+      console.log(`[Telegram] 🎵 URL audio: ${audioUrl}`);
 
       const response = await fetch(url, {
         method: 'POST',
@@ -139,7 +143,16 @@ class TelegramService {
       const data = await response.json();
 
       if (!data.ok) {
-        console.error('[Telegram] ❌ Erreur API sendAudio:', data);
+        console.error('[Telegram] ❌ Erreur API sendAudio:', JSON.stringify(data, null, 2));
+        console.error('[Telegram] ❌ Code erreur:', data.error_code);
+        console.error('[Telegram] ❌ Description:', data.description);
+        
+        // Si l'URL ne fonctionne pas, essayer avec sendVoice (pour messages vocaux)
+        if (data.error_code === 400 || data.description?.includes('file')) {
+          console.log('[Telegram] 💡 Tentative avec sendVoice (format message vocal)...');
+          return await this.sendVoice(chatId, audioUrl, caption);
+        }
+        
         return { 
           success: false, 
           error: data.description || 'Erreur Telegram API',
@@ -148,6 +161,7 @@ class TelegramService {
       }
 
       console.log(`[Telegram] ✅ Audio envoyé (ID: ${data.result?.message_id})`);
+      console.log(`[Telegram] ✅ Fichier audio: ${data.result?.audio?.file_name || 'N/A'}`);
       
       return { 
         success: true, 
@@ -155,6 +169,70 @@ class TelegramService {
       };
     } catch (error: any) {
       console.error('[Telegram] ❌ Erreur envoi audio:', error);
+      console.error('[Telegram] ❌ Stack:', error.stack);
+      return { 
+        success: false, 
+        error: error.message || 'Erreur réseau',
+        messageId: undefined 
+      };
+    }
+  }
+
+  /**
+   * Envoie un message vocal via Telegram (alternative si sendAudio échoue)
+   * Les messages vocaux ont souvent une notification plus forte
+   */
+  async sendVoice(
+    chatId: string,
+    audioUrl: string,
+    caption?: string
+  ): Promise<{ success: boolean; error?: any; messageId?: number }> {
+    if (!this.isConfigured) {
+      return { success: false, error: 'Telegram bot non configuré' };
+    }
+
+    try {
+      const url = `https://api.telegram.org/bot${this.botToken}/sendVoice`;
+      
+      const payload: any = {
+        chat_id: chatId,
+        voice: audioUrl, // URL publique du fichier audio (format OGG recommandé pour voice)
+        disable_notification: false, // FORCER la sonnerie
+      };
+
+      if (caption) {
+        payload.caption = caption;
+      }
+
+      console.log(`[Telegram] 🎤 Envoi message vocal à ${chatId} (URL: ${audioUrl})`);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        console.error('[Telegram] ❌ Erreur API sendVoice:', data);
+        return { 
+          success: false, 
+          error: data.description || 'Erreur Telegram API',
+          messageId: undefined 
+        };
+      }
+
+      console.log(`[Telegram] ✅ Message vocal envoyé (ID: ${data.result?.message_id})`);
+      
+      return { 
+        success: true, 
+        messageId: data.result?.message_id 
+      };
+    } catch (error: any) {
+      console.error('[Telegram] ❌ Erreur envoi message vocal:', error);
       return { 
         success: false, 
         error: error.message || 'Erreur réseau',
@@ -178,15 +256,12 @@ class TelegramService {
       // URL du fichier audio d'alerte (doit être accessible publiquement)
       const appUrl = process.env.APP_URL || 'https://tataouine-pizza.onrender.com';
       
-      // Option 1: Utiliser le fichier audio hébergé sur votre serveur
-      let audioUrl = `${appUrl}/public/audio/alert.mp3`;
+      // Utiliser le fichier audio hébergé sur votre serveur
+      // Note: Le fichier s'appelle alert.mp3.mp3 (double extension)
+      let audioUrl = `${appUrl}/public/audio/alert.mp3.mp3`;
       
-      // Option 2: Si vous préférez utiliser une URL externe, décommentez cette ligne :
-      // audioUrl = 'https://votre-serveur.com/audio/alert.mp3';
-      
-      // Option 3: URL de fallback (son d'alerte gratuit en ligne)
-      // Si le fichier local n'existe pas, Telegram utilisera cette URL
-      const fallbackAudioUrl = 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3';
+      // Si le fichier n'existe pas, essayer alert.mp3
+      // audioUrl = `${appUrl}/public/audio/alert.mp3`;
       
       console.log(`[Telegram] 🔊 Début envoi alerte sonore PUISSANTE avec audio à ${chatId}`);
       console.log(`[Telegram] 🎵 URL audio: ${audioUrl}`);
