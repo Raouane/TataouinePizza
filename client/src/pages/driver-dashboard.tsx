@@ -32,7 +32,6 @@ interface Order {
   restaurantAddress?: string;
   driverId?: string;
   createdAt?: string;
-  notes?: string;
 }
 
 const DRIVER_COMMISSION_RATE = 0.15; // 15% commission
@@ -57,7 +56,6 @@ export default function DriverDashboard() {
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
-  const [deliveryTimers, setDeliveryTimers] = useState<Map<string, number>>(new Map());
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0); // Utiliser une ref pour éviter les re-renders
   
@@ -779,16 +777,32 @@ export default function DriverDashboard() {
         throw new Error(err.error || "Erreur");
       }
       
-      // Rafraîchir les commandes
+      // Rafraîchir les commandes pour vérifier s'il y en a d'autres
       await fetchOrders();
       
-      // Message simple avec juste le gain de cette livraison
-      toast.success(
-        `🎉 Félicitations ! Livraison terminée !\n💰 Vous avez gagné ${gain} TND pour cette livraison.`,
-        {
-          duration: 4000, // 4 secondes puis disparaît
+      // Attendre un peu pour que fetchOrders se termine
+      setTimeout(() => {
+        const updatedMyOrders = myOrders.filter(o => 
+          o.status === "delivery" || o.status === "accepted" || o.status === "ready"
+        );
+        
+        // Toast de félicitation amélioré avec la somme gagnée
+        if (updatedMyOrders.length === 0) {
+          toast.success(
+            `🎉 Félicitations ! Livraison terminée avec succès !\n💰 Vous avez gagné ${gain} TND pour cette livraison !\n\nMerci pour votre excellent travail !`,
+            {
+              duration: 6000, // Afficher plus longtemps
+            }
+          );
+        } else {
+          toast.success(
+            `🎉 Livraison terminée !\n💰 Vous avez gagné ${gain} TND pour cette livraison !\n\n📦 ${updatedMyOrders.length} autre(s) commande(s) en cours.`,
+            {
+              duration: 5000,
+            }
+          );
         }
-      );
+      }, 500);
       
     } catch (err: any) {
       setError(err.message);
@@ -966,7 +980,7 @@ export default function DriverDashboard() {
         </div>
       </div>
 
-      {/* Page principale - Grille avec infos personnelles et commandes */}
+      {/* Page principale - SEULEMENT les commandes */}
       <div className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6">
         {error && (
           <div className="mb-4 flex gap-2 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -975,99 +989,7 @@ export default function DriverDashboard() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Colonne gauche : Espace Livreur (permanent) */}
-          <div className="lg:col-span-1 space-y-4">
-            {/* Carte Informations Personnelles */}
-            <Card className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200">
-              <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                <User className="w-5 h-5 text-blue-600" />
-                Mon Espace Livreur
-              </h3>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-sm text-muted-foreground">Nom</span>
-                  <span className="font-semibold text-blue-900">{driverName}</span>
-                </div>
-              </div>
-            </Card>
-
-            {/* Carte Statistiques */}
-            <Card className="p-4">
-              <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-emerald-600" />
-                Mes Statistiques
-              </h3>
-              
-              {/* Total gagné */}
-              <div className="bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-lg p-4 mb-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-emerald-100 text-sm">Total gagné</p>
-                    <p className="text-2xl font-bold mt-1">
-                      {totalEarnings.toFixed(2)} TND
-                    </p>
-                  </div>
-                  <div className="bg-white/20 p-3 rounded-full">
-                    <Banknote className="w-6 h-6" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Stats détaillées */}
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                <div className="text-center p-2 bg-green-50 rounded-lg border-l-4 border-l-green-500">
-                  <p className="text-xs text-muted-foreground mb-1">Disponibles</p>
-                  <p className="text-xl font-bold text-green-600">{availableOrders.length}</p>
-                </div>
-                <div className="text-center p-2 bg-indigo-50 rounded-lg border-l-4 border-l-indigo-500">
-                  <p className="text-xs text-muted-foreground mb-1">En cours</p>
-                  <p className="text-xl font-bold text-indigo-600">{activeDeliveryOrders.length}</p>
-                </div>
-                <div className="text-center p-2 bg-emerald-50 rounded-lg border-l-4 border-l-emerald-500">
-                  <p className="text-xs text-muted-foreground mb-1">Livrées</p>
-                  <p className="text-xl font-bold text-emerald-600">{totalDeliveries}</p>
-                </div>
-              </div>
-
-              {/* Détails */}
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Livraisons complétées</span>
-                  <span className="font-medium">{totalDeliveries}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Commission</span>
-                  <span className="font-medium">15%</span>
-                </div>
-                <div className="flex justify-between pt-2 border-t">
-                  <span className="text-muted-foreground">Gain moyen</span>
-                  <span className="font-medium">
-                    {totalDeliveries > 0 ? (totalEarnings / totalDeliveries).toFixed(2) : "0.00"} TND
-                  </span>
-                </div>
-              </div>
-            </Card>
-
-            {/* Message d'encouragement si pas de commandes */}
-            {activeDeliveryOrders.length === 0 && (
-              <Card className="p-4 bg-orange-50 border-l-4 border-l-orange-500">
-                <div className="flex items-start gap-3">
-                  <Bell className="w-5 h-5 text-orange-600 mt-0.5" />
-                  <div>
-                    <p className="font-semibold text-orange-900 mb-1">En attente d'autres commandes</p>
-                    <p className="text-sm text-orange-700">
-                      Restez connecté pour recevoir les notifications !
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            )}
-          </div>
-
-          {/* Colonne droite : Commandes */}
-          <div className="lg:col-span-2">
-            {/* Vue unifiée - Toutes les commandes (disponibles + en cours) */}
+        {/* Vue unifiée - Toutes les commandes (disponibles + en cours) */}
         {(() => {
           console.log("[DEBUG] 🎨 RENDU - État du composant:", {
             loading,
@@ -1082,9 +1004,9 @@ export default function DriverDashboard() {
         ) : allOrdersToShow.length === 0 ? (
           <Card className="p-12 text-center">
             <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">Aucune mission en cours</h3>
+            <h3 className="text-lg font-medium mb-2">En attente de commandes</h3>
             <p className="text-muted-foreground">
-              Vous recevrez une notification WhatsApp lorsqu'une nouvelle commande sera disponible.
+              Vous recevrez une notification lorsqu'une nouvelle commande sera disponible.
             </p>
           </Card>
         ) : (
@@ -1215,21 +1137,6 @@ export default function DriverDashboard() {
                       </a>
                     </div>
 
-                    {/* Notes / Commande spéciale - Affichage visible */}
-                    {order.notes && order.notes.includes('COMMANDE SPÉCIALE') && (
-                      <div className="bg-primary/10 border-2 border-primary rounded-lg p-3 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="default" className="bg-primary">📋 Commande Spéciale</Badge>
-                        </div>
-                        <p className="text-sm font-medium text-primary">
-                          {order.notes.split('\n').find((line: string) => line.includes('COMMANDE SPÉCIALE'))?.replace('📋 COMMANDE SPÉCIALE (produits non listés):', '').trim() || order.notes}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Produits non listés dans le catalogue - Voir détails pour plus d'infos
-                        </p>
-                      </div>
-                    )}
-
                     <div className="pt-2 border-t space-y-2">
                       <div className="flex items-center justify-between">
                         <div>
@@ -1297,8 +1204,6 @@ export default function DriverDashboard() {
             })}
           </div>
         )}
-          </div>
-        </div>
       </div>
 
       {/* Modal Détails Client */}
