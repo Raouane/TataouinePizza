@@ -137,10 +137,22 @@ export function CreateOrderDialog({
   };
 
   const addItem = () => {
-    if (selectedRestaurantPizzas.length === 0) {
+    if (!form.restaurantId) {
       toast.error("Veuillez d'abord sélectionner un restaurant");
       return;
     }
+    
+    if (selectedRestaurantPizzas.length === 0) {
+      toast.error("Ce restaurant n'a pas de produits disponibles. Veuillez ajouter des produits au restaurant d'abord.");
+      return;
+    }
+    
+    console.log('[CreateOrder] Ajout produit:', {
+      restaurantId: form.restaurantId,
+      availablePizzas: selectedRestaurantPizzas.length,
+      selectedPizza: selectedRestaurantPizzas[0]?.name
+    });
+    
     setForm({
       ...form,
       items: [
@@ -264,8 +276,16 @@ export function CreateOrderDialog({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={addItem}
-                  disabled={!form.restaurantId}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('[CreateOrder] Bouton cliqué:', {
+                      restaurantId: form.restaurantId,
+                      availablePizzas: selectedRestaurantPizzas.length
+                    });
+                    addItem();
+                  }}
+                  disabled={!form.restaurantId || selectedRestaurantPizzas.length === 0}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Ajouter un produit
