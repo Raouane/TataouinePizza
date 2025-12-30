@@ -24,6 +24,11 @@ export function StatsDialog({
   const pendingCount = orders.filter(o => o.status === "pending").length;
   const readyCount = orders.filter(o => o.status === "ready").length;
   const deliveredCount = orders.filter(o => o.status === "delivered").length;
+  
+  // Commandes en attente de livreur (accepted ou ready sans driverId)
+  const waitingForDriverCount = orders.filter(o => 
+    (o.status === "accepted" || o.status === "ready") && !o.driverId
+  ).length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -56,6 +61,12 @@ export function StatsDialog({
               <p className="text-xs text-muted-foreground mb-1">Livrées</p>
               <p className="text-2xl font-bold text-emerald-600">{deliveredCount}</p>
             </Card>
+            {waitingForDriverCount > 0 && (
+              <Card className="p-3 text-center border-l-4 border-l-orange-500 col-span-2">
+                <p className="text-xs text-muted-foreground mb-1">⚠️ En attente de livreur</p>
+                <p className="text-2xl font-bold text-orange-600">{waitingForDriverCount}</p>
+              </Card>
+            )}
           </div>
 
           {/* Détails */}

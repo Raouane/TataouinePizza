@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, ShoppingCart, Phone } from "lucide-react";
+import { RefreshCw, ShoppingCart, Phone, AlertTriangle, Clock } from "lucide-react";
 import { OrderAdminCard } from "./order-admin-card";
 import { CreateOrderDialog } from "./create-order-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { Order, Driver, Restaurant, Pizza } from "@/lib/api";
 
 interface OrdersTabProps {
@@ -41,8 +42,53 @@ export function OrdersTab({
 }: OrdersTabProps) {
   const [showCreateOrderDialog, setShowCreateOrderDialog] = useState(false);
 
+  // Calculer les commandes en attente de livreur
+  const waitingForDriverOrders = useMemo(() => {
+    return orders.filter(order => {
+      // Commandes acceptées ou prêtes mais sans livreur assigné
+      return (order.status === "accepted" || order.status === "ready") && !order.driverId;
+    });
+  }, [orders]);
+
+  // Calculer le temps d'attente moyen
+  const averageWaitTime = useMemo(() => {
+    if (waitingForDriverOrders.length === 0) return 0;
+    
+    const now = new Date().getTime();
+    const totalWaitTime = waitingForDriverOrders.reduce((sum, order) => {
+      const orderTime = order.createdAt ? new Date(order.createdAt).getTime() : now;
+      return sum + (now - orderTime);
+    }, 0);
+    
+    return Math.round(totalWaitTime / waitingForDriverOrders.length / 1000 / 60); // en minutes
+  }, [waitingForDriverOrders]);
+
   return (
     <div className="space-y-4">
+      {/* Alerte commandes en attente de livreur */}
+      {waitingForDriverOrders.length > 0 && (
+        <Alert variant="destructive" className="border-orange-500 bg-orange-50">
+          <AlertTriangle className="h-4 w-4 text-orange-600" />
+          <AlertTitle className="text-orange-800 font-semibold">
+            ⚠️ {waitingForDriverOrders.length} commande(s) en attente de livreur
+          </AlertTitle>
+          <AlertDescription className="text-orange-700 mt-2">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className="w-4 h-4" />
+              <span>Temps d'attente moyen: {averageWaitTime} minute(s)</span>
+            </div>
+            <p className="text-sm">
+              Ces commandes sont prêtes mais aucun livreur n'est disponible. 
+              Le système continue à chercher automatiquement. 
+              Vous pouvez aussi assigner manuellement un livreur depuis les détails de chaque commande.
+            </p>
+            <p className="text-xs mt-2 font-medium">
+              💡 Solution: Activez plus de livreurs ou attendez qu'un livreur termine sa livraison.
+            </p>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Bouton créer commande */}
       <Card className="p-4">
         <div className="flex items-center justify-between">
@@ -50,6 +96,11 @@ export function OrdersTab({
             <h3 className="font-medium">Commandes</h3>
             <p className="text-sm text-muted-foreground">
               Gérez les commandes ou créez-en une manuellement (appel téléphonique)
+              {waitingForDriverOrders.length > 0 && (
+                <span className="ml-2 text-orange-600 font-medium">
+                  • {waitingForDriverOrders.length} en attente
+                </span>
+              )}
             </p>
           </div>
           <Button onClick={() => setShowCreateOrderDialog(true)}>
