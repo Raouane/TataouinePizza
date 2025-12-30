@@ -18,7 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Minus, X } from "lucide-react";
+import { Plus, Minus, X, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import type { Restaurant, Pizza, OrderItem } from "@/lib/api";
 import { createAdminOrder } from "@/lib/api";
@@ -252,9 +252,14 @@ export function CreateOrderDialog({
             </div>
 
             {/* Articles */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label>Articles *</Label>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-base font-semibold">Produits demandés par le client *</Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Ajoutez les produits que le client souhaite commander
+                  </p>
+                </div>
                 <Button
                   type="button"
                   variant="outline"
@@ -263,83 +268,110 @@ export function CreateOrderDialog({
                   disabled={!form.restaurantId}
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Ajouter
+                  Ajouter un produit
                 </Button>
               </div>
 
               {form.items.length === 0 ? (
-                <div className="border rounded-md p-4 text-center text-muted-foreground">
-                  Aucun article. Cliquez sur "Ajouter" pour commencer.
+                <div className="border-2 border-dashed rounded-lg p-8 text-center bg-muted/30">
+                  <ShoppingCart className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground font-medium mb-1">Aucun produit ajouté</p>
+                  <p className="text-sm text-muted-foreground">
+                    Cliquez sur "Ajouter un produit" pour commencer
+                  </p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {form.items.map((item, index) => (
                     <div
                       key={index}
-                      className="border rounded-md p-3 flex items-center gap-2"
+                      className="border-2 rounded-lg p-4 bg-card shadow-sm hover:shadow-md transition-shadow"
                     >
-                      <Select
-                        value={item.pizzaId}
-                        onValueChange={(value) => updateItem(index, "pizzaId", value)}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {selectedRestaurantPizzas.map((pizza) => (
-                            <SelectItem key={pizza.id} value={pizza.id}>
-                              {pizza.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 space-y-3">
+                          {/* Produit */}
+                          <div>
+                            <Label className="text-sm font-medium mb-1.5 block">
+                              Produit {index + 1}
+                            </Label>
+                            <Select
+                              value={item.pizzaId}
+                              onValueChange={(value) => updateItem(index, "pizzaId", value)}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Sélectionner un produit" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {selectedRestaurantPizzas.map((pizza) => (
+                                  <SelectItem key={pizza.id} value={pizza.id}>
+                                    {pizza.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                      <Select
-                        value={item.size}
-                        onValueChange={(value) =>
-                          updateItem(index, "size", value as "small" | "medium" | "large")
-                        }
-                      >
-                        <SelectTrigger className="w-24">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="small">S</SelectItem>
-                          <SelectItem value="medium">M</SelectItem>
-                          <SelectItem value="large">L</SelectItem>
-                        </SelectContent>
-                      </Select>
+                          {/* Taille et Quantité */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label className="text-sm font-medium mb-1.5 block">Taille</Label>
+                              <Select
+                                value={item.size}
+                                onValueChange={(value) =>
+                                  updateItem(index, "size", value as "small" | "medium" | "large")
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="small">Petite (S)</SelectItem>
+                                  <SelectItem value="medium">Moyenne (M)</SelectItem>
+                                  <SelectItem value="large">Grande (L)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
 
-                      <div className="flex items-center gap-2">
+                            <div>
+                              <Label className="text-sm font-medium mb-1.5 block">Quantité</Label>
+                              <div className="flex items-center gap-2 border rounded-md p-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() =>
+                                    updateItem(index, "quantity", Math.max(1, item.quantity - 1))
+                                  }
+                                >
+                                  <Minus className="w-4 h-4" />
+                                </Button>
+                                <span className="flex-1 text-center font-medium">{item.quantity}</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => updateItem(index, "quantity", item.quantity + 1)}
+                                >
+                                  <Plus className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bouton supprimer */}
                         <Button
                           type="button"
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
-                          onClick={() =>
-                            updateItem(index, "quantity", Math.max(1, item.quantity - 1))
-                          }
+                          className="mt-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => removeItem(index)}
                         >
-                          <Minus className="w-4 h-4" />
-                        </Button>
-                        <span className="w-8 text-center">{item.quantity}</span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateItem(index, "quantity", item.quantity + 1)}
-                        >
-                          <Plus className="w-4 h-4" />
+                          <X className="w-5 h-5" />
                         </Button>
                       </div>
-
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeItem(index)}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
                     </div>
                   ))}
                 </div>
