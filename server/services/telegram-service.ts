@@ -35,10 +35,16 @@ class TelegramService {
     try {
       const url = `https://api.telegram.org/bot${this.botToken}/sendMessage`;
       
+      // IMPORTANT: disable_notification doit être explicitement false pour que la sonnerie fonctionne
+      // Si disableNotification n'est pas défini, on le met à false par défaut
+      const disableNotification = options?.disableNotification !== undefined 
+        ? options.disableNotification 
+        : false;
+      
       const payload: any = {
         chat_id: chatId,
         text: message,
-        disable_notification: options?.disableNotification ?? false, // Par défaut, les notifications sont activées (sonnerie)
+        disable_notification: disableNotification, // false = sonnerie activée, true = silencieux
       };
 
       if (options?.parseMode) {
@@ -47,6 +53,13 @@ class TelegramService {
 
       if (options?.replyMarkup) {
         payload.reply_markup = options.replyMarkup;
+      }
+
+      // Log pour déboguer
+      if (!disableNotification) {
+        console.log(`[Telegram] 🔊 Envoi message avec SONNERIE activée à ${chatId}`);
+      } else {
+        console.log(`[Telegram] 🔇 Envoi message SILENCIEUX à ${chatId}`);
       }
 
       const response = await fetch(url, {
@@ -61,6 +74,7 @@ class TelegramService {
 
       if (!data.ok) {
         console.error('[Telegram] ❌ Erreur API:', data);
+        console.error('[Telegram] ❌ Payload envoyé:', JSON.stringify(payload, null, 2));
         return { 
           success: false, 
           error: data.description || 'Erreur Telegram API',
@@ -68,6 +82,8 @@ class TelegramService {
         };
       }
 
+      console.log(`[Telegram] ✅ Message envoyé (ID: ${data.result?.message_id}, Sonnerie: ${!disableNotification ? 'OUI' : 'NON'})`);
+      
       return { 
         success: true, 
         messageId: data.result?.message_id 
@@ -85,42 +101,61 @@ class TelegramService {
   /**
    * Envoie une alerte sonore distincte et répétée pour attirer l'attention du livreur
    * Envoie plusieurs messages courts en succession pour créer une sonnerie
+   * IMPORTANT: La sonnerie fonctionne uniquement si les notifications Telegram sont activées sur le téléphone
    */
   async sendSoundAlert(chatId: string, orderId: string): Promise<boolean> {
     if (!this.isConfigured) {
+      console.error('[Telegram] ❌ Bot non configuré, impossible d\'envoyer l\'alerte sonore');
       return false;
     }
 
     try {
-      // Message d'alerte sonore - répété 3 fois pour créer une sonnerie longue et distincte
-      const alertMessage = `🔔🔔🔔 NOUVELLE COMMANDE #${orderId.slice(0, 8)} 🔔🔔🔔\n\n⚡⚡⚡ URGENT ⚡⚡⚡`;
+      // Messages d'alerte sonore - variés pour maximiser l'impact
+      const alertMessages = [
+        `🔔🔔🔔 NOUVELLE COMMANDE #${orderId.slice(0, 8)} 🔔🔔🔔`,
+        `⚡⚡⚡ URGENT - COMMANDE DISPONIBLE ⚡⚡⚡`,
+        `📱📱📱 NOUVELLE COMMANDE - RÉPONDEZ MAINTENANT 📱📱📱`
+      ];
       
-      console.log(`[Telegram] 🔊 Envoi alerte sonore à ${chatId}`);
+      console.log(`[Telegram] 🔊 Début envoi alerte sonore à ${chatId} (3 messages avec sonnerie)`);
       
-      // Envoyer 3 messages en succession rapide pour créer une sonnerie répétée
+      // Envoyer 3 messages différents en succession pour créer une sonnerie répétée et distincte
       const alerts = [];
       for (let i = 0; i < 3; i++) {
-        const result = await this.sendMessage(chatId, alertMessage, {
-          disableNotification: false, // S'assurer que la notification sonne
-        });
-        alerts.push(result.success);
+        const alertMessage = alertMessages[i] || alertMessages[0];
         
-        // Attendre 500ms entre chaque message pour créer une sonnerie répétée
+        // FORCER disableNotification à false explicitement
+        const result = await this.sendMessage(chatId, alertMessage, {
+          disableNotification: false, // FORCER la sonnerie
+        });
+        
+        alerts.push(result);
+        
+        if (!result.success) {
+          console.error(`[Telegram] ❌ Échec envoi alerte ${i + 1}/3:`, result.error);
+        } else {
+          console.log(`[Telegram] ✅ Alerte ${i + 1}/3 envoyée avec succès`);
+        }
+        
+        // Attendre 800ms entre chaque message pour créer une sonnerie répétée plus audible
         if (i < 2) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 800));
         }
       }
 
-      const allSuccess = alerts.every(success => success);
+      const allSuccess = alerts.every(result => result.success);
       if (allSuccess) {
-        console.log(`[Telegram] ✅ Alerte sonore envoyée (3 messages)`);
+        console.log(`[Telegram] ✅ Alerte sonore complète envoyée (3 messages avec sonnerie activée)`);
+        console.log(`[Telegram] 💡 NOTE: Si le téléphone ne sonne pas, vérifiez que les notifications Telegram sont activées dans les paramètres du téléphone`);
       } else {
-        console.warn(`[Telegram] ⚠️ Certaines alertes sonores ont échoué`);
+        const failedCount = alerts.filter(r => !r.success).length;
+        console.warn(`[Telegram] ⚠️ ${failedCount}/3 alertes sonores ont échoué`);
       }
 
       return allSuccess;
     } catch (error: any) {
       console.error('[Telegram] ❌ Erreur alerte sonore:', error);
+      console.error('[Telegram] ❌ Stack:', error.stack);
       return false;
     }
   }
@@ -207,12 +242,13 @@ ${refuseUrl}
       ]
     };
 
-    console.log(`[Telegram] 📤 Envoi message détaillé à livreur ${driverTelegramId}`);
+    console.log(`[Telegram] 📤 Envoi message détaillé à livreur ${driverTelegramId} (avec sonnerie)`);
     
+    // FORCER disableNotification à false pour que le message principal sonne aussi
     const result = await this.sendMessage(driverTelegramId, message, {
       parseMode: 'HTML',
       replyMarkup,
-      disableNotification: false // S'assurer que ce message sonne aussi
+      disableNotification: false // FORCER la sonnerie pour le message principal
     });
 
     if (result.success) {
