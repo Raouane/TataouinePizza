@@ -105,11 +105,29 @@ export function CreateOrderDialog({
 
     setIsSubmitting(true);
     try {
-      const orderItems: OrderItem[] = form.items.map(item => ({
-        pizzaId: item.pizzaId,
-        size: item.size,
-        quantity: item.quantity,
-      }));
+      // Valider et préparer les items avec taille correcte
+      const orderItems: OrderItem[] = form.items.map(item => {
+        const availableSizes = getAvailableSizes(item.pizzaId);
+        // Pour les produits par unité (1 seule taille), utiliser cette taille
+        // Pour les produits avec plusieurs tailles, utiliser la taille sélectionnée ou la première disponible
+        let finalSize: "small" | "medium" | "large";
+        if (availableSizes.length === 1) {
+          finalSize = availableSizes[0] as "small" | "medium" | "large";
+        } else if (item.size) {
+          finalSize = item.size;
+        } else if (availableSizes.length > 1) {
+          finalSize = availableSizes[0] as "small" | "medium" | "large";
+        } else {
+          // Par défaut medium si aucune taille disponible
+          finalSize = "medium";
+        }
+        
+        return {
+          pizzaId: item.pizzaId,
+          size: finalSize,
+          quantity: item.quantity,
+        };
+      });
 
       // Pour les commandes spéciales, ajouter un préfixe aux notes
       let notes = form.notes || undefined;
@@ -205,14 +223,21 @@ export function CreateOrderDialog({
     const newItems = [...form.items];
     newItems[index] = { ...newItems[index], [field]: value };
     
-    // Si on change de pizza, réinitialiser la taille si elle n'est plus disponible
+    // Si on change de pizza, gérer la taille selon le type de produit
     if (field === "pizzaId") {
-      const pizza = pizzas.find(p => p.id === value);
-      if (pizza && pizza.prices && pizza.prices.length > 0) {
-        const availableSizes = pizza.prices.map(p => p.size);
+      const availableSizes = getAvailableSizes(value);
+      
+      if (availableSizes.length === 0) {
+        // Aucune taille disponible
+        newItems[index].size = null;
+      } else if (availableSizes.length === 1) {
+        // Produit vendu par unité : taille unique automatique
+        newItems[index].size = availableSizes[0] as "small" | "medium" | "large";
+      } else {
+        // Produit avec plusieurs tailles : vérifier si la taille actuelle est disponible
         const currentSize = newItems[index].size;
-        // Si la taille actuelle n'est pas disponible, utiliser la première taille disponible
-        if (!availableSizes.includes(currentSize)) {
+        if (!currentSize || !availableSizes.includes(currentSize)) {
+          // Utiliser la première taille disponible
           newItems[index].size = availableSizes[0] as "small" | "medium" | "large";
         }
       }
@@ -225,9 +250,24 @@ export function CreateOrderDialog({
   const getAvailableSizes = (pizzaId: string): string[] => {
     const pizza = pizzas.find(p => p.id === pizzaId);
     if (!pizza || !pizza.prices || pizza.prices.length === 0) {
-      return ["small", "medium", "large"]; // Par défaut, toutes les tailles
+      return []; // Aucune taille disponible
     }
     return pizza.prices.map(p => p.size);
+  };
+
+  // Fonction pour déterminer si un produit est vendu par unité (une seule taille)
+  const isUnitProduct = (pizzaId: string): boolean => {
+    const availableSizes = getAvailableSizes(pizzaId);
+    return availableSizes.length === 1;
+  };
+
+  // Fonction pour obtenir la taille unique d'un produit vendu par unité
+  const getUnitSize = (pizzaId: string): "small" | "medium" | "large" | null => {
+    const availableSizes = getAvailableSizes(pizzaId);
+    if (availableSizes.length === 1) {
+      return availableSizes[0] as "small" | "medium" | "large";
+    }
+    return null;
   };
 
   const getPizzaName = (pizzaId: string) => {
@@ -383,48 +423,68 @@ export function CreateOrderDialog({
                           </div>
 
                           {/* Taille et Quantité */}
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <Label className="text-sm font-medium mb-1.5 block">Taille</Label>
-                              <Select
-                                value={item.size}
-                                onValueChange={(value) =>
-                                  updateItem(index, "size", value as "small" | "medium" | "large")
-                                }
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {(() => {
-                                    const availableSizes = getAvailableSizes(item.pizzaId);
+                          <div className={`grid gap-3 ${isUnitProduct(item.pizzaId) ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                            {!isUnitProduct(item.pizzaId) && (
+                              <div>
+                                <Label className="text-sm font-medium mb-1.5 block">Taille</Label>
+                                <Select
+                                  value={item.size || ""}
+                                  onValueChange={(value) =>
+                                    updateItem(index, "size", value as "small" | "medium" | "large")
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Sélectionner une taille" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {(() => {
+                                      const availableSizes = getAvailableSizes(item.pizzaId);
+                                      const sizeLabels: Record<string, string> = {
+                                        small: "Petite (S)",
+                                        medium: "Moyenne (M)",
+                                        large: "Grande (L)",
+                                      };
+                                      return ["small", "medium", "large"]
+                                        .filter(size => availableSizes.includes(size))
+                                        .map(size => (
+                                          <SelectItem key={size} value={size}>
+                                            {sizeLabels[size]}
+                                          </SelectItem>
+                                        ));
+                                    })()}
+                                  </SelectContent>
+                                </Select>
+                                {(() => {
+                                  const availableSizes = getAvailableSizes(item.pizzaId);
+                                  if (availableSizes.length === 0) {
+                                    return (
+                                      <p className="text-xs text-red-500 mt-1">
+                                        ⚠️ Aucune taille disponible pour ce produit
+                                      </p>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
+                            )}
+                            
+                            {isUnitProduct(item.pizzaId) && (
+                              <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                                <span className="font-medium">Vendu par unité</span>
+                                {(() => {
+                                  const unitSize = getUnitSize(item.pizzaId);
+                                  if (unitSize) {
                                     const sizeLabels: Record<string, string> = {
                                       small: "Petite (S)",
                                       medium: "Moyenne (M)",
                                       large: "Grande (L)",
                                     };
-                                    return ["small", "medium", "large"]
-                                      .filter(size => availableSizes.includes(size))
-                                      .map(size => (
-                                        <SelectItem key={size} value={size}>
-                                          {sizeLabels[size]}
-                                        </SelectItem>
-                                      ));
-                                  })()}
-                                </SelectContent>
-                              </Select>
-                              {(() => {
-                                const availableSizes = getAvailableSizes(item.pizzaId);
-                                if (availableSizes.length === 0) {
-                                  return (
-                                    <p className="text-xs text-red-500 mt-1">
-                                      ⚠️ Aucune taille disponible pour ce produit
-                                    </p>
-                                  );
-                                }
-                                return null;
-                              })()}
-                            </div>
+                                    return ` - ${sizeLabels[unitSize]}`;
+                                  }
+                                  return "";
+                                })()}
+                              </div>
+                            )}
 
                             <div>
                               <Label className="text-sm font-medium mb-1.5 block">Quantité</Label>
