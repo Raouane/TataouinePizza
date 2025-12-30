@@ -3,67 +3,30 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { sendDriverOtp } from "@/lib/api";
 import { Bike, AlertCircle, ArrowLeft, Phone, KeyRound } from "lucide-react";
 
 export default function DriverLogin() {
   const [, setLocation] = useLocation();
-  const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phone, setPhone] = useState("");
-  const [otpCode, setOtpCode] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [smsFailed, setSmsFailed] = useState(false);
 
-  const handleSendOtp = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      const response = await sendDriverOtp(phone);
-      
-      // Si le SMS a échoué, afficher un message informatif
-      if (response.smsFailed) {
-        setSmsFailed(true);
-      } else {
-        setSmsFailed(false);
-      }
-      
-      // Si le code est retourné (mode démo ou SMS échoué), l'utiliser automatiquement
-      if (response.code) {
-        setOtpCode(response.code);
-        console.log(`[Driver Login] Code OTP reçu dans la réponse: ${response.code}`);
-      } else if (response.demoCode) {
-        // Mode démo avec code de démo
-        setOtpCode(response.demoCode);
-        console.log(`[Driver Login] Code de démo utilisé: ${response.demoCode}`);
-      }
-      
-      setStep("otp");
-    } catch (err: any) {
-      setError(err.message || "Erreur lors de l'envoi du code");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    try {
-      // Verify OTP and login in one call
-      const res = await fetch("/api/driver/login-otp", {
+      const res = await fetch("/api/driver/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, code: otpCode }),
+        body: JSON.stringify({ phone, password }),
       });
       
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Livreur non trouvé");
+        throw new Error(err.error || "Téléphone ou mot de passe incorrect");
       }
       
       const { token, driver } = await res.json();
@@ -73,7 +36,7 @@ export default function DriverLogin() {
       localStorage.setItem("driverPhone", phone);
       setLocation("/driver/dashboard");
     } catch (err: any) {
-      setError(err.message || "Code incorrect");
+      setError(err.message || "Erreur lors de la connexion");
     } finally {
       setLoading(false);
     }
@@ -94,133 +57,72 @@ export default function DriverLogin() {
         </div>
 
         <Card className="p-8 space-y-6">
-          {step === "phone" ? (
-            <>
-              <div className="text-center">
-                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Phone className="w-6 h-6 text-primary" />
-                </div>
-                <h2 className="text-xl font-bold mb-2">Numéro de téléphone</h2>
-                <p className="text-sm text-muted-foreground">
-                  Entrez votre numéro pour recevoir un code de vérification
-                </p>
-              </div>
+          <div className="text-center">
+            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <KeyRound className="w-6 h-6 text-primary" />
+            </div>
+            <h2 className="text-xl font-bold mb-2">Connexion</h2>
+            <p className="text-sm text-muted-foreground">
+              Entrez votre téléphone et votre mot de passe
+            </p>
+          </div>
 
-              {error && (
-                <div className="flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-600">{error}</p>
-                </div>
-              )}
-
-              <form onSubmit={handleSendOtp} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Téléphone</label>
-                  <Input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="21612345678"
-                    disabled={loading}
-                    required
-                    minLength={8}
-                    data-testid="input-driver-phone"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Format: 216XXXXXXXX (sans espaces)
-                  </p>
-                </div>
-
-                <Button
-                  type="submit"
-                  disabled={loading || phone.length < 8}
-                  className="w-full"
-                  data-testid="button-send-otp"
-                >
-                  {loading ? "Envoi en cours..." : "Recevoir le code"}
-                </Button>
-              </form>
-
-              {/* Demo info */}
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-                <p className="font-medium text-blue-900 mb-2">🔑 Livreurs de démo:</p>
-                <ul className="space-y-1 text-blue-800">
-                  <li>• Mohamed: <code className="bg-blue-100 px-1 rounded">21612345678</code></li>
-                  <li>• Ahmed: <code className="bg-blue-100 px-1 rounded">21698765432</code></li>
-                  <li>• Fatima: <code className="bg-blue-100 px-1 rounded">21625874123</code></li>
-                </ul>
-                <p className="mt-2 text-blue-700">Code OTP de démo: <code className="bg-blue-100 px-1 rounded font-bold">1234</code></p>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="text-center">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <KeyRound className="w-6 h-6 text-green-600" />
-                </div>
-                <h2 className="text-xl font-bold mb-2">Vérification</h2>
-                <p className="text-sm text-muted-foreground">
-                  Entrez le code envoyé au <span className="font-medium">{phone}</span>
-                </p>
-              </div>
-
-              {error && (
-                <div className="flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-600">{error}</p>
-                </div>
-              )}
-
-              {smsFailed && (
-                <div className="flex gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                  <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-orange-800">
-                    <p className="font-medium">⚠️ SMS non envoyé</p>
-                    <p className="text-orange-700">La limite quotidienne de SMS est atteinte. Le code a été pré-rempli automatiquement.</p>
-                  </div>
-                </div>
-              )}
-
-              <form onSubmit={handleVerifyOtp} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Code OTP</label>
-                  <Input
-                    type="text"
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value)}
-                    placeholder="1234"
-                    disabled={loading}
-                    required
-                    maxLength={4}
-                    className="text-center text-2xl tracking-widest"
-                    data-testid="input-driver-otp"
-                  />
-                </div>
-
-                <Button
-                  type="submit"
-                  disabled={loading || otpCode.length !== 4}
-                  className="w-full"
-                  data-testid="button-verify-otp"
-                >
-                  {loading ? "Vérification..." : "Vérifier et se connecter"}
-                </Button>
-              </form>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("phone");
-                  setOtpCode("");
-                  setSmsFailed(false);
-                  setError("");
-                }}
-                className="w-full text-sm text-primary hover:underline"
-              >
-                ← Changer de numéro
-              </button>
-            </>
+          {error && (
+            <div className="flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
           )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Téléphone</label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="21612345678"
+                  disabled={loading}
+                  required
+                  minLength={8}
+                  className="pl-10"
+                  data-testid="input-driver-phone"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Format: 216XXXXXXXX (sans espaces)
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Mot de passe</label>
+              <div className="relative">
+                <KeyRound className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  disabled={loading}
+                  required
+                  minLength={4}
+                  className="pl-10"
+                  data-testid="input-driver-password"
+                />
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              disabled={loading || phone.length < 8 || password.length < 4}
+              className="w-full"
+              data-testid="button-driver-login"
+            >
+              {loading ? "Connexion..." : "Se connecter"}
+            </Button>
+          </form>
         </Card>
 
         <div className="text-center">

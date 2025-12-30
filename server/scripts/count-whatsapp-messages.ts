@@ -36,8 +36,8 @@ async function countWhatsAppMessages() {
 
     // Récupérer tous les messages WhatsApp envoyés aujourd'hui
     const messages = await client.messages.list({
-      dateSentAfter: todayStart,
-      dateSentBefore: todayEnd,
+      dateSentAfter: today,
+      dateSentBefore: tomorrow,
     });
 
     // Filtrer uniquement les messages WhatsApp (qui commencent par "whatsapp:")

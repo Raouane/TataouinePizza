@@ -53,6 +53,7 @@ export async function runMigrationsOnStartup() {
         id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
         name TEXT NOT NULL,
         phone TEXT NOT NULL UNIQUE,
+        password TEXT,
         address TEXT NOT NULL,
         description TEXT,
         image_url TEXT,
@@ -68,6 +69,21 @@ export async function runMigrationsOnStartup() {
       );
     `);
     console.log("[DB] ✅ Table restaurants créée/vérifiée");
+    
+    // Ajouter la colonne password si elle n'existe pas
+    await db.execute(sql`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'restaurants' AND column_name = 'password'
+        ) THEN
+          ALTER TABLE restaurants ADD COLUMN password TEXT;
+          RAISE NOTICE 'Colonne password ajoutée à restaurants';
+        END IF;
+      END $$;
+    `);
+    console.log("[DB] ✅ Colonne password vérifiée pour restaurants");
     
     // Ajouter la colonne order_type si elle n'existe pas
     await db.execute(sql`

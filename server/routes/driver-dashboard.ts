@@ -9,13 +9,68 @@ import { OrderEnrichmentService } from "../services/order-enrichment-service";
 import { OrderService } from "../services/order-service";
 import { getVapidPublicKey } from "../services/push-notification-service";
 import { sendOtpSms } from "../services/sms-service";
+import { comparePassword, generateDriverToken } from "../auth";
 import type { Order } from "@shared/schema";
 
 export function registerDriverDashboardRoutes(app: Express): void {
   console.log("[ROUTES] ✅ Enregistrement des routes driver dashboard");
   
+  // ============ DRIVER AUTH (TÉLÉPHONE + MOT DE PASSE) ============
+  
+  /**
+   * POST /api/driver/login
+   * Connexion avec téléphone + mot de passe (sans SMS)
+   */
+  app.post("/api/driver/login", async (req, res) => {
+    console.log("[DRIVER LOGIN] Requête de connexion reçue");
+    try {
+      const { phone, password } = req.body as { phone?: string; password?: string };
+      
+      if (!phone || !password) {
+        return res.status(400).json({ error: "Téléphone et mot de passe requis" });
+      }
+      
+      // Trouver le livreur par téléphone
+      const driver = await storage.getDriverByPhone(phone);
+      if (!driver) {
+        console.log(`[DRIVER LOGIN] ❌ Livreur non trouvé: ${phone}`);
+        return res.status(401).json({ error: "Téléphone ou mot de passe incorrect" });
+      }
+      
+      // Vérifier le mot de passe
+      if (!driver.password) {
+        console.log(`[DRIVER LOGIN] ❌ Livreur ${driver.id} n'a pas de mot de passe défini`);
+        return res.status(401).json({ error: "Mot de passe non configuré. Contactez l'administrateur." });
+      }
+      
+      const isPasswordValid = await comparePassword(password, driver.password);
+      if (!isPasswordValid) {
+        console.log(`[DRIVER LOGIN] ❌ Mot de passe incorrect pour livreur: ${phone}`);
+        return res.status(401).json({ error: "Téléphone ou mot de passe incorrect" });
+      }
+      
+      // Générer le token JWT
+      const token = generateDriverToken(driver.id, driver.phone);
+      
+      console.log(`[DRIVER LOGIN] ✅ Connexion réussie pour ${driver.name} (${phone})`);
+      
+      res.json({
+        token,
+        driver: {
+          id: driver.id,
+          name: driver.name,
+          phone: driver.phone,
+        },
+      });
+    } catch (error: any) {
+      console.error("[DRIVER LOGIN] Erreur lors de la connexion:", error);
+      res.status(500).json({ error: "Erreur serveur lors de la connexion" });
+    }
+  });
+  
   // ============ DRIVER AUTH (OTP) ============
   // OTP TOUJOURS ACTIVÉ pour les livreurs (indépendamment de ENABLE_SMS_OTP)
+  // (Gardé pour compatibilité, mais la connexion téléphone + mot de passe est recommandée)
   
   /**
    * POST /api/driver/otp/send
@@ -79,7 +134,7 @@ export function registerDriverDashboardRoutes(app: Express): void {
       if (ENABLE_DEMO_OTP) {
         response.demoCode = process.env.DEMO_OTP_CODE || "1234";
         response.code = code; // Retourner aussi le vrai code en mode démo
-      } else if (smsFailed && (smsErrorCode === 63038 || smsErrorCode === "63038" || smsErrorCode === undefined)) {
+      } else if (smsFailed && (smsErrorCode === "63038" || smsErrorCode === undefined)) {
         // Si SMS échoué (limite quotidienne ou autre erreur), retourner le code
         response.code = code;
         response.smsFailed = true;

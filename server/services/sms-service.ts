@@ -1,5 +1,6 @@
 import twilio from 'twilio';
 import { storage } from '../storage.js';
+import { telegramService } from './telegram-service.js';
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -295,17 +296,44 @@ export async function sendWhatsAppToDriver(
   restaurantName: string,
   driverId?: string  // Ajouter driverId optionnel pour éviter la recherche
 ): Promise<boolean> {
+  console.log('[WhatsApp] 📞 sendWhatsAppToDriver APPELÉE');
+  console.log('[WhatsApp]   - Téléphone livreur:', driverPhone);
+  console.log('[WhatsApp]   - Order ID:', orderId.slice(0, 8));
+  console.log('[WhatsApp]   - Driver ID:', driverId || 'NON FOURNI');
+  
   if (!twilioClient) {
-    console.warn('[WhatsApp] ⚠️ Twilio non configuré, WhatsApp non envoyé');
+    console.error('[WhatsApp] ❌ Twilio client non initialisé');
+    console.error('[WhatsApp] ❌ Vérifiez TWILIO_ACCOUNT_SID et TWILIO_AUTH_TOKEN dans .env');
     return false;
   }
+  
+  console.log('[WhatsApp] ✅ Twilio client initialisé');
 
-  const whatsappFrom = process.env.TWILIO_WHATSAPP_NUMBER || (twilioPhoneNumber ? `whatsapp:${twilioPhoneNumber}` : null);
+  // Construire le numéro WhatsApp source avec le préfixe "whatsapp:"
+  let whatsappFrom: string | null = null;
+  
+  if (process.env.TWILIO_WHATSAPP_NUMBER) {
+    // Si TWILIO_WHATSAPP_NUMBER est défini, s'assurer qu'il a le préfixe "whatsapp:"
+    whatsappFrom = process.env.TWILIO_WHATSAPP_NUMBER.startsWith('whatsapp:')
+      ? process.env.TWILIO_WHATSAPP_NUMBER
+      : `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER}`;
+  } else if (twilioPhoneNumber) {
+    // Sinon, utiliser TWILIO_PHONE_NUMBER avec le préfixe "whatsapp:"
+    whatsappFrom = `whatsapp:${twilioPhoneNumber}`;
+  }
+  
+  console.log('[WhatsApp] 🔍 Vérification configuration WhatsApp:');
+  console.log('[WhatsApp]   - TWILIO_WHATSAPP_NUMBER (raw):', process.env.TWILIO_WHATSAPP_NUMBER || 'NON DÉFINI');
+  console.log('[WhatsApp]   - TWILIO_PHONE_NUMBER:', twilioPhoneNumber || 'NON DÉFINI');
+  console.log('[WhatsApp]   - whatsappFrom calculé:', whatsappFrom || 'NULL');
   
   if (!whatsappFrom) {
-    console.error('[WhatsApp] ❌ Numéro WhatsApp Twilio non configuré (TWILIO_WHATSAPP_NUMBER)');
+    console.error('[WhatsApp] ❌ Numéro WhatsApp Twilio non configuré');
+    console.error('[WhatsApp] ❌ Définissez TWILIO_WHATSAPP_NUMBER dans votre .env (ex: whatsapp:+14155238886)');
     return false;
   }
+  
+  console.log('[WhatsApp] ✅ Numéro WhatsApp source configuré:', whatsappFrom);
 
   const formattedPhone = formatPhoneNumber(driverPhone);
   const whatsappTo = formattedPhone.startsWith('whatsapp:') 
@@ -369,6 +397,13 @@ ${refuseUrl}
 ⏱️ *Délai: 2 minutes*`;
 
   try {
+    // Log final avant envoi pour diagnostic
+    console.log('[WhatsApp] 📤 ENVOI MESSAGE - Valeurs finales:');
+    console.log('[WhatsApp]   - from:', whatsappFrom);
+    console.log('[WhatsApp]   - to:', whatsappTo);
+    console.log('[WhatsApp]   - from type:', typeof whatsappFrom);
+    console.log('[WhatsApp]   - to type:', typeof whatsappTo);
+    
     // Utiliser body au lieu de ContentSid pour un message libre
     const result = await twilioClient.messages.create({
       body: message,
@@ -424,15 +459,20 @@ export async function sendWhatsAppToDrivers(
 ): Promise<number> {
   console.log("========================================");
   console.log("[WhatsApp] 📱📱📱 SEND WHATSAPP TO DRIVERS 📱📱📱");
+  console.log("[WhatsApp] ⚡ FONCTION APPELÉE - DÉBUT DU PROCESSUS");
   console.log("[WhatsApp] Order ID:", orderId.slice(0, 8));
   console.log("[WhatsApp] Restaurant:", restaurantName);
   console.log("[WhatsApp] Client:", customerName);
+  console.log("[WhatsApp] Adresse:", address);
   console.log("========================================");
   
   if (!twilioClient) {
     console.error('[WhatsApp] ❌ Twilio non configuré, WhatsApp non envoyé');
+    console.error('[WhatsApp] ❌ Vérifiez TWILIO_ACCOUNT_SID et TWILIO_AUTH_TOKEN dans .env');
     return 0;
   }
+  
+  console.log('[WhatsApp] ✅ Twilio client configuré');
 
   try {
     // PROMPT 3: ROUND ROBIN - Trier les livreurs par temps d'attente (plus ancien en premier)
@@ -597,6 +637,22 @@ export async function sendWhatsAppToDrivers(
       // Démarrer le timer de 2 minutes pour cette commande
       const { startRoundRobinTimer } = await import('../websocket.js');
       startRoundRobinTimer(orderId, restaurantName, customerName, totalPrice, address);
+      
+      // ENVOI TELEGRAM (en parallèle avec WhatsApp)
+      try {
+        console.log("[Telegram] 📞 Envoi notification Telegram pour commande:", orderId);
+        const telegramCount = await telegramService.sendToAllAvailableDrivers(
+          orderId,
+          restaurantName,
+          customerName,
+          totalPrice,
+          address
+        );
+        console.log(`[Telegram] 📱 ${telegramCount} notification(s) Telegram envoyée(s)`);
+      } catch (telegramError: any) {
+        console.error('[Telegram] ❌ Erreur envoi Telegram:', telegramError);
+        // Ne pas bloquer si Telegram échoue
+      }
       
       return 1;
     } else {

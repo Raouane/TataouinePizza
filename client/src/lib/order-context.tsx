@@ -12,7 +12,7 @@ type OrderContextType = {
   startOrder: (orderId?: string) => void;
   cancelOrder: () => void;
   stepIndex: number;
-  refreshOrderData: () => Promise<void>;
+  refreshOrderData: () => Promise<string | null>;
 };
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);

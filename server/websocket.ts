@@ -222,68 +222,9 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
     // Ne pas bloquer si push échoue
   }
 
-  // Envoyer aussi des SMS à tous les livreurs disponibles (fallback)
-  console.log('[WebSocket] 📱 Tentative d\'envoi SMS pour commande:', orderData.orderId.slice(0, 8));
-  try {
-    const { sendSMSToDrivers } = await import('./services/sms-service.js');
-    const { storage } = await import('./storage.js');
-    
-    console.log('[WebSocket] 📱 Récupération des données de la commande depuis la DB...');
-    
-    // Récupérer les informations complètes de la commande depuis la DB
-    const order = await storage.getOrderById(orderData.orderId);
-    let restaurantAddress: string | undefined;
-    let customerPhone: string | undefined;
-    
-    if (order) {
-      customerPhone = order.phone;
-      console.log('[WebSocket] 📱 Commande trouvée, téléphone client:', customerPhone);
-      
-      // Récupérer l'adresse du restaurant
-      if (order.restaurantId) {
-        const restaurant = await storage.getRestaurantById(order.restaurantId);
-        if (restaurant) {
-          restaurantAddress = restaurant.address;
-          console.log('[WebSocket] 📱 Restaurant trouvé, adresse:', restaurantAddress);
-        } else {
-          console.warn('[WebSocket] ⚠️ Restaurant non trouvé pour ID:', order.restaurantId);
-        }
-      } else {
-        console.warn('[WebSocket] ⚠️ Commande sans restaurantId');
-      }
-    } else {
-      console.error('[WebSocket] ❌ Commande non trouvée dans la DB:', orderData.orderId);
-    }
-    
-    console.log('[WebSocket] 📱 Appel de sendSMSToDrivers avec:', {
-      orderId: orderData.orderId.slice(0, 8),
-      restaurantName: orderData.restaurantName,
-      customerName: orderData.customerName,
-      totalPrice: orderData.totalPrice,
-      address: orderData.address,
-      restaurantAddress: restaurantAddress || 'non trouvé',
-      customerPhone: customerPhone || 'non trouvé',
-      itemsCount: orderData.items?.length || 0
-    });
-    
-    await sendSMSToDrivers(
-      orderData.orderId,
-      orderData.restaurantName,
-      orderData.customerName,
-      orderData.totalPrice,
-      999, // maxDrivers
-      orderData.address, // Adresse client
-      restaurantAddress, // Adresse restaurant
-      customerPhone, // Téléphone client
-      orderData.items // Articles de la commande
-    );
-    
-    console.log('[WebSocket] ✅ sendSMSToDrivers appelé avec succès');
-  } catch (smsError: any) {
-    console.error('[WebSocket] ❌ Erreur envoi SMS:', smsError);
-    console.error('[WebSocket] ❌ Stack trace:', smsError.stack);
-    // Ne pas bloquer si SMS échoue
-  }
+  // SMS DÉSACTIVÉS - On utilise uniquement WhatsApp pour économiser la limite Twilio
+  // Les SMS consomment aussi la limite de 50 messages/jour, donc on les désactive
+  console.log('[WebSocket] 📱 SMS désactivés - Utilisation uniquement WhatsApp');
 
   // Envoyer des notifications WhatsApp à tous les livreurs disponibles
   // WhatsApp sonne toujours, même téléphone éteint (solution fiable)

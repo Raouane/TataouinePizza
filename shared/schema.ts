@@ -30,6 +30,7 @@ export const restaurants = pgTable("restaurants", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   phone: text("phone").notNull().unique(),
+  password: text("password"), // Mot de passe hashé pour connexion
   address: text("address").notNull(),
   description: text("description"),
   imageUrl: text("image_url"),
@@ -62,6 +63,7 @@ export const drivers = pgTable("drivers", {
   status: text("status").default("available"), // "available", "on_delivery", "offline"
   lastSeen: timestamp("last_seen").defaultNow(), // Pour détecter les livreurs connectés
   pushSubscription: text("push_subscription"), // Subscription pour les notifications push PWA
+  telegramId: text("telegram_id"), // ID Telegram du livreur pour les notifications
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

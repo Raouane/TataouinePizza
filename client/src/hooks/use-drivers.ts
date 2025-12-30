@@ -42,7 +42,7 @@ export function useDrivers(token: string | null) {
     if (!token) throw new Error("Non authentifié");
     
     try {
-      const updated = await updateDriver(id, data, token);
+      const updated = await updateDriver(id, data as { name?: string; phone?: string; password?: string; status?: "available" | "offline" | "on_delivery" }, token);
       setDrivers(prev => prev.map(d => d.id === id ? updated : d));
       toast.success("Livreur modifié avec succès!");
       return updated;

@@ -6,10 +6,65 @@ import { getAuthenticatedRestaurantId } from "../middleware/auth-helpers";
 import { handleOtpLogin } from "../middleware/otp-login-helper";
 import { OrderService } from "../services/order-service";
 import { sendOtpSms } from "../services/sms-service";
+import { comparePassword, generateToken } from "../auth";
 
 export function registerRestaurantDashboardRoutes(app: Express): void {
+  // ============ RESTAURANT AUTH (TÉLÉPHONE + MOT DE PASSE) ============
+  
+  /**
+   * POST /api/restaurant/login
+   * Connexion avec téléphone + mot de passe (sans SMS)
+   */
+  app.post("/api/restaurant/login", async (req, res) => {
+    console.log("[RESTAURANT LOGIN] Requête de connexion reçue");
+    try {
+      const { phone, password } = req.body as { phone?: string; password?: string };
+      
+      if (!phone || !password) {
+        return res.status(400).json({ error: "Téléphone et mot de passe requis" });
+      }
+      
+      // Trouver le restaurant par téléphone
+      const restaurant = await storage.getRestaurantByPhone(phone);
+      if (!restaurant) {
+        console.log(`[RESTAURANT LOGIN] ❌ Restaurant non trouvé: ${phone}`);
+        return res.status(401).json({ error: "Téléphone ou mot de passe incorrect" });
+      }
+      
+      // Vérifier le mot de passe
+      if (!restaurant.password) {
+        console.log(`[RESTAURANT LOGIN] ❌ Restaurant ${restaurant.id} n'a pas de mot de passe défini`);
+        return res.status(401).json({ error: "Mot de passe non configuré. Contactez l'administrateur." });
+      }
+      
+      const isPasswordValid = await comparePassword(password, restaurant.password);
+      if (!isPasswordValid) {
+        console.log(`[RESTAURANT LOGIN] ❌ Mot de passe incorrect pour restaurant: ${phone}`);
+        return res.status(401).json({ error: "Téléphone ou mot de passe incorrect" });
+      }
+      
+      // Générer le token JWT (utilise generateToken comme pour les admins)
+      const token = generateToken(restaurant.id, restaurant.phone);
+      
+      console.log(`[RESTAURANT LOGIN] ✅ Connexion réussie pour ${restaurant.name} (${phone})`);
+      
+      res.json({
+        token,
+        restaurant: {
+          id: restaurant.id,
+          name: restaurant.name,
+          phone: restaurant.phone,
+        },
+      });
+    } catch (error: any) {
+      console.error("[RESTAURANT LOGIN] Erreur lors de la connexion:", error);
+      res.status(500).json({ error: "Erreur serveur lors de la connexion" });
+    }
+  });
+  
   // ============ RESTAURANT AUTH (OTP) ============
   // OTP TOUJOURS ACTIVÉ pour les restaurants (indépendamment de ENABLE_SMS_OTP)
+  // (Gardé pour compatibilité, mais la connexion téléphone + mot de passe est recommandée)
   
   /**
    * POST /api/restaurant/otp/send

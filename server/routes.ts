@@ -9,6 +9,7 @@ import { registerRestaurantDashboardRoutes } from "./routes/restaurant-dashboard
 import { registerDriverDashboardRoutes } from "./routes/driver-dashboard";
 import { registerWebhookRoutes } from "./routes/webhooks";
 import { registerWhatsAppWebhookRoutes } from "./routes/whatsapp-webhook";
+import { registerTelegramWebhookRoutes } from "./routes/telegram-webhook";
 
 let seeded = false;
 
@@ -58,6 +59,7 @@ export async function registerRoutes(
   registerDriverDashboardRoutes(app);
   registerWebhookRoutes(app);
   registerWhatsAppWebhookRoutes(app);
+  registerTelegramWebhookRoutes(app);
   registerAdminCrudRoutes(app);
   registerAdminSeedRoutes(app);
 
