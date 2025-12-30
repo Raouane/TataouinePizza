@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { storage } from "../server/storage.js";
-import { notifyDriversOfNewOrder } from "../server/websocket.js";
+import { notifyDriversOfNewOrder, type OrderNotification } from "../server/websocket.js";
 
 /**
  * Script de test pour simuler le workflow complet avec un seul livreur (Raouane)

@@ -314,41 +314,11 @@ export function OrderDetailsDialog({ orderId, open, onOpenChange, role }: OrderD
                   </div>
                 </Card>
 
-                {/* Notes / Commande spéciale */}
+                {/* Notes */}
                 {order.notes && (
-                  <Card className={`p-4 ${order.notes.includes('COMMANDE SPÉCIALE') ? 'border-2 border-primary bg-primary/5' : ''}`}>
-                    {order.notes.includes('COMMANDE SPÉCIALE') ? (
-                      <>
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge variant="default" className="bg-primary">📋 Commande Spéciale</Badge>
-                        </div>
-                        <div className="space-y-2">
-                          {order.notes.split('\n').map((line, idx) => {
-                            if (line.includes('COMMANDE SPÉCIALE')) {
-                              return (
-                                <p key={idx} className="font-semibold text-primary">
-                                  {line.replace('📋 COMMANDE SPÉCIALE (produits non listés):', '').trim()}
-                                </p>
-                              );
-                            } else if (line.includes('Notes supplémentaires')) {
-                              return (
-                                <div key={idx} className="mt-3 pt-3 border-t">
-                                  <p className="text-xs text-muted-foreground font-medium mb-1">{line}</p>
-                                </div>
-                              );
-                            } else if (line.trim()) {
-                              return <p key={idx} className="text-sm text-muted-foreground">{line}</p>;
-                            }
-                            return null;
-                          })}
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <h3 className="font-semibold mb-2">Notes</h3>
-                        <p className="text-sm text-muted-foreground">{order.notes}</p>
-                      </>
-                    )}
+                  <Card className="p-4">
+                    <h3 className="font-semibold mb-2">Notes</h3>
+                    <p className="text-sm text-muted-foreground">{order.notes}</p>
                   </Card>
                 )}
               </>

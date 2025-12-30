@@ -11,9 +11,9 @@ let notificationTimeouts = {};
 const MAX_REPEAT_DURATION = 5 * 60 * 1000; // 5 minutes en millisecondes
 
 // Écouter les événements push du serveur (pour les notifications en arrière-plan)
-// Ces notifications fonctionnent même quand l'app est complètement fermée ou le téléphone éteint
+// Ces notifications fonctionnent même quand l'app est complètement fermée ou l'écran verrouillé
 self.addEventListener('push', (event) => {
-  console.log('[SW] 📬 Événement push reçu (fonctionne même téléphone éteint):', event);
+  console.log('[SW] 📬 Événement push reçu (fonctionne même écran verrouillé):', event);
   
   let data = {
     title: '🔔 Nouvelle commande!',
@@ -52,7 +52,7 @@ self.addEventListener('push', (event) => {
     badge,
     tag: `order-${orderId}`,
     requireInteraction: true, // Nécessite une interaction pour se fermer
-    silent: data.silent !== undefined ? data.silent : false, // Activer le son système (fonctionne même téléphone éteint)
+    silent: data.silent !== undefined ? data.silent : false, // Activer le son système (fonctionne même écran verrouillé)
     vibrate: [200, 100, 200, 100, 200], // Vibration sur mobile
     data: {
       orderId,
@@ -291,6 +291,29 @@ self.addEventListener('install', (event) => {
   console.log('[SW] Service Worker installé');
   // Forcer l'activation immédiate
   self.skipWaiting();
+});
+
+// Cache First pour assets statiques (PRIORITÉ 3 - Cache Minimum)
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  // Cache First pour assets statiques uniquement
+  if (STATIC_ASSETS.some(asset => url.pathname === asset || url.pathname.endsWith(asset))) {
+    event.respondWith(
+      caches.match(event.request).then((response) => {
+        // Retourner depuis cache si disponible, sinon fetch
+        return response || fetch(event.request).then((fetchResponse) => {
+          // Mettre en cache pour la prochaine fois
+          const responseClone = fetchResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+          return fetchResponse;
+        });
+      })
+    );
+  }
+  // Pour les autres requêtes, pas de cache (Network Only)
 });
 
 // Log au démarrage du Service Worker

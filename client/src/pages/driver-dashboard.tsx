@@ -44,6 +44,7 @@ export default function DriverDashboard() {
   const [myOrders, setMyOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null); // Anti double clic
   const [error, setError] = useState("");
 
   const [isOnline, setIsOnline] = useState(true);
@@ -690,7 +691,14 @@ export default function DriverDashboard() {
   }, [token, loading]);
 
   const handleAcceptOrder = async (orderId: string) => {
+    // ANTI DOUBLE CLIC - Prévenir double acceptation
+    if (acceptingOrderId === orderId || updating === orderId) {
+      console.log(`[Driver] ⚠️ Commande ${orderId} déjà en cours d'acceptation`);
+      return;
+    }
+    
     console.log(`[Driver] 🎯 Acceptation commande ${orderId}`);
+    setAcceptingOrderId(orderId);
     setUpdating(orderId);
     try {
       // Arrêter immédiatement la répétition du son
@@ -746,6 +754,9 @@ export default function DriverDashboard() {
       setError(err.message);
       toast.error(err.message);
       setUpdating(null);
+    } finally {
+      // Libérer le verrou après traitement
+      setAcceptingOrderId(null);
     }
   };
 

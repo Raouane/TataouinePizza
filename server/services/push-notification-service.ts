@@ -68,7 +68,7 @@ export async function sendPushNotificationToDriver(
       icon: notification.icon || '/favicon-32x32.png',
       badge: notification.badge || '/favicon-32x32.png',
       vibrate: [200, 100, 200, 100, 200], // Vibration sur mobile
-      silent: false, // Activer le son système (fonctionne même téléphone éteint)
+      silent: false, // Activer le son système (fonctionne même écran verrouillé)
       requireInteraction: true, // Nécessite une interaction pour se fermer
       tag: `order-${notification.orderId}`, // Tag pour regrouper les notifications
       data: {

@@ -364,8 +364,8 @@ class TelegramService {
       // PRIORITÉ 1: Essayer d'envoyer le fichier directement depuis le système de fichiers
       // C'est plus fiable que d'utiliser une URL
       const projectRoot = process.cwd();
-      const audioFilePath = path.resolve(projectRoot, 'client', 'public', 'audio', 'alert.mp3.mp3');
-      const audioFilePathAlt = path.resolve(projectRoot, 'client', 'public', 'audio', 'alert.mp3');
+      // CORRECTION: Utiliser alert.mp3 (pas alert.mp3.mp3)
+      const audioFilePath = path.resolve(projectRoot, 'client', 'public', 'audio', 'alert.mp3');
       
       let useDirectFile = false;
       let actualFilePath = audioFilePath;
@@ -374,17 +374,13 @@ class TelegramService {
         useDirectFile = true;
         actualFilePath = audioFilePath;
         console.log(`[Telegram] 📁 Fichier audio trouvé localement: ${actualFilePath}`);
-      } else if (fs.existsSync(audioFilePathAlt)) {
-        useDirectFile = true;
-        actualFilePath = audioFilePathAlt;
-        console.log(`[Telegram] 📁 Fichier audio trouvé localement (alt): ${actualFilePath}`);
       } else {
         console.log(`[Telegram] ⚠️ Fichier audio non trouvé localement, utilisation de l'URL`);
       }
       
       // PRIORITÉ 2: Si le fichier n'existe pas localement, utiliser l'URL
       const appUrl = process.env.APP_URL || 'https://tataouine-pizza.onrender.com';
-      const audioUrl = `${appUrl}/audio/alert.mp3.mp3`;
+      const audioUrl = `${appUrl}/audio/alert.mp3`;
       
       // ENVOYER UN SEUL MESSAGE VOCAL (notification automatique)
       let result;

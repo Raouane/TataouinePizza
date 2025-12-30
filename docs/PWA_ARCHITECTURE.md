@@ -23,7 +23,7 @@ client/
 │   ├── icon-192.png            # Icône 192x192
 │   ├── icon-512.png            # Icône 512x512
 │   └── audio/
-│       └── alert.mp3.mp3       # Son d'alerte pour notifications
+│       └── alert.mp3           # Son d'alerte pour notifications
 │
 ├── src/
 │   ├── main.tsx                # Enregistrement Service Worker
@@ -172,11 +172,11 @@ self.addEventListener('activate', (event) => { ... })
 #### 2. **Background** (App fermée/minimisée)
 - **Son système** : Notifications natives OS
 - **Gestion** : Service Worker automatique
-- **Fonctionne même téléphone éteint** : Via notifications système
+- **Fonctionne même écran verrouillé** : Via notifications système (pas si téléphone éteint)
 
 ### Fichiers Audio
 
-- `client/public/audio/alert.mp3.mp3` : Son d'alerte principal
+- `client/public/audio/alert.mp3` : Son d'alerte principal
 - Utilisé par le Service Worker pour notifications répétées
 
 ### Détection Foreground/Background
