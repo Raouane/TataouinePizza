@@ -108,18 +108,25 @@ export function CreateOrderDialog({
       // Valider et préparer les items avec taille correcte
       const orderItems: OrderItem[] = form.items.map(item => {
         const availableSizes = getAvailableSizes(item.pizzaId);
-        // Pour les produits par unité (1 seule taille), utiliser cette taille
-        // Pour les produits avec plusieurs tailles, utiliser la taille sélectionnée ou la première disponible
+        
+        // Vérifier que le produit a des tailles disponibles
+        if (availableSizes.length === 0) {
+          throw new Error(`Le produit "${getPizzaName(item.pizzaId)}" n'a aucune taille configurée. Veuillez configurer les prix pour ce produit.`);
+        }
+        
+        // Déterminer la taille finale
         let finalSize: "small" | "medium" | "large";
+        
         if (availableSizes.length === 1) {
+          // Produit par unité : utiliser la taille unique
           finalSize = availableSizes[0] as "small" | "medium" | "large";
-        } else if (item.size) {
+        } else if (item.size && availableSizes.includes(item.size)) {
+          // Taille sélectionnée est disponible
           finalSize = item.size;
-        } else if (availableSizes.length > 1) {
-          finalSize = availableSizes[0] as "small" | "medium" | "large";
         } else {
-          // Par défaut medium si aucune taille disponible
-          finalSize = "medium";
+          // Taille sélectionnée n'est pas disponible, utiliser la première disponible
+          finalSize = availableSizes[0] as "small" | "medium" | "large";
+          console.warn(`[CreateOrder] Taille ${item.size} non disponible pour ${getPizzaName(item.pizzaId)}, utilisation de ${finalSize}`);
         }
         
         return {
