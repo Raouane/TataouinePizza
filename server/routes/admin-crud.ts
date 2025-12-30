@@ -118,61 +118,75 @@ export function registerAdminCrudRoutes(app: Express): void {
       const restaurant = await storage.getRestaurantById(data.restaurantId);
       if (!restaurant) return res.status(404).json({ error: "Restaurant not found" });
       
-      // Calculate total price and validate pizzas belong to restaurant
-      const pizzaIds = Array.from(new Set(data.items.map(item => item.pizzaId)));
-      const pizzas = await storage.getPizzasByIds(pizzaIds);
-      const pizzaMap = new Map(pizzas.map(p => [p.id, p]));
-      
-      const prices = await storage.getPizzaPricesByPizzaIds(pizzaIds);
-      const priceMap = new Map<string, typeof prices>();
-      for (const price of prices) {
-        if (!priceMap.has(price.pizzaId)) {
-          priceMap.set(price.pizzaId, []);
+      // Accepter soit des items, soit une commande spéciale (notes)
+      // Si pas d'items, on doit avoir des notes pour une commande spéciale
+      if (!data.items || data.items.length === 0) {
+        if (!data.notes || !data.notes.trim()) {
+          return res.status(400).json({ 
+            error: "Veuillez ajouter au moins un article OU décrire la commande spéciale dans les notes" 
+          });
         }
-        priceMap.get(price.pizzaId)!.push(price);
-      }
-      
-      let totalPrice = 0;
-      const orderItemsDetails: Array<{ name: string; size: string; quantity: number }> = [];
-      
-      for (const item of data.items) {
-        const pizza = pizzaMap.get(item.pizzaId);
-        if (!pizza) return res.status(404).json({ error: `Pizza ${item.pizzaId} not found` });
-        if (pizza.restaurantId !== data.restaurantId) {
-          return res.status(400).json({ error: "All pizzas must be from the same restaurant" });
+        // Commande spéciale sans items - prix minimum (livraison)
+        const deliveryFee = 2.0;
+        totalPrice = deliveryFee;
+        orderItemsDetails = [];
+      } else {
+        // Commande normale avec items
+        const pizzaIds = Array.from(new Set(data.items.map(item => item.pizzaId)));
+        const pizzas = await storage.getPizzasByIds(pizzaIds);
+        const pizzaMap = new Map(pizzas.map(p => [p.id, p]));
+        
+        const prices = await storage.getPizzaPricesByPizzaIds(pizzaIds);
+        const priceMap = new Map<string, typeof prices>();
+        for (const price of prices) {
+          if (!priceMap.has(price.pizzaId)) {
+            priceMap.set(price.pizzaId, []);
+          }
+          priceMap.get(price.pizzaId)!.push(price);
         }
         
-        const pizzaPrices = priceMap.get(item.pizzaId) || [];
-        const sizePrice = pizzaPrices.find((p: any) => p.size === item.size);
-        if (!sizePrice) return res.status(400).json({ error: `Invalid size for pizza ${pizza.name}` });
-        totalPrice += Number(sizePrice.price) * item.quantity;
+        let totalPrice = 0;
+        const orderItemsDetails: Array<{ name: string; size: string; quantity: number }> = [];
         
-        orderItemsDetails.push({
-          name: pizza.name,
-          size: item.size,
-          quantity: item.quantity,
+        for (const item of data.items) {
+          const pizza = pizzaMap.get(item.pizzaId);
+          if (!pizza) return res.status(404).json({ error: `Pizza ${item.pizzaId} not found` });
+          if (pizza.restaurantId !== data.restaurantId) {
+            return res.status(400).json({ error: "All pizzas must be from the same restaurant" });
+          }
+          
+          const pizzaPrices = priceMap.get(item.pizzaId) || [];
+          const sizePrice = pizzaPrices.find((p: any) => p.size === item.size);
+          if (!sizePrice) return res.status(400).json({ error: `Invalid size for pizza ${pizza.name}` });
+          totalPrice += Number(sizePrice.price) * item.quantity;
+          
+          orderItemsDetails.push({
+            name: pizza.name,
+            size: item.size,
+            quantity: item.quantity,
+          });
+        }
+        
+        const deliveryFee = 2.0;
+        totalPrice += deliveryFee;
+        
+        orderItemsData = data.items.map(item => {
+          const pizzaPrices = priceMap.get(item.pizzaId) || [];
+          const sizePrice = pizzaPrices.find((p: any) => p.size === item.size);
+          if (!sizePrice) {
+            throw new Error(`Price not found for pizza ${item.pizzaId} size ${item.size}`);
+          }
+          return {
+            pizzaId: item.pizzaId,
+            size: item.size,
+            quantity: item.quantity,
+            pricePerUnit: sizePrice.price,
+          };
         });
       }
       
-      const deliveryFee = 2.0;
-      totalPrice += deliveryFee;
-      
       // Status initial pour commande manuelle : "accepted" (prête pour le restaurant)
       const initialStatus = "accepted";
-      
-      const orderItemsData = data.items.map(item => {
-        const pizzaPrices = priceMap.get(item.pizzaId) || [];
-        const sizePrice = pizzaPrices.find((p: any) => p.size === item.size);
-        if (!sizePrice) {
-          throw new Error(`Price not found for pizza ${item.pizzaId} size ${item.size}`);
-        }
-        return {
-          pizzaId: item.pizzaId,
-          size: item.size,
-          quantity: item.quantity,
-          pricePerUnit: sizePrice.price,
-        };
-      });
       
       const order = await storage.createOrderWithItems(
         {
