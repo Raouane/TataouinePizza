@@ -277,10 +277,13 @@ export default function AdminDashboard() {
           <OrdersTab
             orders={orders}
             drivers={drivers}
+            restaurants={restaurants}
+            pizzas={pizzas}
             loading={ordersLoading}
             updating={updating}
             assigning={assigning}
             statuses={statuses}
+            token={token || ""}
             onViewDetails={(id) => {
               setSelectedOrderId(id);
               setShowOrderDetails(true);

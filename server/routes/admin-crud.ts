@@ -14,12 +14,15 @@ import {
   updateRestaurantSchema,
   updateDriverSchema,
   updatePizzaSchema,
-  assignDriverSchema
+  assignDriverSchema,
+  insertOrderSchema
 } from "@shared/schema";
 import { authenticateAdmin, hashPassword, type AuthRequest } from "../auth";
 import { errorHandler } from "../errors";
 import { getAuthenticatedAdminId } from "../middleware/auth-helpers";
 import { OrderService } from "../services/order-service";
+import { notifyDriversOfNewOrder } from "../websocket";
+import { sendN8nWebhook } from "../webhooks/n8n-webhook";
 import { z } from "zod";
 
 // Fonction validate améliorée qui retourne les erreurs Zod
@@ -94,6 +97,151 @@ export function registerAdminCrudRoutes(app: Express): void {
       const updatedOrder = await storage.assignOrderToDriver(req.params.id, driverId);
       res.json(updatedOrder);
     } catch (error) {
+      errorHandler.sendError(res, error);
+    }
+  });
+
+  // Créer une commande manuellement (pour commandes par téléphone)
+  app.post("/api/admin/orders", authenticateAdmin, async (req: AuthRequest, res: Response) => {
+    console.log("[ADMIN ORDER] 📞 Création commande manuelle par admin");
+    try {
+      const validation = validate(insertOrderSchema, req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          error: "Invalid order data",
+          details: process.env.NODE_ENV === "development" ? validation.error.errors : undefined
+        });
+      }
+      const data = validation.data;
+      
+      // Verify restaurant exists
+      const restaurant = await storage.getRestaurantById(data.restaurantId);
+      if (!restaurant) return res.status(404).json({ error: "Restaurant not found" });
+      
+      // Calculate total price and validate pizzas belong to restaurant
+      const pizzaIds = Array.from(new Set(data.items.map(item => item.pizzaId)));
+      const pizzas = await storage.getPizzasByIds(pizzaIds);
+      const pizzaMap = new Map(pizzas.map(p => [p.id, p]));
+      
+      const prices = await storage.getPizzaPricesByPizzaIds(pizzaIds);
+      const priceMap = new Map<string, typeof prices>();
+      for (const price of prices) {
+        if (!priceMap.has(price.pizzaId)) {
+          priceMap.set(price.pizzaId, []);
+        }
+        priceMap.get(price.pizzaId)!.push(price);
+      }
+      
+      let totalPrice = 0;
+      const orderItemsDetails: Array<{ name: string; size: string; quantity: number }> = [];
+      
+      for (const item of data.items) {
+        const pizza = pizzaMap.get(item.pizzaId);
+        if (!pizza) return res.status(404).json({ error: `Pizza ${item.pizzaId} not found` });
+        if (pizza.restaurantId !== data.restaurantId) {
+          return res.status(400).json({ error: "All pizzas must be from the same restaurant" });
+        }
+        
+        const pizzaPrices = priceMap.get(item.pizzaId) || [];
+        const sizePrice = pizzaPrices.find((p: any) => p.size === item.size);
+        if (!sizePrice) return res.status(400).json({ error: `Invalid size for pizza ${pizza.name}` });
+        totalPrice += Number(sizePrice.price) * item.quantity;
+        
+        orderItemsDetails.push({
+          name: pizza.name,
+          size: item.size,
+          quantity: item.quantity,
+        });
+      }
+      
+      const deliveryFee = 2.0;
+      totalPrice += deliveryFee;
+      
+      // Status initial pour commande manuelle : "accepted" (prête pour le restaurant)
+      const initialStatus = "accepted";
+      
+      const orderItemsData = data.items.map(item => {
+        const pizzaPrices = priceMap.get(item.pizzaId) || [];
+        const sizePrice = pizzaPrices.find((p: any) => p.size === item.size);
+        if (!sizePrice) {
+          throw new Error(`Price not found for pizza ${item.pizzaId} size ${item.size}`);
+        }
+        return {
+          pizzaId: item.pizzaId,
+          size: item.size,
+          quantity: item.quantity,
+          pricePerUnit: sizePrice.price,
+        };
+      });
+      
+      const order = await storage.createOrderWithItems(
+        {
+          restaurantId: data.restaurantId,
+          customerName: data.customerName,
+          phone: data.phone,
+          address: data.address,
+          addressDetails: data.addressDetails,
+          customerLat: data.customerLat?.toString(),
+          customerLng: data.customerLng?.toString(),
+          clientOrderId: null, // Pas de clientOrderId pour commandes manuelles
+          totalPrice: totalPrice.toString(),
+          status: initialStatus,
+          paymentMethod: data.paymentMethod || "cash",
+          notes: data.notes || null,
+        },
+        orderItemsData,
+        undefined // Pas de vérification de doublon pour commandes manuelles
+      );
+      
+      if (!order) {
+        return res.status(500).json({ error: "Failed to create order" });
+      }
+      
+      console.log("[ADMIN ORDER] ✅ Commande créée:", order.id);
+      
+      // Notifier les livreurs (comme pour une commande normale)
+      try {
+        console.log("[ADMIN ORDER] 📞 Notification livreurs pour commande:", order.id);
+        await notifyDriversOfNewOrder({
+          type: "new_order",
+          orderId: order.id,
+          restaurantName: restaurant.name,
+          customerName: data.customerName,
+          address: data.address,
+          customerLat: data.customerLat,
+          customerLng: data.customerLng,
+          totalPrice: totalPrice.toString(),
+          items: orderItemsDetails,
+        });
+        console.log("[ADMIN ORDER] ✅ Notifications envoyées");
+      } catch (wsError) {
+        console.error("[ADMIN ORDER] ❌ Erreur notification WebSocket:", wsError);
+      }
+      
+      // Envoyer webhook n8n
+      try {
+        await sendN8nWebhook("order-created", {
+          orderId: order.id,
+          restaurantId: restaurant.id,
+          restaurantName: restaurant.name,
+          restaurantPhone: restaurant.phone,
+          customerName: data.customerName,
+          customerPhone: data.phone,
+          address: data.address,
+          addressDetails: data.addressDetails,
+          totalPrice: totalPrice.toString(),
+          items: orderItemsDetails,
+          status: order.status,
+          createdAt: order.createdAt,
+          createdBy: "admin", // Indiquer que c'est une commande manuelle
+        });
+      } catch (webhookError) {
+        console.error("[ADMIN ORDER] Erreur webhook n8n:", webhookError);
+      }
+      
+      res.status(201).json({ orderId: order.id, totalPrice });
+    } catch (error: any) {
+      console.error("[ADMIN ORDER] Error creating order:", error);
       errorHandler.sendError(res, error);
     }
   });

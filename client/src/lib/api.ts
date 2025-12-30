@@ -220,6 +220,36 @@ export async function adminRegister(email: string, password: string): Promise<{ 
   return res.json();
 }
 
+export async function createAdminOrder(
+  data: {
+    restaurantId: string;
+    customerName: string;
+    phone: string;
+    address: string;
+    addressDetails?: string;
+    customerLat?: number;
+    customerLng?: number;
+    items: OrderItem[];
+    paymentMethod?: string;
+    notes?: string;
+  },
+  token: string
+): Promise<{ orderId: string; totalPrice: number }> {
+  const res = await fetch(`${API_BASE}/admin/orders`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to create order");
+  }
+  return res.json();
+}
+
 export async function getAdminOrders(token: string): Promise<Order[]> {
   const res = await fetch(`${API_BASE}/admin/orders`, {
     headers: { Authorization: `Bearer ${token}` },
