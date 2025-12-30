@@ -735,14 +735,12 @@ export function registerPublicRoutes(app: Express): void {
         }
 
         // Mettre le livreur en statut "on_delivery" (OCCUPÉ)
+        // Le statut de la commande reste "accepted" ou "ready" jusqu'à ce que le livreur clique sur "Commencer Livraison"
         await storage.updateDriver(driverId, { status: "on_delivery" });
 
-        // Mettre à jour le statut de la commande à "delivery"
-        await OrderService.updateStatus(
-          orderId,
-          "delivery",
-          { type: "driver", id: driverId }
-        );
+        // NE PAS mettre le statut à "delivery" ici
+        // Le livreur doit d'abord cliquer sur "Commencer Livraison" dans le dashboard
+        // Le statut de la commande reste "accepted" ou "ready" pour afficher le bouton orange
 
         // Générer un token JWT temporaire pour connexion automatique
         const { generateDriverToken } = await import("../auth.js");

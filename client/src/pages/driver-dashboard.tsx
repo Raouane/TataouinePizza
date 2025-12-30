@@ -760,6 +760,10 @@ export default function DriverDashboard() {
   const handleDelivered = async (orderId: string) => {
     setUpdating(orderId);
     try {
+      // Trouver la commande pour calculer le gain
+      const order = myOrders.find(o => o.id === orderId);
+      const gain = order ? (Number(order.totalPrice) * DRIVER_COMMISSION_RATE).toFixed(2) : "0.00";
+      
       const res = await fetch(`/api/driver/orders/${orderId}/status`, {
         method: "PATCH",
         headers: { 
@@ -772,8 +776,23 @@ export default function DriverDashboard() {
         const err = await res.json();
         throw new Error(err.error || "Erreur");
       }
-      toast.success("Livraison terminée ! Merci pour votre travail !");
+      
+      // Rafraîchir les commandes pour vérifier s'il y en a d'autres
       await fetchOrders();
+      
+      // Attendre un peu pour que fetchOrders se termine
+      setTimeout(() => {
+        const updatedMyOrders = myOrders.filter(o => 
+          o.status === "delivery" || o.status === "accepted" || o.status === "ready"
+        );
+        
+        if (updatedMyOrders.length === 0) {
+          toast.success(`Livraison terminée ! Merci pour votre travail ! Vous avez gagné ${gain} TND pour cette livraison !`);
+        } else {
+          toast.success(`Livraison terminée ! Vous avez gagné ${gain} TND pour cette livraison ! ${updatedMyOrders.length} autre(s) commande(s) en cours.`);
+        }
+      }, 500);
+      
     } catch (err: any) {
       setError(err.message);
       toast.error(err.message);

@@ -243,13 +243,23 @@ export function registerDriverDashboardRoutes(app: Express): void {
       
       // Si la commande est marquée comme "delivered", remettre le livreur en "available"
       if (status === "delivered") {
-        console.log(`[Driver] ✅ Commande livrée, remise du livreur ${driverId} en statut "available"`);
+        const orderId = req.params.id;
+        console.log(`[Driver] ✅ Commande ${orderId} livrée, vérification du statut du livreur ${driverId}`);
         
         // Vérifier s'il a d'autres commandes en cours
+        // IMPORTANT: Exclure la commande qui vient d'être marquée comme "delivered"
         const driverOrders = await storage.getOrdersByDriver(driverId);
         const activeOrders = driverOrders.filter(o => 
-          o.status === "delivery" || o.status === "accepted" || o.status === "ready"
+          o.id !== orderId && // Exclure la commande qui vient d'être livrée
+          (o.status === "delivery" || o.status === "accepted" || o.status === "ready")
         );
+        
+        console.log(`[Driver] 📊 Commande ${orderId} livrée. Autres commandes actives: ${activeOrders.length}`);
+        if (activeOrders.length > 0) {
+          activeOrders.forEach((order, index) => {
+            console.log(`[Driver]   ${index + 1}. Commande ${order.id.slice(0, 8)} - Statut: ${order.status}`);
+          });
+        }
         
         if (activeOrders.length === 0) {
           // Aucune autre commande en cours, remettre en "available"

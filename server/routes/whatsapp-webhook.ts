@@ -118,18 +118,16 @@ export function registerWhatsAppWebhookRoutes(app: Express): void {
 
         if (acceptedOrder) {
           // Mettre le livreur en statut "on_delivery" (OCCUPÉ)
+          // Le statut de la commande reste "accepted" ou "ready" jusqu'à ce que le livreur clique sur "Commencer Livraison"
           await storage.updateDriver(driver.id, { status: "on_delivery" });
 
           // Enrichir la commande avec les détails du restaurant
           const { OrderEnrichmentService } = await import("../services/order-enrichment-service.js");
           const enrichedOrder = await OrderEnrichmentService.enrichWithRestaurant(acceptedOrder);
 
-          // Mettre à jour le statut à "delivery"
-          await OrderService.updateStatus(
-            pendingOrder.id,
-            "delivery",
-            { type: "driver", id: driver.id }
-          );
+          // NE PAS mettre le statut à "delivery" ici
+          // Le livreur doit d'abord cliquer sur "Commencer Livraison" dans le dashboard
+          // Le statut de la commande reste "accepted" ou "ready" pour afficher le bouton orange
 
           // URL de l'espace livreur
           const appUrl = process.env.APP_URL || "https://tataouine-pizza.onrender.com";
