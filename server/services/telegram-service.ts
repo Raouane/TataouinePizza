@@ -110,19 +110,26 @@ class TelegramService {
     }
 
     try {
-      // Messages d'alerte sonore - variés pour maximiser l'impact
+      // Messages d'alerte sonore - variés et répétés pour maximiser l'impact et créer une sonnerie PUISSANTE
+      // Plus de messages = sonnerie plus longue et plus audible
       const alertMessages = [
         `🔔🔔🔔 NOUVELLE COMMANDE #${orderId.slice(0, 8)} 🔔🔔🔔`,
         `⚡⚡⚡ URGENT - COMMANDE DISPONIBLE ⚡⚡⚡`,
-        `📱📱📱 NOUVELLE COMMANDE - RÉPONDEZ MAINTENANT 📱📱📱`
+        `📱📱📱 NOUVELLE COMMANDE - RÉPONDEZ MAINTENANT 📱📱📱`,
+        `🚨🚨🚨 ALERTE - NOUVELLE COMMANDE 🚨🚨🚨`,
+        `🔊🔊🔊 COMMANDE EN ATTENTE - RÉPONDEZ 🔊🔊🔊`,
+        `⚠️⚠️⚠️ URGENT - NOUVELLE COMMANDE ⚠️⚠️⚠️`
       ];
       
-      console.log(`[Telegram] 🔊 Début envoi alerte sonore à ${chatId} (3 messages avec sonnerie)`);
+      const NUM_ALERTS = 6; // Augmenter de 3 à 6 messages pour sonnerie plus puissante
+      const ALERT_INTERVAL = 400; // Réduire l'intervalle à 400ms pour sonnerie plus rapide et répétée
       
-      // Envoyer 3 messages différents en succession pour créer une sonnerie répétée et distincte
+      console.log(`[Telegram] 🔊 Début envoi alerte sonore PUISSANTE à ${chatId} (${NUM_ALERTS} messages avec sonnerie)`);
+      
+      // Envoyer plusieurs messages en succession rapide pour créer une sonnerie PUISSANTE et répétée
       const alerts = [];
-      for (let i = 0; i < 3; i++) {
-        const alertMessage = alertMessages[i] || alertMessages[0];
+      for (let i = 0; i < NUM_ALERTS; i++) {
+        const alertMessage = alertMessages[i] || alertMessages[i % alertMessages.length];
         
         // FORCER disableNotification à false explicitement
         const result = await this.sendMessage(chatId, alertMessage, {
@@ -132,24 +139,25 @@ class TelegramService {
         alerts.push(result);
         
         if (!result.success) {
-          console.error(`[Telegram] ❌ Échec envoi alerte ${i + 1}/3:`, result.error);
+          console.error(`[Telegram] ❌ Échec envoi alerte ${i + 1}/${NUM_ALERTS}:`, result.error);
         } else {
-          console.log(`[Telegram] ✅ Alerte ${i + 1}/3 envoyée avec succès`);
+          console.log(`[Telegram] ✅ Alerte ${i + 1}/${NUM_ALERTS} envoyée avec succès`);
         }
         
-        // Attendre 800ms entre chaque message pour créer une sonnerie répétée plus audible
-        if (i < 2) {
-          await new Promise(resolve => setTimeout(resolve, 800));
+        // Attendre un intervalle court entre chaque message pour créer une sonnerie rapide et répétée
+        // Intervalle réduit pour sonnerie plus puissante
+        if (i < NUM_ALERTS - 1) {
+          await new Promise(resolve => setTimeout(resolve, ALERT_INTERVAL));
         }
       }
 
       const allSuccess = alerts.every(result => result.success);
       if (allSuccess) {
-        console.log(`[Telegram] ✅ Alerte sonore complète envoyée (3 messages avec sonnerie activée)`);
+        console.log(`[Telegram] ✅ Alerte sonore PUISSANTE complète envoyée (${NUM_ALERTS} messages avec sonnerie activée)`);
         console.log(`[Telegram] 💡 NOTE: Si le téléphone ne sonne pas, vérifiez que les notifications Telegram sont activées dans les paramètres du téléphone`);
       } else {
         const failedCount = alerts.filter(r => !r.success).length;
-        console.warn(`[Telegram] ⚠️ ${failedCount}/3 alertes sonores ont échoué`);
+        console.warn(`[Telegram] ⚠️ ${failedCount}/${NUM_ALERTS} alertes sonores ont échoué`);
       }
 
       return allSuccess;
@@ -190,12 +198,13 @@ class TelegramService {
       refuseUrl = `${appUrl}/refuse/${orderId}?driverId=${driverId}`;
     }
 
-    // ÉTAPE 1: Envoyer l'alerte sonore (sonnerie distincte et longue)
-    console.log(`[Telegram] 🔊 Envoi alerte sonore à livreur ${driverTelegramId}`);
+    // ÉTAPE 1: Envoyer l'alerte sonore PUISSANTE (6 messages rapides pour sonnerie maximale)
+    console.log(`[Telegram] 🔊 Envoi alerte sonore PUISSANTE à livreur ${driverTelegramId}`);
     await this.sendSoundAlert(driverTelegramId, orderId);
     
-    // Attendre 1 seconde après l'alerte sonore avant d'envoyer le message principal
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Attendre 2 secondes après l'alerte sonore pour que la sonnerie soit bien entendue
+    // (6 messages × 400ms = ~2.4 secondes + marge)
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     // ÉTAPE 2: Envoyer le message principal avec tous les détails et le lien PWA
     const message = `🍕 <b>NOUVELLE COMMANDE</b>
