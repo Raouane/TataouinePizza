@@ -36,7 +36,18 @@ export function serveStatic(app: Express) {
     if (fs.existsSync(assetsPath)) {
       const assetsFiles = fs.readdirSync(assetsPath);
       console.log(`[STATIC] 📦 Dossier /assets/ trouvé avec ${assetsFiles.length} fichiers`);
-      console.log(`[STATIC]   Fichiers: ${assetsFiles.slice(0, 10).join(', ')}${assetsFiles.length > 10 ? '...' : ''}`);
+      console.log(`[STATIC]   Fichiers: ${assetsFiles.slice(0, 20).join(', ')}${assetsFiles.length > 20 ? '...' : ''}`);
+      
+      // Vérifier si les fichiers JS et CSS spécifiques existent
+      const jsFiles = assetsFiles.filter(f => f.endsWith('.js'));
+      const cssFiles = assetsFiles.filter(f => f.endsWith('.css'));
+      console.log(`[STATIC]   JS: ${jsFiles.length} fichiers, CSS: ${cssFiles.length} fichiers`);
+      if (jsFiles.length > 0) {
+        console.log(`[STATIC]   Exemples JS: ${jsFiles.slice(0, 3).join(', ')}`);
+      }
+      if (cssFiles.length > 0) {
+        console.log(`[STATIC]   Exemples CSS: ${cssFiles.slice(0, 3).join(', ')}`);
+      }
     } else {
       console.log(`[STATIC] ⚠️ Dossier /assets/ NON trouvé dans ${actualDistPath}`);
     }
@@ -118,9 +129,50 @@ export function serveStatic(app: Express) {
     if (req.path.startsWith("/assets/")) {
       const filePath = path.join(actualDistPath, req.path);
       const exists = fs.existsSync(filePath);
-      console.log(`[STATIC] 📦 Requête /assets/: ${req.path} - ${exists ? '✅ Existe' : '❌ Non trouvé'}`);
-      if (exists) {
-        console.log(`[STATIC]   Chemin complet: ${filePath}`);
+      const isFile = exists ? fs.statSync(filePath).isFile() : false;
+      console.log(`[STATIC] 📦 Requête /assets/: ${req.path}`);
+      console.log(`[STATIC]   Chemin complet: ${filePath}`);
+      console.log(`[STATIC]   Existe: ${exists ? '✅' : '❌'}, Est fichier: ${isFile ? '✅' : '❌'}`);
+      
+      // Si le fichier n'existe pas, vérifier si le dossier assets existe
+      if (!exists) {
+        const assetsDir = path.join(actualDistPath, "assets");
+        const assetsExists = fs.existsSync(assetsDir);
+        console.log(`[STATIC]   Dossier assets existe: ${assetsExists ? '✅' : '❌'}`);
+        if (assetsExists) {
+          try {
+            const assetsFiles = fs.readdirSync(assetsDir);
+            console.log(`[STATIC]   Fichiers dans assets (${assetsFiles.length}): ${assetsFiles.slice(0, 10).join(', ')}${assetsFiles.length > 10 ? '...' : ''}`);
+          } catch (err) {
+            console.error(`[STATIC]   Erreur lecture assets:`, err);
+          }
+        }
+      }
+    }
+    next();
+  });
+
+  // Middleware pour servir manuellement les fichiers /assets/ si express.static() ne les trouve pas
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/assets/")) {
+      const filePath = path.join(actualDistPath, req.path);
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        // Le fichier existe, le servir manuellement avec le bon Content-Type
+        const ext = path.extname(filePath).toLowerCase();
+        const contentTypeMap: Record<string, string> = {
+          '.js': 'application/javascript',
+          '.mjs': 'application/javascript',
+          '.css': 'text/css',
+          '.json': 'application/json',
+          '.woff': 'font/woff',
+          '.woff2': 'font/woff2',
+          '.ttf': 'font/ttf',
+        };
+        if (contentTypeMap[ext]) {
+          res.setHeader('Content-Type', contentTypeMap[ext]);
+        }
+        console.log(`[STATIC] ✅ Fichier /assets/ servi manuellement: ${req.path}`);
+        return res.sendFile(filePath);
       }
     }
     next();
