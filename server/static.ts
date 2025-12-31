@@ -38,12 +38,19 @@ export function serveStatic(app: Express) {
   // Mais si les fichiers ne sont pas trouvés dans dist/public, servir depuis client/public comme fallback
   const sourcePublicPath = path.resolve(projectRoot, "client", "public");
   
-  // Middleware pour servir depuis le fallback AVANT de servir depuis dist/public
-  // Cela permet de servir logo.jpeg, favicon, etc. même s'ils ne sont pas dans dist/public
+  // Middleware pour servir depuis le fallback UNIQUEMENT pour les fichiers de client/public
+  // IMPORTANT: Ne pas intercepter les fichiers dans /assets/ (générés par Vite)
+  // express.static() doit servir les fichiers depuis dist/public, y compris /assets/
   if (fs.existsSync(sourcePublicPath)) {
     app.use((req, res, next) => {
       // Ne pas intercepter les routes API
       if (req.originalUrl?.startsWith("/api/") || req.url?.startsWith("/api/")) {
+        return next();
+      }
+      
+      // Ne pas intercepter les fichiers dans /assets/ (générés par Vite)
+      // Laisser express.static() les servir depuis dist/public/assets/
+      if (req.path.startsWith("/assets/")) {
         return next();
       }
       
@@ -59,14 +66,10 @@ export function serveStatic(app: Express) {
         return next();
       }
       
-      // Sinon, vérifier dans le fallback
+      // Sinon, vérifier dans le fallback (uniquement pour les fichiers de client/public)
       const fallbackPath = path.join(sourcePublicPath, req.path);
-      console.log(`[STATIC] 🔍 Vérification fallback pour: ${req.path}`);
-      console.log(`[STATIC]   Chemin fallback: ${fallbackPath}`);
-      console.log(`[STATIC]   Existe: ${fs.existsSync(fallbackPath)}`);
       if (fs.existsSync(fallbackPath)) {
         const stats = fs.statSync(fallbackPath);
-        console.log(`[STATIC]   Est fichier: ${stats.isFile()}`);
         if (stats.isFile()) {
           console.log(`[STATIC] 📦 Fichier servi depuis fallback: ${req.path}`);
           // Définir le bon Content-Type pour les images et fichiers audio
@@ -86,12 +89,9 @@ export function serveStatic(app: Express) {
           };
           if (contentTypeMap[ext]) {
             res.setHeader('Content-Type', contentTypeMap[ext]);
-            console.log(`[STATIC]   Content-Type défini: ${contentTypeMap[ext]}`);
           }
           return res.sendFile(fallbackPath);
         }
-      } else {
-        console.log(`[STATIC] ⚠️ Fichier non trouvé dans fallback: ${req.path}`);
       }
       
       // Le fichier n'existe nulle part, passer au middleware suivant
@@ -101,26 +101,66 @@ export function serveStatic(app: Express) {
   }
   
   // Servir les fichiers statiques depuis dist/public
-  app.use(express.static(actualDistPath));
+  // IMPORTANT: express.static() doit être appelé AVANT le catch-all
+  // Il vérifie automatiquement si le fichier existe et le sert avec le bon Content-Type
+  app.use(express.static(actualDistPath, {
+    // Ne pas servir index.html automatiquement pour les routes SPA
+    index: false,
+    // Définir les types MIME corrects
+    setHeaders: (res, filePath) => {
+      const ext = path.extname(filePath).toLowerCase();
+      const contentTypeMap: Record<string, string> = {
+        '.js': 'application/javascript',
+        '.mjs': 'application/javascript',
+        '.css': 'text/css',
+        '.json': 'application/json',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.webp': 'image/webp',
+        '.ico': 'image/x-icon',
+        '.woff': 'font/woff',
+        '.woff2': 'font/woff2',
+        '.ttf': 'font/ttf',
+        '.mp3': 'audio/mpeg',
+        '.m4a': 'audio/mp4',
+        '.ogg': 'audio/ogg',
+        '.wav': 'audio/wav',
+      };
+      if (contentTypeMap[ext]) {
+        res.setHeader('Content-Type', contentTypeMap[ext]);
+      }
+    },
+  }));
 
   // fall through to index.html if the file doesn't exist
   // MAIS ignorer les routes API et les fichiers statiques
-  app.use("*", (req, res, next) => {
+  // IMPORTANT: Ce middleware ne s'exécute QUE si express.static() n'a pas trouvé le fichier
+  app.get("*", (req, res, next) => {
     // Ne pas intercepter les routes API
     if (req.originalUrl?.startsWith("/api/") || req.url?.startsWith("/api/")) {
       return next();
     }
     
-    // Ne pas intercepter les fichiers statiques (images, CSS, JS, audio, etc.)
-    // Si c'est un fichier statique qui n'a pas été trouvé, retourner 404 au lieu de index.html
+    // Vérifier si c'est une requête pour un fichier statique
     const ext = path.extname(req.path).toLowerCase();
-    const staticExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.css', '.js', '.woff', '.woff2', '.ttf', '.ico', '.json', '.mp3', '.m4a', '.ogg', '.wav'];
+    const staticExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.css', '.js', '.mjs', '.woff', '.woff2', '.ttf', '.ico', '.json', '.mp3', '.m4a', '.ogg', '.wav'];
+    
     if (staticExtensions.includes(ext)) {
+      // Si c'est un fichier statique qui n'a pas été trouvé par express.static(),
+      // retourner 404 au lieu de servir index.html
       console.log(`[STATIC] ⚠️ Fichier statique non trouvé: ${req.path}`);
       return res.status(404).send('File not found');
     }
     
-    // Servir index.html pour toutes les autres routes (SPA routing)
-    res.sendFile(path.resolve(actualDistPath, "index.html"));
+    // Pour les routes SPA (pas de fichier statique), servir index.html
+    const indexPath = path.resolve(actualDistPath, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send('index.html not found');
+    }
   });
 }
