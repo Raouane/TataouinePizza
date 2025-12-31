@@ -19,6 +19,8 @@ export default function OrderSuccess() {
   const [driverName, setDriverName] = useState<string>('');
   const [hasShownSearch, setHasShownSearch] = useState(false);
   const [currentOrder, setCurrentOrder] = useState<any>(null);
+  const [isDelivered, setIsDelivered] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
   // Charger les données de la commande
   useEffect(() => {
@@ -28,6 +30,11 @@ export default function OrderSuccess() {
         // Récupérer le nom du livreur si disponible
         if (orderData.driverName) {
           setDriverName(orderData.driverName);
+        }
+        // Vérifier immédiatement si livré
+        if (orderData.status === 'delivered' && !isDelivered) {
+          setIsDelivered(true);
+          setShowSuccessMessage(true);
         }
       } else if (orderId) {
         try {
@@ -39,6 +46,11 @@ export default function OrderSuccess() {
             if (data.driverName) {
               setDriverName(data.driverName);
             }
+            // Vérifier immédiatement si livré
+            if (data.status === 'delivered' && !isDelivered) {
+              setIsDelivered(true);
+              setShowSuccessMessage(true);
+            }
           }
         } catch (error) {
           console.error('[OrderSuccess] Erreur lors du chargement de la commande:', error);
@@ -47,16 +59,44 @@ export default function OrderSuccess() {
     };
     loadOrderData();
     
-    // Rafraîchir les données toutes les 5 secondes
+    // Rafraîchir les données toutes les 5 secondes (arrêter si livré)
     const interval = setInterval(() => {
-      if (orderId) {
+      if (orderId && !isDelivered) {
         refreshOrderData();
         loadOrderData();
+      } else if (isDelivered) {
+        // Arrêter le rafraîchissement si livré
+        clearInterval(interval);
       }
     }, 5000);
     
     return () => clearInterval(interval);
-  }, [orderId, orderData, refreshOrderData]);
+  }, [orderId, orderData, refreshOrderData, isDelivered]);
+
+  // Détecter quand la commande est livrée et rediriger automatiquement
+  useEffect(() => {
+    const realStatus = currentOrder?.status || orderData?.status;
+    
+    if (realStatus === 'delivered' && !isDelivered) {
+      console.log('[OrderSuccess] ✅ Commande livrée détectée, affichage message de succès');
+      setIsDelivered(true);
+      setShowSuccessMessage(true);
+      
+      // Rediriger après 3 secondes pour laisser voir le message de succès
+      const redirectTimer = setTimeout(() => {
+        console.log('[OrderSuccess] 🔄 Redirection vers l\'accueil');
+        // Nettoyer le sessionStorage
+        sessionStorage.removeItem('currentOrderId');
+        sessionStorage.removeItem('orderSearchShown');
+        sessionStorage.removeItem('orderConfettiShown');
+        
+        // Rediriger vers l'accueil
+        setLocation('/');
+      }, 3000);
+      
+      return () => clearTimeout(redirectTimer);
+    }
+  }, [currentOrder?.status, orderData?.status, isDelivered, setLocation]);
 
   // Vérifier si on a déjà affiché la recherche de livreur (dans sessionStorage)
   useEffect(() => {
@@ -110,6 +150,37 @@ export default function OrderSuccess() {
       return () => clearInterval(interval);
     }
   }, [searchPhase]);
+
+  // Afficher le message de succès si la commande est livrée
+  if (showSuccessMessage && isDelivered) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen px-4 bg-gray-50">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 200, damping: 10 }}
+            className="h-24 w-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6"
+          >
+            <Check className="h-12 w-12 text-green-600" />
+          </motion.div>
+          <h1 className="text-3xl font-serif font-bold mb-2 text-green-600">
+            {t('order.delivered.title') || 'Commande livrée !'}
+          </h1>
+          <p className="text-lg text-muted-foreground mb-4">
+            {t('order.delivered.message') || 'Merci pour votre commande'}
+          </p>
+          <p className="text-sm text-muted-foreground animate-pulse">
+            {t('order.delivered.redirecting') || 'Redirection en cours...'}
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
 
   // Phase de recherche de livreur
   if (searchPhase === 'searching') {
