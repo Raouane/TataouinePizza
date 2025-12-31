@@ -181,7 +181,7 @@ export function serveStatic(app: Express) {
   app.use(express.static(actualDistPath, {
     // Ne pas servir index.html automatiquement pour les routes SPA
     index: false,
-    // Définir les types MIME corrects
+    // Définir les types MIME corrects et les headers de cache
     setHeaders: (res, filePath) => {
       const ext = path.extname(filePath).toLowerCase();
       const contentTypeMap: Record<string, string> = {
@@ -206,6 +206,13 @@ export function serveStatic(app: Express) {
       };
       if (contentTypeMap[ext]) {
         res.setHeader('Content-Type', contentTypeMap[ext]);
+      }
+      
+      // Ne pas mettre en cache index.html (géré séparément dans le catch-all)
+      // Mais mettre en cache les fichiers statiques avec hash (dans /assets/)
+      if (filePath.includes('/assets/') || filePath.endsWith('.js') || filePath.endsWith('.css')) {
+        // Les fichiers avec hash peuvent être mis en cache longtemps
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       }
     },
   }));
@@ -256,8 +263,14 @@ export function serveStatic(app: Express) {
     }
     
     // Pour les routes SPA (pas de fichier statique), servir index.html
+    // IMPORTANT: Ne pas mettre en cache index.html pour éviter les problèmes de hash
     const indexPath = path.resolve(actualDistPath, "index.html");
     if (fs.existsSync(indexPath)) {
+      // Désactiver le cache pour index.html pour éviter les problèmes de hash
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      console.log(`[STATIC] 📄 Servir index.html (sans cache)`);
       res.sendFile(indexPath);
     } else {
       res.status(404).send('index.html not found');
