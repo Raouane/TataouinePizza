@@ -110,6 +110,33 @@ const translations: Translations = {
   'order.delivered.message': { fr: "Merci pour votre commande", en: "Thank you for your order", ar: "شكراً لطلبك" },
   'order.delivered.redirecting': { fr: "Redirection en cours...", en: "Redirecting...", ar: "جاري إعادة التوجيه..." },
 
+  // Order Tracking Page (order-success.tsx)
+  'order.tracking.title': { fr: "Suivi de commande", en: "Order Tracking", ar: "تتبع الطلب" },
+  'order.tracking.searching.title': { fr: "Recherche de livreur autour...", en: "Searching for driver nearby...", ar: "البحث عن سائق قريب..." },
+  'order.tracking.searching.desc': { fr: "Nous cherchons un livreur disponible près de vous", en: "We are looking for an available driver near you", ar: "نبحث عن سائق متاح بالقرب منك" },
+  'order.tracking.found.title': { fr: "Livreur trouvé !", en: "Driver found!", ar: "تم العثور على سائق!" },
+  'order.tracking.found.desc': { fr: "Préparation de votre commande...", en: "Preparing your order...", ar: "جارٍ تحضير طلبك..." },
+  'order.tracking.deliveryAddress': { fr: "Adresse de livraison", en: "Delivery address", ar: "عنوان التوصيل" },
+  'order.tracking.deliveryAddress.unavailable': { fr: "Adresse non disponible", en: "Address unavailable", ar: "العنوان غير متاح" },
+  'order.tracking.driver.title': { fr: "Votre livreur", en: "Your driver", ar: "سائقك" },
+  'order.tracking.driver.default': { fr: "Livreur", en: "Driver", ar: "سائق" },
+  'order.tracking.estimatedTime': { fr: "Temps estimé", en: "Estimated time", ar: "الوقت المقدر" },
+  'order.tracking.status.title': { fr: "Statut", en: "Status", ar: "الحالة" },
+  'order.tracking.status.received': { fr: "Commande reçue", en: "Order received", ar: "تم استلام الطلب" },
+  'order.tracking.status.preparing': { fr: "En préparation", en: "Preparing", ar: "قيد التحضير" },
+  'order.tracking.status.delivery': { fr: "En livraison", en: "Out for delivery", ar: "قيد التوصيل" },
+  'order.tracking.status.delivered': { fr: "Livrée", en: "Delivered", ar: "تم التوصيل" },
+  'order.tracking.status.inProgress': { fr: "En cours...", en: "In progress...", ar: "قيد التنفيذ..." },
+  'order.tracking.details.title': { fr: "Détails", en: "Details", ar: "التفاصيل" },
+  'order.tracking.details.restaurant': { fr: "Restaurant", en: "Restaurant", ar: "المطعم" },
+  'order.tracking.details.items': { fr: "Articles", en: "Items", ar: "العناصر" },
+  'order.tracking.details.items.singular': { fr: "article", en: "item", ar: "عنصر" },
+  'order.tracking.details.items.plural': { fr: "articles", en: "items", ar: "عناصر" },
+  'order.tracking.details.total': { fr: "Total", en: "Total", ar: "المجموع" },
+  'order.tracking.callDriver': { fr: "Appeler le livreur", en: "Call driver", ar: "اتصل بالسائق" },
+  'order.tracking.back': { fr: "Retour", en: "Back", ar: "رجوع" },
+  'order.tracking.restaurant.default': { fr: "Restaurant", en: "Restaurant", ar: "مطعم" },
+
   // Tracker
   'tracker.title': { fr: "Suivi de commande", en: "Order Tracking", ar: "تتبع الطلب" },
   'tracker.status.received': { fr: "Commande reçue", en: "Order Received", ar: "تم استلام الطلب" },
@@ -205,6 +232,9 @@ const translations: Translations = {
   'common.currency': { fr: "DT", en: "TND", ar: "د.ت" },
   'common.min': { fr: "min", en: "min", ar: "دقيقة" },
   'common.back': { fr: "Retour", en: "Back", ar: "رجوع" },
+  'common.save': { fr: "Enregistrer", en: "Save", ar: "حفظ" },
+  'common.add': { fr: "Ajouter", en: "Add", ar: "إضافة" },
+  'common.addToCart': { fr: "Ajouter au panier", en: "Add to cart", ar: "إضافة إلى السلة" },
   
   // Menu product
   'menu.product.defaultDescription': { fr: "Délicieux plat préparé avec soin", en: "Delicious dish prepared with care", ar: "طبق لذيذ محضر بعناية" },

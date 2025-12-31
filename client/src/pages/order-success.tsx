@@ -163,8 +163,8 @@ export default function OrderSuccess() {
           >
             <Bike className="h-12 w-12 text-orange-600" />
           </motion.div>
-          <h1 className="text-2xl font-serif font-bold mb-2">Recherche de livreur autour...</h1>
-          <p className="text-muted-foreground">Nous cherchons un livreur disponible près de vous</p>
+          <h1 className="text-2xl font-serif font-bold mb-2">{t('order.tracking.searching.title')}</h1>
+          <p className="text-muted-foreground">{t('order.tracking.searching.desc')}</p>
           <div className="mt-8 flex gap-2 justify-center">
             {[0, 1, 2].map((i) => (
               <motion.div
@@ -199,8 +199,8 @@ export default function OrderSuccess() {
           <div className="h-24 w-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <Check className="h-12 w-12 text-green-600" />
           </div>
-          <h1 className="text-2xl font-serif font-bold mb-2">Livreur trouvé !</h1>
-          <p className="text-muted-foreground">Préparation de votre commande...</p>
+          <h1 className="text-2xl font-serif font-bold mb-2">{t('order.tracking.found.title')}</h1>
+          <p className="text-muted-foreground">{t('order.tracking.found.desc')}</p>
         </motion.div>
       </div>
     );
@@ -211,8 +211,8 @@ export default function OrderSuccess() {
   const estimatedTime = orderData?.estimatedDeliveryTime 
     ? `${orderData.estimatedDeliveryTime}-${orderData.estimatedDeliveryTime + 6} min`
     : eta > 0 ? `${eta}-${eta + 6} min` : '12-18 min';
-  const deliveryAddress = orderData?.address || 'Adresse non disponible';
-  const restaurantName = orderData?.restaurantName || 'Restaurant';
+  const deliveryAddress = orderData?.address || t('order.tracking.deliveryAddress.unavailable');
+  const restaurantName = orderData?.restaurantName || t('order.tracking.restaurant.default');
   const totalPrice = orderData?.totalPrice ? parseFloat(orderData.totalPrice).toFixed(2) : '0.00';
   const itemsCount = orderData?.items?.length || 0;
   const realStatus = orderData?.status || 'pending';
@@ -222,7 +222,7 @@ export default function OrderSuccess() {
     return [
       { 
         id: 'received', 
-        label: 'Commande reçue', 
+        label: t('order.tracking.status.received'), 
         icon: Clock, 
         completed: realStatus !== 'pending',
         current: realStatus === 'pending',
@@ -230,7 +230,7 @@ export default function OrderSuccess() {
       },
       { 
         id: 'preparing', 
-        label: 'En préparation', 
+        label: t('order.tracking.status.preparing'), 
         icon: ChefHat, 
         completed: ['ready', 'delivery', 'delivered'].includes(realStatus),
         current: realStatus === 'accepted' || realStatus === 'ready',
@@ -238,7 +238,7 @@ export default function OrderSuccess() {
       },
       { 
         id: 'delivery', 
-        label: 'En livraison', 
+        label: t('order.tracking.status.delivery'), 
         icon: Bike, 
         completed: realStatus === 'delivered',
         current: realStatus === 'delivery',
@@ -246,7 +246,7 @@ export default function OrderSuccess() {
       },
       { 
         id: 'delivered', 
-        label: 'Livrée', 
+        label: t('order.tracking.status.delivered'), 
         icon: Check, 
         completed: realStatus === 'delivered',
         current: false,
@@ -273,7 +273,7 @@ export default function OrderSuccess() {
             </svg>
           </Button>
           <div className="flex-1">
-            <h1 className="text-xl font-serif font-bold">Suivi de commande</h1>
+            <h1 className="text-xl font-serif font-bold">{t('order.tracking.title')}</h1>
             <p className="text-sm text-muted-foreground">{orderNumber}</p>
           </div>
         </div>
@@ -322,7 +322,7 @@ export default function OrderSuccess() {
                 <div className="flex items-start gap-2">
                   <MapPin className="h-5 w-5 text-orange-600 flex-shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-muted-foreground mb-1">Adresse de livraison</p>
+                    <p className="text-xs text-muted-foreground mb-1">{t('order.tracking.deliveryAddress')}</p>
                     <p className="text-sm font-medium">{deliveryAddress}</p>
                   </div>
                 </div>
@@ -337,11 +337,11 @@ export default function OrderSuccess() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="h-12 w-12 bg-green-600 rounded-full flex items-center justify-center text-white font-semibold">
-                  {driverName ? driverName.split(' ').map(n => n[0]).join('') : 'L'}
+                  {driverName ? driverName.split(' ').map(n => n[0]).join('') : t('order.tracking.driver.default')[0]}
                 </div>
                 <div>
-                  <p className="font-semibold">{driverName || 'Livreur'}</p>
-                  <p className="text-sm text-muted-foreground">Votre livreur</p>
+                  <p className="font-semibold">{driverName || t('order.tracking.driver.default')}</p>
+                  <p className="text-sm text-muted-foreground">{t('order.tracking.driver.title')}</p>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -358,13 +358,13 @@ export default function OrderSuccess() {
 
         {/* Temps estimé */}
         <Card className="p-4">
-          <p className="text-sm text-muted-foreground mb-1">Temps estimé</p>
+          <p className="text-sm text-muted-foreground mb-1">{t('order.tracking.estimatedTime')}</p>
           <p className="text-3xl font-bold text-orange-600">{estimatedTime}</p>
         </Card>
 
         {/* Statut */}
         <Card className="p-4">
-          <h3 className="font-semibold mb-4">Statut</h3>
+          <h3 className="font-semibold mb-4">{t('order.tracking.status.title')}</h3>
           <div className="space-y-4">
             {statusSteps.map((step, index) => {
               const Icon = step.icon;
@@ -409,7 +409,7 @@ export default function OrderSuccess() {
                       {step.label}
                     </p>
                     {isInProgress && (
-                      <p className="text-sm text-orange-600 mt-1">En cours...</p>
+                      <p className="text-sm text-orange-600 mt-1">{t('order.tracking.status.inProgress')}</p>
                     )}
                   </div>
                 </div>
@@ -420,20 +420,20 @@ export default function OrderSuccess() {
 
         {/* Détails */}
         <Card className="p-4">
-          <h3 className="font-semibold mb-4">Détails</h3>
+          <h3 className="font-semibold mb-4">{t('order.tracking.details.title')}</h3>
           <div className="space-y-3">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Restaurant</span>
+              <span className="text-muted-foreground">{t('order.tracking.details.restaurant')}</span>
               <span className="font-medium">{restaurantName}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Articles</span>
+              <span className="text-muted-foreground">{t('order.tracking.details.items')}</span>
               <span className="font-medium">
-                {itemsCount} article{itemsCount !== 1 ? 's' : ''}
+                {itemsCount} {itemsCount !== 1 ? t('order.tracking.details.items.plural') : t('order.tracking.details.items.singular')}
               </span>
             </div>
             <div className="flex justify-between pt-2 border-t">
-              <span className="font-semibold">Total</span>
+              <span className="font-semibold">{t('order.tracking.details.total')}</span>
               <span className="font-bold text-lg">
                 {totalPrice} €
               </span>
@@ -450,12 +450,12 @@ export default function OrderSuccess() {
               onClick={() => window.location.href = `tel:${orderData?.driverPhone || orderData?.phone || ''}`}
             >
               <Phone className="h-5 w-5 mr-2" />
-              Appeler le livreur
+              {t('order.tracking.callDriver')}
             </Button>
           )}
           <Link href="/">
             <Button size="lg" variant="outline" className={orderData?.driverId ? "px-6" : "flex-1"}>
-              Retour
+              {t('order.tracking.back')}
             </Button>
           </Link>
         </div>
