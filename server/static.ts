@@ -30,6 +30,16 @@ export function serveStatic(app: Express) {
     console.log(`[STATIC] 📋 Fichiers dans dist/public (${files.length}):`, files.slice(0, 20).join(', '));
     const logoExists = files.includes('logo.jpeg');
     console.log(`[STATIC] ${logoExists ? '✅' : '❌'} logo.jpeg ${logoExists ? 'trouvé' : 'NON trouvé'} dans dist/public`);
+    
+    // Vérifier si le dossier assets existe
+    const assetsPath = path.join(actualDistPath, "assets");
+    if (fs.existsSync(assetsPath)) {
+      const assetsFiles = fs.readdirSync(assetsPath);
+      console.log(`[STATIC] 📦 Dossier /assets/ trouvé avec ${assetsFiles.length} fichiers`);
+      console.log(`[STATIC]   Fichiers: ${assetsFiles.slice(0, 10).join(', ')}${assetsFiles.length > 10 ? '...' : ''}`);
+    } else {
+      console.log(`[STATIC] ⚠️ Dossier /assets/ NON trouvé dans ${actualDistPath}`);
+    }
   } catch (err) {
     console.error(`[STATIC] ⚠️ Erreur lecture dist/public:`, err);
   }
@@ -103,6 +113,19 @@ export function serveStatic(app: Express) {
   // Servir les fichiers statiques depuis dist/public
   // IMPORTANT: express.static() doit être appelé AVANT le catch-all
   // Il vérifie automatiquement si le fichier existe et le sert avec le bon Content-Type
+  app.use((req, res, next) => {
+    // Logger les requêtes pour /assets/ pour déboguer
+    if (req.path.startsWith("/assets/")) {
+      const filePath = path.join(actualDistPath, req.path);
+      const exists = fs.existsSync(filePath);
+      console.log(`[STATIC] 📦 Requête /assets/: ${req.path} - ${exists ? '✅ Existe' : '❌ Non trouvé'}`);
+      if (exists) {
+        console.log(`[STATIC]   Chemin complet: ${filePath}`);
+      }
+    }
+    next();
+  });
+
   app.use(express.static(actualDistPath, {
     // Ne pas servir index.html automatiquement pour les routes SPA
     index: false,
@@ -138,10 +161,17 @@ export function serveStatic(app: Express) {
   // fall through to index.html if the file doesn't exist
   // MAIS ignorer les routes API et les fichiers statiques
   // IMPORTANT: Ce middleware ne s'exécute QUE si express.static() n'a pas trouvé le fichier
-  app.get("*", (req, res, next) => {
+  // Utiliser app.use() au lieu de app.get() pour intercepter toutes les méthodes HTTP
+  // mais seulement après que express.static() ait eu l'occasion de servir les fichiers
+  app.use((req, res, next) => {
     // Ne pas intercepter les routes API
     if (req.originalUrl?.startsWith("/api/") || req.url?.startsWith("/api/")) {
       return next();
+    }
+    
+    // Si la réponse a déjà été envoyée (par express.static()), ne rien faire
+    if (res.headersSent) {
+      return;
     }
     
     // Vérifier si c'est une requête pour un fichier statique
@@ -150,7 +180,25 @@ export function serveStatic(app: Express) {
     
     if (staticExtensions.includes(ext)) {
       // Si c'est un fichier statique qui n'a pas été trouvé par express.static(),
-      // retourner 404 au lieu de servir index.html
+      // vérifier s'il existe vraiment
+      const filePath = path.join(actualDistPath, req.path);
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        // Le fichier existe mais n'a pas été servi par express.static()
+        // Cela ne devrait pas arriver, mais servir le fichier manuellement
+        console.log(`[STATIC] ⚠️ Fichier statique existe mais non servi par express.static(): ${req.path}`);
+        const ext = path.extname(filePath).toLowerCase();
+        const contentTypeMap: Record<string, string> = {
+          '.js': 'application/javascript',
+          '.mjs': 'application/javascript',
+          '.css': 'text/css',
+          '.json': 'application/json',
+        };
+        if (contentTypeMap[ext]) {
+          res.setHeader('Content-Type', contentTypeMap[ext]);
+        }
+        return res.sendFile(filePath);
+      }
+      // Le fichier n'existe pas, retourner 404
       console.log(`[STATIC] ⚠️ Fichier statique non trouvé: ${req.path}`);
       return res.status(404).send('File not found');
     }
