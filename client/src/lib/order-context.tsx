@@ -49,22 +49,28 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     const data = await response.json();
     const realStatus = data.status;
     
-    // Si la commande est livrée ou rejetée, annuler immédiatement
+    // Si la commande est livrée ou rejetée, arrêter le polling mais garder les données
+    // pour que order-success.tsx puisse détecter le changement et gérer la redirection
     if (realStatus === 'delivered' || realStatus === 'rejected') {
-      console.log('[OrderContext] Commande livrée/rejetée, masquage de la bannière dans 2 secondes');
+      console.log('[OrderContext] Commande livrée/rejetée détectée, arrêt du polling');
       setOrderData(data);
       setEta(0);
       setStepIndex(4); // delivered
-      // Masquer après 2 secondes pour laisser voir le statut final
+      // Masquer la bannière après 2 secondes (mais garder orderData pour order-success.tsx)
       setTimeout(() => {
-        console.log('[OrderContext] Masquage effectif de la bannière maintenant');
+        console.log('[OrderContext] Masquage de la bannière (orderData conservé pour order-success.tsx)');
         setActiveOrder(false);
+        // Ne pas supprimer orderData immédiatement, laisser order-success.tsx gérer la redirection
+      }, 2000);
+      // Nettoyer complètement après 10 secondes (au cas où order-success.tsx ne redirige pas)
+      setTimeout(() => {
+        console.log('[OrderContext] Nettoyage complet des données de commande');
         setOrderId(null);
         setOrderData(null);
         setStepIndex(0);
         setEta(0);
         sessionStorage.removeItem('currentOrderId');
-      }, 2000);
+      }, 10000);
       return realStatus;
     }
     
@@ -141,10 +147,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     if (!orderId) return;
     
     let consecutiveErrors = 0;
-    let lastStatus: string | null = null;
-    let statusUnchangedCount = 0;
     const MAX_CONSECUTIVE_ERRORS = 3;
-    const MAX_UNCHANGED_STATUS = 6; // 6 * 5s = 30 secondes sans changement
     
     const refreshWithErrorHandling = async () => {
       try {
@@ -156,22 +159,14 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         
-        // Vérifier si le statut a changé
-        if (currentStatus === lastStatus) {
-          statusUnchangedCount++;
-          // Si le statut reste identique trop longtemps, arrêter le polling
-          if (statusUnchangedCount >= MAX_UNCHANGED_STATUS && lastStatus === 'accepted') {
-            console.log('[OrderContext] Statut accepté inchangé pendant 30s, arrêt du polling');
-            setActiveOrder(false);
-            setOrderId(null);
-            setOrderData(null);
-            sessionStorage.removeItem('currentOrderId');
-            return;
-          }
-        } else {
-          statusUnchangedCount = 0;
-          lastStatus = currentStatus;
+        // Arrêter le polling si la commande est livrée ou rejetée
+        if (currentStatus === 'delivered' || currentStatus === 'rejected') {
+          console.log('[OrderContext] Commande livrée/rejetée, arrêt du polling');
+          return; // refreshOrderData a déjà géré la mise à jour et le nettoyage
         }
+        
+        // Continuer le polling pour tous les autres statuts (pending, accepted, ready, delivery)
+        // Une commande peut rester en "accepted" ou "ready" pendant plusieurs minutes, c'est normal
       } catch (error) {
         consecutiveErrors++;
         console.error(`[OrderContext] Erreur lors du rafraîchissement (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`, error);
@@ -190,15 +185,23 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     // Rafraîchir immédiatement
     refreshWithErrorHandling();
     
-    // Rafraîchir les données toutes les 5 secondes
+    // Rafraîchir les données toutes les 5 secondes (arrêter si livré/rejeté)
     const interval = setInterval(() => {
-      if (consecutiveErrors < MAX_CONSECUTIVE_ERRORS && statusUnchangedCount < MAX_UNCHANGED_STATUS) {
+      // Vérifier si la commande est déjà livrée/rejetée avant de continuer
+      if (orderData?.status === 'delivered' || orderData?.status === 'rejected') {
+        console.log('[OrderContext] Commande déjà livrée/rejetée, arrêt du polling');
+        clearInterval(interval);
+        return;
+      }
+      
+      // Continuer le polling tant qu'il n'y a pas trop d'erreurs
+      if (consecutiveErrors < MAX_CONSECUTIVE_ERRORS) {
         refreshWithErrorHandling();
       }
     }, 5000);
     
     return () => clearInterval(interval);
-  }, [orderId]);
+  }, [orderId, orderData?.status]);
 
   useEffect(() => {
     if (!activeOrder) return;

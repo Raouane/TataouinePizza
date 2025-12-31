@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { ArrowLeft, Star, Clock, MapPin, Plus } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
@@ -53,6 +53,8 @@ export default function Menu() {
   const { addItem } = useCart();
   const { t, language } = useLanguage();
   const firstSizeButtonRef = useRef<HTMLButtonElement>(null);
+  const productRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const hasScrolledToProduct = useRef(false);
   
   const restaurantId = params.restaurantId;
 
@@ -120,6 +122,66 @@ export default function Menu() {
       firstSizeButtonRef.current.focus();
     }
   }, [isSizeDialogOpen]);
+
+  // Fonction helper pour scroller vers le produit et le surligner
+  const scrollToProduct = useCallback((productId: string) => {
+    // Attendre que le DOM soit mis à jour
+    setTimeout(() => {
+      const productElement = productRefs.current[productId];
+      
+      if (productElement) {
+        // Scroller vers le produit avec un offset pour le header
+        const offset = 120; // Offset pour le header et les tabs
+        const elementPosition = productElement.getBoundingClientRect().top;
+        const offsetPosition = elementPosition + window.pageYOffset - offset;
+
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: 'smooth'
+        });
+
+        // Surligner le produit brièvement pour attirer l'attention
+        productElement.classList.add('ring-4', 'ring-orange-500', 'ring-offset-2', 'rounded-2xl');
+        setTimeout(() => {
+          productElement.classList.remove('ring-4', 'ring-orange-500', 'ring-offset-2');
+        }, 3000); // Surlignage plus long pour laisser le temps de voir
+
+        hasScrolledToProduct.current = true;
+
+        // Nettoyer l'URL pour éviter de re-scroller si on revient sur la page
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      }
+    }, 200); // Petit délai pour laisser le DOM se mettre à jour
+  }, []);
+
+  // Gérer le scroll automatique vers le produit et l'ouverture du dialog
+  useEffect(() => {
+    if (loading || pizzas.length === 0) return;
+
+    // Lire le query param product depuis l'URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const productId = urlParams.get('product');
+
+    if (productId && !hasScrolledToProduct.current) {
+      // Trouver le produit dans la liste
+      const product = pizzas.find(p => p.id === productId);
+      
+      if (product) {
+        // Filtrer automatiquement vers la catégorie du produit si nécessaire
+        if (category === "all" && product.category) {
+          setCategory(product.category);
+          // Attendre que le filtre soit appliqué avant de scroller
+          setTimeout(() => {
+            scrollToProduct(productId);
+          }, 300);
+        } else {
+          // Le produit est déjà dans la catégorie visible, scroller immédiatement
+          scrollToProduct(productId);
+        }
+      }
+    }
+  }, [loading, pizzas, category, scrollToProduct]);
 
   const handleAddToCart = (pizza: Pizza, e?: React.MouseEvent) => {
     e?.preventDefault();
@@ -473,6 +535,8 @@ export default function Menu() {
               return (
                 <div
                   key={pizza.id}
+                  id={`product-${pizza.id}`}
+                  ref={(el) => (productRefs.current[pizza.id] = el)}
                   className="bg-white rounded-2xl shadow-md hover:shadow-lg transition-shadow overflow-hidden"
                 >
                   {/* Image en haut - plus grande et attirante */}

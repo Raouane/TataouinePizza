@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { User, Phone, MapPin, History, Globe, ArrowLeft, ShoppingBag, CreditCard, Home, Gift, HelpCircle, Settings, LogOut, ChevronRight, Download, Star, Trash2, Plus, X } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { getOnboarding } from "@/pages/onboarding";
+import { isOnboardingEnabled } from "@/lib/onboarding-config";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,8 @@ const formatAddressCount = (count: number, language: string): string => {
 export default function Profile() {
   const { t, language, setLanguage } = useLanguage();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const onboardingEnabled = isOnboardingEnabled();
   const [onboardingData] = useState(() => getOnboarding());
   const [showAddressDialog, setShowAddressDialog] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
@@ -190,7 +193,8 @@ export default function Profile() {
     return onboardingData?.address || (language === 'ar' ? 'لا توجد عناوين محفوظة' : language === 'en' ? 'No saved addresses' : 'Aucune adresse enregistrée');
   }, [savedAddresses.length, language, onboardingData?.address]);
 
-  if (!onboardingData) {
+  // Afficher le message d'erreur seulement si l'onboarding est activé ET qu'il n'y a pas de données
+  if (!onboardingData && onboardingEnabled) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center px-4">
         <Card className="max-w-md w-full">
@@ -222,16 +226,15 @@ export default function Profile() {
       {/* Header vert */}
       <div className="bg-primary text-primary-foreground sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-4">
-          <Link href="/">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="text-white hover:bg-white/20 md:hidden"
-              aria-label={t('common.back') || "Retour"}
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="text-white hover:bg-white/20 md:hidden"
+            aria-label={t('common.back') || "Retour"}
+            onClick={() => window.history.back()}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
           <h1 className="text-xl font-bold flex-1">{t('profile.title')}</h1>
           <Link href="/cart">
             <Button 
@@ -251,12 +254,14 @@ export default function Profile() {
         <Card className="p-6">
           <div className="flex items-center gap-4 mb-4">
             <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
-              <span className="text-2xl font-bold text-primary">{getInitials(onboardingData.name)}</span>
+              <span className="text-2xl font-bold text-primary">{getInitials(onboardingData?.name)}</span>
             </div>
             <div className="flex-1">
-              <h2 className="text-xl font-bold">{onboardingData.name}</h2>
-              <p className="text-sm text-muted-foreground">{onboardingData.phone}</p>
-              {onboardingData.address && (
+              <h2 className="text-xl font-bold">{onboardingData?.name || t('profile.guest') || "Invité"}</h2>
+              {onboardingData?.phone && (
+                <p className="text-sm text-muted-foreground">{onboardingData.phone}</p>
+              )}
+              {onboardingData?.address && (
                 <p className="text-xs text-muted-foreground mt-1">{onboardingData.address}</p>
               )}
             </div>

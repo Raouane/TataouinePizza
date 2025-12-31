@@ -16,7 +16,7 @@ export function ContactFloatingButton() {
   };
 
   return (
-    <div className="fixed bottom-20 md:bottom-8 right-4 z-50 flex flex-col gap-3">
+    <div className="fixed top-20 md:top-8 right-4 z-50 flex flex-col gap-2">
       {/* Bouton WhatsApp */}
       <motion.div
         whileHover={{ scale: 1.1 }}
@@ -24,11 +24,11 @@ export function ContactFloatingButton() {
       >
         <Button
           onClick={handleWhatsApp}
-          className="h-14 w-14 rounded-full bg-[#25D366] hover:bg-[#20BA5A] text-white shadow-lg flex items-center justify-center"
+          className="h-10 w-10 rounded-full bg-[#25D366] hover:bg-[#20BA5A] text-white shadow-lg flex items-center justify-center"
           size="icon"
           aria-label="Contacter sur WhatsApp"
         >
-          <MessageCircle className="h-6 w-6" />
+          <MessageCircle className="h-4 w-4" />
         </Button>
       </motion.div>
 
@@ -39,11 +39,11 @@ export function ContactFloatingButton() {
       >
         <Button
           onClick={handlePhone}
-          className="h-14 w-14 rounded-full bg-primary hover:bg-primary/90 text-white shadow-lg flex items-center justify-center"
+          className="h-10 w-10 rounded-full bg-primary hover:bg-primary/90 text-white shadow-lg flex items-center justify-center"
           size="icon"
           aria-label="Appeler le support"
         >
-          <Phone className="h-6 w-6" />
+          <Phone className="h-4 w-4" />
         </Button>
       </motion.div>
     </div>

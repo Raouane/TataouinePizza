@@ -29,7 +29,7 @@ export function PizzaSearchResult({ pizza, restaurant }: PizzaSearchResultProps)
   const price = parseFloat(defaultPrice?.price || "15");
 
   return (
-    <Link href={`/menu/${pizza.restaurantId}`} className="block">
+    <Link href={`/menu/${pizza.restaurantId}?product=${pizza.id}`} className="block">
       <div className="bg-white rounded-xl md:rounded-2xl shadow-sm hover:shadow-md transition-shadow active:scale-[0.98] cursor-pointer">
         <div className="flex gap-2 md:gap-4 p-3 md:p-4">
           {/* Image - Taille responsive mobile-first */}

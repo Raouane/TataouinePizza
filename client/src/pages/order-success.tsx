@@ -18,85 +18,46 @@ export default function OrderSuccess() {
   const [searchPhase, setSearchPhase] = useState<SearchPhase>('searching');
   const [driverName, setDriverName] = useState<string>('');
   const [hasShownSearch, setHasShownSearch] = useState(false);
-  const [currentOrder, setCurrentOrder] = useState<any>(null);
   const [isDelivered, setIsDelivered] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
-  // Charger les données de la commande
+  // Mettre à jour le nom du livreur quand orderData change
   useEffect(() => {
-    const loadOrderData = async () => {
-      if (orderData) {
-        setCurrentOrder(orderData);
-        // Récupérer le nom du livreur si disponible
-        if (orderData.driverName) {
-          setDriverName(orderData.driverName);
-        }
-        // Vérifier immédiatement si livré
-        if (orderData.status === 'delivered' && !isDelivered) {
-          setIsDelivered(true);
-          setShowSuccessMessage(true);
-        }
-      } else if (orderId) {
-        try {
-          const response = await fetch(`/api/orders/${orderId}`);
-          if (response.ok) {
-            const data = await response.json();
-            setCurrentOrder(data);
-            // Récupérer le nom du livreur si disponible
-            if (data.driverName) {
-              setDriverName(data.driverName);
-            }
-            // Vérifier immédiatement si livré
-            if (data.status === 'delivered' && !isDelivered) {
-              setIsDelivered(true);
-              setShowSuccessMessage(true);
-            }
-          }
-        } catch (error) {
-          console.error('[OrderSuccess] Erreur lors du chargement de la commande:', error);
-        }
-      }
-    };
-    loadOrderData();
-    
-    // Rafraîchir les données toutes les 5 secondes (arrêter si livré)
-    const interval = setInterval(() => {
-      if (orderId && !isDelivered) {
-        refreshOrderData();
-        loadOrderData();
-      } else if (isDelivered) {
-        // Arrêter le rafraîchissement si livré
-        clearInterval(interval);
-      }
-    }, 5000);
-    
-    return () => clearInterval(interval);
-  }, [orderId, orderData, refreshOrderData, isDelivered]);
+    if (orderData?.driverName) {
+      setDriverName(orderData.driverName);
+    }
+  }, [orderData?.driverName]);
 
-  // Détecter quand la commande est livrée et rediriger automatiquement
+  // Charger les données initiales si orderId existe mais orderData n'est pas encore disponible
   useEffect(() => {
-    const realStatus = currentOrder?.status || orderData?.status;
+    if (orderId && !orderData && !isDelivered) {
+      console.log('[OrderSuccess] Chargement initial des données de commande');
+      refreshOrderData();
+    }
+  }, [orderId, orderData, isDelivered, refreshOrderData]);
+
+  // Détecter quand la commande est livrée et afficher le message de succès
+  useEffect(() => {
+    const realStatus = orderData?.status;
     
     if (realStatus === 'delivered' && !isDelivered) {
       console.log('[OrderSuccess] ✅ Commande livrée détectée, affichage message de succès');
       setIsDelivered(true);
       setShowSuccessMessage(true);
-      
-      // Rediriger après 3 secondes pour laisser voir le message de succès
-      const redirectTimer = setTimeout(() => {
-        console.log('[OrderSuccess] 🔄 Redirection vers l\'accueil');
-        // Nettoyer le sessionStorage
-        sessionStorage.removeItem('currentOrderId');
-        sessionStorage.removeItem('orderSearchShown');
-        sessionStorage.removeItem('orderConfettiShown');
-        
-        // Rediriger vers l'accueil
-        setLocation('/');
-      }, 3000);
-      
-      return () => clearTimeout(redirectTimer);
     }
-  }, [currentOrder?.status, orderData?.status, isDelivered, setLocation]);
+  }, [orderData?.status, isDelivered]);
+
+  // Fonction pour retourner à l'accueil
+  const handleReturnHome = () => {
+    console.log('[OrderSuccess] 🔄 Retour à l\'accueil');
+    // Nettoyer le sessionStorage
+    sessionStorage.removeItem('currentOrderId');
+    sessionStorage.removeItem('orderSearchShown');
+    sessionStorage.removeItem('orderConfettiShown');
+    
+    // Rediriger vers l'accueil
+    window.location.replace('/');
+  };
 
   // Vérifier si on a déjà affiché la recherche de livreur (dans sessionStorage)
   useEffect(() => {
@@ -158,7 +119,7 @@ export default function OrderSuccess() {
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="text-center"
+          className="text-center max-w-md w-full"
         >
           <motion.div
             initial={{ scale: 0 }}
@@ -171,12 +132,16 @@ export default function OrderSuccess() {
           <h1 className="text-3xl font-serif font-bold mb-2 text-green-600">
             {t('order.delivered.title') || 'Commande livrée !'}
           </h1>
-          <p className="text-lg text-muted-foreground mb-4">
+          <p className="text-lg text-muted-foreground mb-8">
             {t('order.delivered.message') || 'Merci pour votre commande'}
           </p>
-          <p className="text-sm text-muted-foreground animate-pulse">
-            {t('order.delivered.redirecting') || 'Redirection en cours...'}
-          </p>
+          <Button
+            onClick={handleReturnHome}
+            size="lg"
+            className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-6 text-lg"
+          >
+            {t('success.back') || 'Retour à l\'accueil'}
+          </Button>
         </motion.div>
       </div>
     );
@@ -242,15 +207,15 @@ export default function OrderSuccess() {
   }
 
   // Page de succès avec design inspiré - utiliser les vraies données
-  const orderNumber = currentOrder?.id ? `#JB-${currentOrder.id.slice(0, 8).toUpperCase()}` : orderId ? `#JB-${orderId.slice(0, 8).toUpperCase()}` : '#JB-XXXX';
-  const estimatedTime = currentOrder?.estimatedDeliveryTime 
-    ? `${currentOrder.estimatedDeliveryTime}-${currentOrder.estimatedDeliveryTime + 6} min`
+  const orderNumber = orderData?.id ? `#JB-${orderData.id.slice(0, 8).toUpperCase()}` : orderId ? `#JB-${orderId.slice(0, 8).toUpperCase()}` : '#JB-XXXX';
+  const estimatedTime = orderData?.estimatedDeliveryTime 
+    ? `${orderData.estimatedDeliveryTime}-${orderData.estimatedDeliveryTime + 6} min`
     : eta > 0 ? `${eta}-${eta + 6} min` : '12-18 min';
-  const deliveryAddress = currentOrder?.address || 'Adresse non disponible';
-  const restaurantName = currentOrder?.restaurantName || 'Restaurant';
-  const totalPrice = currentOrder?.totalPrice ? parseFloat(currentOrder.totalPrice).toFixed(2) : '0.00';
-  const itemsCount = currentOrder?.items?.length || 0;
-  const realStatus = currentOrder?.status || 'pending';
+  const deliveryAddress = orderData?.address || 'Adresse non disponible';
+  const restaurantName = orderData?.restaurantName || 'Restaurant';
+  const totalPrice = orderData?.totalPrice ? parseFloat(orderData.totalPrice).toFixed(2) : '0.00';
+  const itemsCount = orderData?.items?.length || 0;
+  const realStatus = orderData?.status || 'pending';
 
   // Mapper le statut réel aux étapes
   const getStatusSteps = () => {
@@ -367,7 +332,7 @@ export default function OrderSuccess() {
         </Card>
 
         {/* Informations du livreur - seulement si assigné */}
-        {currentOrder?.driverId && (
+        {orderData?.driverId && (
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -380,10 +345,10 @@ export default function OrderSuccess() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => window.location.href = `tel:${currentOrder?.driverPhone || currentOrder?.phone || ''}`}>
+                <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => window.location.href = `tel:${orderData?.driverPhone || orderData?.phone || ''}`}>
                   <Phone className="h-5 w-5" />
                 </Button>
-                <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => window.location.href = `sms:${currentOrder?.driverPhone || currentOrder?.phone || ''}`}>
+                <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => window.location.href = `sms:${orderData?.driverPhone || orderData?.phone || ''}`}>
                   <MessageCircle className="h-5 w-5" />
                 </Button>
               </div>
@@ -478,18 +443,18 @@ export default function OrderSuccess() {
 
         {/* Boutons d'action */}
         <div className="flex gap-3 pt-4">
-          {currentOrder?.driverId && (
+          {orderData?.driverId && (
             <Button
               size="lg"
               className="flex-1 bg-orange-600 hover:bg-orange-700"
-              onClick={() => window.location.href = `tel:${currentOrder?.driverPhone || currentOrder?.phone || ''}`}
+              onClick={() => window.location.href = `tel:${orderData?.driverPhone || orderData?.phone || ''}`}
             >
               <Phone className="h-5 w-5 mr-2" />
               Appeler le livreur
             </Button>
           )}
           <Link href="/">
-            <Button size="lg" variant="outline" className={currentOrder?.driverId ? "px-6" : "flex-1"}>
+            <Button size="lg" variant="outline" className={orderData?.driverId ? "px-6" : "flex-1"}>
               Retour
             </Button>
           </Link>

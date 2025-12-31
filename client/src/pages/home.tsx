@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { Phone } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { isRestaurantOpen } from "@/lib/restaurant-status";
 import { SearchBar } from "@/components/search-bar";
@@ -214,6 +215,20 @@ export default function Home() {
               <div className="text-3xl md:text-4xl mb-2 md:mb-3">🔍</div>
               <p className="text-sm md:text-base text-gray-600 font-medium">{t('home.search.noResults')}</p>
               <p className="text-xs md:text-sm text-gray-500 mt-2">{t('home.search.tryOther')}</p>
+              
+              {/* Section avec message d'appel */}
+              <div className="mt-6 p-4 md:p-6 bg-orange-50 rounded-lg border border-orange-200 max-w-md mx-auto">
+                <p className="text-sm md:text-base text-gray-700 mb-3">
+                  {t('home.search.callUs') || "Vous ne trouvez pas ce que vous cherchez ? Pas de problème, appelez-nous et nous aurons le plaisir de vous répondre et trouver ce que vous aimez !"}
+                </p>
+                <a 
+                  href="tel:+21653666945" 
+                  className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 md:px-6 py-2 md:py-3 rounded-lg transition-colors"
+                >
+                  <Phone className="h-4 w-4 md:h-5 md:w-5" />
+                  <span>{t('home.search.callNow') || "Appelez-nous"}</span>
+                </a>
+              </div>
             </div>
           )}
         </section>

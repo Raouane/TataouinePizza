@@ -11,7 +11,9 @@ const viteLogger = createLogger();
 export async function setupVite(server: Server, app: Express) {
   const serverOptions = {
     middlewareMode: true,
-    hmr: { server, path: "/vite-hmr" },
+    // Désactiver HMR pour éviter les erreurs WebSocket
+    // Le rechargement manuel de la page fonctionne toujours
+    hmr: false,
     allowedHosts: true as const,
   };
 
@@ -65,6 +67,9 @@ export async function setupVite(server: Server, app: Express) {
     if (req.originalUrl?.startsWith("/api/") || req.url?.startsWith("/api/")) {
       return next();
     }
+    // Ne pas intercepter les scripts modules - laisser Vite les gérer
+    // L'interception des WebSocket HMR se fait au niveau du serveur HTTP
+    
     vite.middlewares(req, res, next);
   });
 
@@ -91,7 +96,23 @@ export async function setupVite(server: Server, app: Express) {
         `src="/src/main.tsx?v=${nanoid()}"`,
       );
       const page = await vite.transformIndexHtml(url, template);
-      res.status(200).set({ "Content-Type": "text/html" }).end(page);
+      
+      // Désactiver complètement le HMR en supprimant les scripts WebSocket
+      // Cela évite les erreurs de connexion WebSocket
+      let pageWithoutHMR = page;
+      
+      // Supprimer tous les scripts @vite/client (toutes les variantes possibles)
+      // Format: <script type="module" src="/@vite/client"></script>
+      pageWithoutHMR = pageWithoutHMR.replace(/<script[^>]*\/@vite\/client[^>]*>[\s\S]*?<\/script>/gi, '');
+      pageWithoutHMR = pageWithoutHMR.replace(/<script[^>]*@vite\/client[^>]*>[\s\S]*?<\/script>/gi, '');
+      // Format auto-closing: <script type="module" src="/@vite/client" />
+      pageWithoutHMR = pageWithoutHMR.replace(/<script[^>]*\/@vite\/client[^>]*\/?>/gi, '');
+      pageWithoutHMR = pageWithoutHMR.replace(/<script[^>]*@vite\/client[^>]*\/?>/gi, '');
+      
+      // Ne pas supprimer les autres scripts ou références
+      // Seulement supprimer les scripts @vite/client pour éviter le HMR
+      
+      res.status(200).set({ "Content-Type": "text/html" }).end(pageWithoutHMR);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
       next(e);

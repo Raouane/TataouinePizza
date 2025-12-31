@@ -105,6 +105,11 @@ const translations: Translations = {
   'success.back': { fr: "Retour à l'accueil", en: "Back to home", ar: "العودة للرئيسية" },
   'success.call_driver': { fr: "Appeler le livreur", en: "Call driver", ar: "اتصل بالسائق" },
 
+  // Order Delivered - Messages de succès après livraison
+  'order.delivered.title': { fr: "Commande livrée !", en: "Order Delivered!", ar: "تم التوصيل!" },
+  'order.delivered.message': { fr: "Merci pour votre commande", en: "Thank you for your order", ar: "شكراً لطلبك" },
+  'order.delivered.redirecting': { fr: "Redirection en cours...", en: "Redirecting...", ar: "جاري إعادة التوجيه..." },
+
   // Tracker
   'tracker.title': { fr: "Suivi de commande", en: "Order Tracking", ar: "تتبع الطلب" },
   'tracker.status.received': { fr: "Commande reçue", en: "Order Received", ar: "تم استلام الطلب" },
@@ -217,6 +222,8 @@ const translations: Translations = {
   'home.search.results.plural': { fr: "{count} plats trouvés", en: "{count} dishes found", ar: "تم العثور على {count} أطباق" },
   'home.search.noResults': { fr: "Aucun plat trouvé", en: "No dish found", ar: "لم يتم العثور على أطباق" },
   'home.search.tryOther': { fr: "Essayez avec d'autres mots-clés", en: "Try with other keywords", ar: "جرب كلمات مفتاحية أخرى" },
+  'home.search.callUs': { fr: "Vous ne trouvez pas ce que vous cherchez ? Pas de problème, appelez-nous et nous aurons le plaisir de vous répondre et trouver ce que vous aimez !", en: "Can't find what you're looking for? No problem, call us and we'll be happy to help you find what you like!", ar: "لا تجد ما تبحث عنه؟ لا مشكلة، اتصل بنا وسنكون سعداء لمساعدتك في العثور على ما تحب!" },
+  'home.search.callNow': { fr: "Appelez-nous", en: "Call us", ar: "اتصل بنا" },
   'home.search.noRestaurants': { fr: "Aucun résultat trouvé", en: "No results found", ar: "لم يتم العثور على نتائج" },
   'home.restaurant.default': { fr: "Restaurant", en: "Restaurant", ar: "مطعم" },
   'home.restaurants.open': { fr: "Restaurants ouverts", en: "Open restaurants", ar: "المطاعم المفتوحة" },
@@ -277,6 +284,7 @@ const translations: Translations = {
   'profile.edit.title': { fr: "Modifier le profil", en: "Edit Profile", ar: "تعديل الملف الشخصي" },
   'profile.edit.desc': { fr: "Mettre à jour vos informations personnelles", en: "Update your personal information", ar: "تحديث معلوماتك الشخصية" },
   'profile.edit.button': { fr: "Modifier", en: "Edit", ar: "تعديل" },
+  'profile.guest': { fr: "Invité", en: "Guest", ar: "ضيف" },
   'profile.notFound.title': { fr: "Profil non trouvé", en: "Profile not found", ar: "الملف الشخصي غير موجود" },
   'profile.notFound.desc': { fr: "Vous devez compléter l'onboarding pour accéder à votre profil.", en: "You must complete onboarding to access your profile.", ar: "يجب إكمال الإعداد للوصول إلى ملفك الشخصي." },
   'profile.notFound.action': { fr: "Compléter l'onboarding", en: "Complete onboarding", ar: "إكمال الإعداد" },

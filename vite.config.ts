@@ -54,10 +54,7 @@ export default defineConfig({
     },
     // Pas de proxy nécessaire : Express sert Vite en mode middleware
     // Les routes /api sont gérées directement par Express
-    hmr: {
-      host: 'localhost',
-      port: 5000,
-      protocol: 'ws',
-    },
+    // HMR désactivé pour éviter les erreurs WebSocket
+    hmr: false,
   },
 });
