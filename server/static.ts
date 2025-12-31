@@ -270,6 +270,22 @@ export function serveStatic(app: Express) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
+      
+      // Lire et logger le contenu de index.html pour vérifier les hash
+      try {
+        const indexContent = fs.readFileSync(indexPath, 'utf-8');
+        const jsMatches = indexContent.match(/\/assets\/index-([a-zA-Z0-9]+)\.js/g);
+        const cssMatches = indexContent.match(/\/assets\/index-([a-zA-Z0-9]+)\.css/g);
+        if (jsMatches && jsMatches.length > 0) {
+          console.log(`[STATIC] 📄 index.html contient JS: ${jsMatches[0]}`);
+        }
+        if (cssMatches && cssMatches.length > 0) {
+          console.log(`[STATIC] 📄 index.html contient CSS: ${cssMatches[0]}`);
+        }
+      } catch (err) {
+        console.error(`[STATIC] ⚠️ Erreur lecture index.html:`, err);
+      }
+      
       console.log(`[STATIC] 📄 Servir index.html (sans cache)`);
       res.sendFile(indexPath);
     } else {

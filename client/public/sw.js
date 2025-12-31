@@ -4,7 +4,7 @@
 // Cache basique pour assets statiques (PRIORITÉ 3 - Cache Minimum)
 const CACHE_NAME = 'tataouine-pizza-v1';
 const STATIC_ASSETS = [
-  '/',
+  // Ne pas inclure '/' ou '/index.html' pour éviter le cache des hash
   '/driver',
   '/manifest.json',
   '/icon-192.png',
@@ -290,10 +290,34 @@ self.addEventListener('notificationclick', (event) => {
 // Activer le Service Worker immédiatement (pour qu'il reste actif même en arrière-plan)
 self.addEventListener('activate', (event) => {
   console.log('[SW] Service Worker activé');
-  // Prendre immédiatement le contrôle de toutes les pages
+  
+  // Supprimer l'ancien cache de index.html pour forcer la mise à jour
   event.waitUntil(
-    self.clients.claim().then(() => {
-      console.log('[SW] Service Worker a pris le contrôle de toutes les pages');
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName === CACHE_NAME) {
+            return caches.open(cacheName).then((cache) => {
+              // Supprimer index.html du cache s'il existe
+              return cache.delete('/').then((deleted) => {
+                if (deleted) {
+                  console.log('[SW] ✅ Ancien cache de index.html supprimé');
+                }
+                return cache.delete('/index.html').then((deleted2) => {
+                  if (deleted2) {
+                    console.log('[SW] ✅ Ancien cache de /index.html supprimé');
+                  }
+                });
+              });
+            });
+          }
+        })
+      );
+    }).then(() => {
+      // Prendre immédiatement le contrôle de toutes les pages
+      return self.clients.claim().then(() => {
+        console.log('[SW] Service Worker a pris le contrôle de toutes les pages');
+      });
     })
   );
 });
@@ -320,11 +344,23 @@ self.addEventListener('install', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   
+  // IMPORTANT: Ne JAMAIS mettre en cache index.html pour éviter les problèmes de hash
+  // Toujours récupérer index.html depuis le réseau pour avoir les bons hash
+  if (url.pathname === '/' || url.pathname === '/index.html') {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        // En cas d'erreur réseau, retourner une réponse basique
+        return new Response('Network error', { status: 408 });
+      })
+    );
+    return;
+  }
+  
   // Cache First pour assets statiques uniquement (match exact pour éviter cache involontaire d'API)
   const isStaticAsset = STATIC_ASSETS.some(asset => {
-    // Match exact pour les routes
+    // Ne pas mettre en cache / ou /index.html (déjà géré ci-dessus)
     if (asset === '/' || asset === '/driver') {
-      return url.pathname === asset;
+      return url.pathname === asset && url.pathname !== '/';
     }
     // Match exact ou endsWith pour les fichiers
     return url.pathname === asset || url.pathname.endsWith(asset);
