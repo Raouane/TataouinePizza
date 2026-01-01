@@ -687,6 +687,17 @@ export default function DriverDashboard() {
         const data = await myRes.json();
         console.log("[Driver] Mes commandes récupérées:", data.length);
         
+        // ✅ DIAGNOSTIC : Voir les statuts EXACTS (avec type et longueur)
+        console.log("🔍 [DIAGNOSTIC] Exemples de statuts bruts (5 premières):", data.slice(0, 5).map((o: Order) => ({
+          id: o.id?.slice(0, 8) || "N/A",
+          status: o.status,
+          statusType: typeof o.status,
+          statusLength: o.status?.length,
+          statusValue: JSON.stringify(o.status),
+          statusLowercase: o.status?.toLowerCase(),
+          statusTrimmed: o.status?.trim()
+        })));
+        
         // ✅ DIAGNOSTIC : Compter les commandes par statut
         const statusCounts = data.reduce((acc: Record<string, number>, o: Order) => {
           acc[o.status] = (acc[o.status] || 0) + 1;
@@ -695,21 +706,29 @@ export default function DriverDashboard() {
         console.log("🔍 [DIAGNOSTIC] Répartition des commandes par statut:", statusCounts);
         
         // ✅ DIAGNOSTIC : Voir les commandes actives (received, accepted, ready, delivery)
-        const activeOrders = data.filter((o: Order) => 
-          ["received", "accepted", "ready", "delivery"].includes(o.status)
-        );
+        const activeOrders = data.filter((o: Order) => {
+          const status = o.status?.toLowerCase()?.trim();
+          return ["received", "accepted", "ready", "delivery"].includes(status);
+        });
         console.log("🔍 [DIAGNOSTIC] Commandes actives trouvées:", activeOrders.length);
         if (activeOrders.length > 0) {
           console.log("🔍 [DIAGNOSTIC] Détails des commandes actives:", activeOrders.map((o: Order) => ({
             id: o.id?.slice(0, 8) || "N/A",
             status: o.status,
+            statusNormalized: o.status?.toLowerCase()?.trim(),
             customerName: o.customerName,
             totalPrice: o.totalPrice,
             driverId: o.driverId
           })));
         } else {
           console.log("⚠️ [DIAGNOSTIC] AUCUNE COMMANDE ACTIVE TROUVÉE !");
-          console.log("🔍 [DIAGNOSTIC] Exemples de statuts trouvés:", [...new Set(data.map((o: Order) => o.status))].slice(0, 10));
+          const uniqueStatuses = [...new Set(data.map((o: Order) => o.status))];
+          console.log("🔍 [DIAGNOSTIC] Statuts uniques trouvés:", uniqueStatuses);
+          console.log("🔍 [DIAGNOSTIC] Statuts normalisés:", uniqueStatuses.map(s => ({
+            original: s,
+            normalized: s?.toLowerCase()?.trim(),
+            matches: ["received", "accepted", "ready", "delivery"].includes(s?.toLowerCase()?.trim())
+          })));
         }
         
         setMyOrders(data);
