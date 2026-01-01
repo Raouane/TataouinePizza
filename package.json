@@ -47,6 +47,7 @@
     "script:test-telegram": "tsx server/scripts/test-telegram.ts",
     "script:add-telegram-column": "tsx server/scripts/add-telegram-column.ts",
     "script:add-driver-telegram-id": "tsx server/scripts/add-driver-telegram-id.ts",
+    "update:received-to-delivery": "tsx server/scripts/update-received-to-delivery.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:watch": "vitest --watch",
