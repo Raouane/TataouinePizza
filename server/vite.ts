@@ -62,9 +62,15 @@ export async function setupVite(server: Server, app: Express) {
     console.warn(`[VITE] ⚠️  Dossier public non trouvé: ${publicPath}`);
   }
 
-  // Middleware pour ignorer les routes API
+  // Middleware pour ignorer les routes API et /accept/
   app.use((req, res, next) => {
     if (req.originalUrl?.startsWith("/api/") || req.url?.startsWith("/api/")) {
+      return next();
+    }
+    // ✅ NOUVEAU : Ne pas intercepter les routes /accept/ et /refuse/ (gérées par le backend)
+    if (req.originalUrl?.startsWith("/accept/") || req.url?.startsWith("/accept/") ||
+        req.originalUrl?.startsWith("/refuse/") || req.url?.startsWith("/refuse/")) {
+      console.log(`[VITE] ⏭️ Route backend ignorée: ${req.originalUrl || req.url}`);
       return next();
     }
     // Ne pas intercepter les scripts modules - laisser Vite les gérer
@@ -78,6 +84,11 @@ export async function setupVite(server: Server, app: Express) {
 
     // Ne pas intercepter les routes API
     if (url.startsWith("/api/")) {
+      return next();
+    }
+    
+    // ✅ NOUVEAU : Ne pas intercepter les routes /accept/ et /refuse/ (gérées par le backend)
+    if (url.startsWith("/accept/") || url.startsWith("/refuse/")) {
       return next();
     }
 

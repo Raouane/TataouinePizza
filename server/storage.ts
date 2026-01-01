@@ -6,7 +6,7 @@ import {
   insertPizzaSchema, insertPizzaPriceSchema
 } from "@shared/schema";
 import type { z } from "zod";
-import { eq, and, desc, sql, inArray, or, isNull } from "drizzle-orm";
+import { eq, and, desc, asc, sql, inArray, or, isNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -537,7 +537,7 @@ export class DatabaseStorage implements IStorage {
   // Atomic driver acceptance - prevents race condition
   // Uses .returning() to ensure atomicity: UPDATE returns the row only if it was actually updated
   async acceptOrderByDriver(orderId: string, driverId: string): Promise<Order | null> {
-    // Accept if order is accepted or ready AND not assigned to anyone
+    // Accept if order is received, accepted or ready AND not assigned to anyone
     // Driver can accept early to prepare for pickup (MVP: simplified workflow)
     const result = await db.update(orders)
       .set({ 
@@ -546,7 +546,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(and(
         eq(orders.id, orderId),
-        sql`${orders.status} IN ('accepted', 'ready')`,
+        sql`${orders.status} IN ('received', 'accepted', 'ready')`,
         sql`(${orders.driverId} IS NULL OR ${orders.driverId} = '')`
       ))
       .returning();
@@ -938,13 +938,60 @@ export class DatabaseStorage implements IStorage {
     return result || [];
   }
 
+  /**
+   * Récupère les commandes en attente (sans driverId)
+   * ✅ OPTIMISATION : Requête ciblée au lieu de getAllOrders()
+   * @param limit Nombre maximum de commandes à retourner (défaut: 10)
+   */
+  async getPendingOrdersWithoutDriver(limit: number = 10): Promise<Order[]> {
+    try {
+      const result = await db
+        .select()
+        .from(orders)
+        .where(
+          and(
+            inArray(orders.status, ['received', 'accepted', 'ready']),
+            or(
+              isNull(orders.driverId),
+              eq(orders.driverId, '')
+            )
+          )
+        )
+        .orderBy(asc(orders.createdAt)) // Plus ancienne en premier (FIFO)
+        .limit(limit);
+      
+      this.log('debug', `[STORAGE] getPendingOrdersWithoutDriver - ${result.length} commande(s) trouvée(s)`);
+      return result || [];
+    } catch (error: any) {
+      this.log('error', `[STORAGE] getPendingOrdersWithoutDriver - Erreur:`, error);
+      throw error;
+    }
+  }
+
   async updateOrderStatus(id: string, status: string): Promise<Order> {
     await db.update(orders).set({ status: status as any, updatedAt: new Date() }).where(eq(orders.id, id));
     const result = await db.select().from(orders).where(eq(orders.id, id));
     if (!result || !result[0]) {
       throw new Error("Failed to retrieve updated order");
     }
-    return result[0];
+    
+    const updatedOrder = result[0];
+    
+    // ✅ NOUVEAU : Déclencher la re-notification si la commande est livrée
+    if (status === 'delivered' && updatedOrder.driverId) {
+      const driverId = updatedOrder.driverId;
+      
+      // Appeler la fonction de re-notification de manière non-bloquante
+      import("../websocket.js").then(({ checkAndNotifyPendingOrdersForDriver }) => {
+        checkAndNotifyPendingOrdersForDriver(driverId).catch((error) => {
+          console.error(`[Storage] ❌ Erreur re-notification (non-bloquant):`, error);
+        });
+      }).catch((error) => {
+        console.error(`[Storage] ⚠️ Erreur import websocket (non-bloquant):`, error);
+      });
+    }
+    
+    return updatedOrder;
   }
 
   async getOrderItems(orderId: string): Promise<OrderItem[]> {

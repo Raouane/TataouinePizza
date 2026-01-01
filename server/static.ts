@@ -228,6 +228,12 @@ export function serveStatic(app: Express) {
       return next();
     }
     
+    // ✅ NOUVEAU : Ne pas intercepter les routes /accept/ et /refuse/ (gérées par le backend)
+    if (req.originalUrl?.startsWith("/accept/") || req.url?.startsWith("/accept/") ||
+        req.originalUrl?.startsWith("/refuse/") || req.url?.startsWith("/refuse/")) {
+      return next();
+    }
+    
     // Si la réponse a déjà été envoyée (par express.static()), ne rien faire
     if (res.headersSent) {
       return;
@@ -260,6 +266,11 @@ export function serveStatic(app: Express) {
       // Le fichier n'existe pas, retourner 404
       console.log(`[STATIC] ⚠️ Fichier statique non trouvé: ${req.path}`);
       return res.status(404).send('File not found');
+    }
+    
+    // ✅ NOUVEAU : Ne pas intercepter les routes /accept/ et /refuse/ (gérées par le backend)
+    if (req.path.startsWith("/accept/") || req.path.startsWith("/refuse/")) {
+      return next();
     }
     
     // Pour les routes SPA (pas de fichier statique), servir index.html

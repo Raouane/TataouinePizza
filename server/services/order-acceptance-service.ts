@@ -36,10 +36,10 @@ export class OrderAcceptanceService {
       throw errorHandler.notFound("Driver not found");
     }
 
-    // 3. Vérifier que la commande est disponible (accepted ou ready)
-    if (order.status !== "accepted" && order.status !== "ready") {
+    // 3. Vérifier que la commande est disponible (received, accepted ou ready)
+    if (order.status !== "received" && order.status !== "accepted" && order.status !== "ready") {
       throw errorHandler.badRequest(
-        `Order status must be 'accepted' or 'ready', got '${order.status}'`
+        `Order status must be 'received', 'accepted' or 'ready', got '${order.status}'`
       );
     }
 

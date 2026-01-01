@@ -439,7 +439,7 @@ class TelegramService {
     const gain = (Number(totalPrice) * DRIVER_COMMISSION_RATE).toFixed(2);
     const appUrl = process.env.APP_URL || "https://tataouine-pizza.onrender.com";
     
-    // Lien d'acceptation uniquement
+    // Lien d'acceptation uniquement (ancienne version)
     let acceptUrl = `${appUrl}/accept/${orderId}`;
     if (driverId) {
       acceptUrl = `${appUrl}/accept/${orderId}?driverId=${driverId}`;
@@ -467,7 +467,7 @@ class TelegramService {
     // Attendre 2 secondes après les audios pour que la sonnerie soit bien entendue
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // ÉTAPE 2: Message simplifié et réorganisé avec UN SEUL lien d'acceptation
+    // ÉTAPE 2: Message simplifié et réorganisé avec UN SEUL lien d'acceptation (ancienne version)
     const message = `<b>👤 ${customerName}</b> - <b>💰 +${gain} TND</b>
 
 🏪 <b>${restaurantName}</b>
@@ -481,7 +481,7 @@ ${acceptUrl}`;
 
     console.log(`[Telegram] 📤 Envoi message simplifié à livreur ${driverTelegramId} (avec sonnerie)`);
     
-    // UN SEUL MESSAGE TEXTE avec sonnerie activée, SANS boutons
+    // UN SEUL MESSAGE TEXTE avec sonnerie activée, SANS boutons (ancienne version)
     const result = await this.sendMessage(driverTelegramId, message, {
       parseMode: 'HTML',
       disableNotification: false // FORCER la sonnerie pour le message aussi

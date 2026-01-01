@@ -147,6 +147,8 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // ✅ IMPORTANT : Enregistrer les routes publiques AVANT tout autre middleware
+  // Cela garantit que /accept/:orderId et /refuse/:orderId sont accessibles
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

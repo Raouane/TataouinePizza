@@ -72,6 +72,9 @@ export function setupWebSocket(httpServer: Server): WebSocketServer {
   // Démarrer le nettoyage périodique
   startPeriodicCleanup(wss);
   
+  // ✅ NOUVEAU : Démarrer la re-notification périodique
+  startPeriodicReNotification();
+  
   // Démarrer le timer d'inactivité
   resetInactivityTimer(wss);
 
@@ -575,6 +578,230 @@ async function checkPendingOrders(): Promise<boolean> {
     console.error("[WebSocket] Erreur vérification commandes:", error);
     return false;
   }
+}
+
+/**
+ * Re-notifie un livreur des commandes en attente après qu'il ait terminé une livraison
+ * @param driverId ID du livreur qui vient de terminer une livraison
+ */
+export async function checkAndNotifyPendingOrdersForDriver(driverId: string): Promise<void> {
+  console.log(`[Re-Notification] 🔍 Vérification pour livreur ${driverId}...`);
+  
+  try {
+    const { storage } = await import("./storage.js");
+    
+    // 1. Vérifier que le livreur existe et est disponible
+    const driver = await storage.getDriverById(driverId);
+    if (!driver) {
+      console.log(`[Re-Notification] ❌ Livreur ${driverId} non trouvé`);
+      return;
+    }
+    
+    // 2. Vérifier le statut du livreur
+    if (driver.status !== 'available' && driver.status !== 'on_delivery') {
+      console.log(`[Re-Notification] ⏭️ Livreur ${driverId} non disponible (status: ${driver.status})`);
+      return;
+    }
+    
+    // 3. Compter les commandes actives du livreur
+    const driverOrders = await storage.getOrdersByDriver(driverId);
+    const activeOrders = driverOrders.filter(o => 
+      (o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready') &&
+      o.driverId !== null
+    );
+    
+    const MAX_ACTIVE_ORDERS_PER_DRIVER = 2;
+    
+    if (activeOrders.length >= MAX_ACTIVE_ORDERS_PER_DRIVER) {
+      console.log(`[Re-Notification] ⏭️ Livreur ${driverId} a déjà ${activeOrders.length} commande(s) active(s)`);
+      return;
+    }
+    
+    console.log(`[Re-Notification] ✅ Livreur ${driverId} peut accepter (${activeOrders.length}/${MAX_ACTIVE_ORDERS_PER_DRIVER} commande(s))`);
+    
+    // 4. Récupérer les commandes en attente (sans driverId)
+    const pendingOrders = await storage.getPendingOrdersWithoutDriver(5); // Limite à 5
+    
+    if (pendingOrders.length === 0) {
+      console.log(`[Re-Notification] ⏭️ Aucune commande en attente`);
+      return;
+    }
+    
+    console.log(`[Re-Notification] 📋 ${pendingOrders.length} commande(s) en attente trouvée(s)`);
+    
+    // 5. Notifier le livreur pour la première commande en attente
+    const orderToNotify = pendingOrders[0];
+    
+    // Vérifier à nouveau que le livreur peut accepter (éviter race condition)
+    const currentDriverOrders = await storage.getOrdersByDriver(driverId);
+    const currentActiveOrders = currentDriverOrders.filter(o => 
+      (o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready') &&
+      o.driverId !== null
+    );
+    
+    if (currentActiveOrders.length >= MAX_ACTIVE_ORDERS_PER_DRIVER) {
+      console.log(`[Re-Notification] ⏭️ Livreur ${driverId} a maintenant ${currentActiveOrders.length} commande(s) (limite atteinte)`);
+      return;
+    }
+    
+    // Vérifier que la commande n'a pas été assignée entre-temps
+    const currentOrder = await storage.getOrderById(orderToNotify.id);
+    if (currentOrder.driverId !== null) {
+      console.log(`[Re-Notification] ⏭️ Commande ${orderToNotify.id} déjà assignée à un autre livreur`);
+      return;
+    }
+    
+    // 6. Enrichir la commande avec les détails du restaurant
+    const { OrderEnrichmentService } = await import("./services/order-enrichment-service.js");
+    const enrichedOrder = await OrderEnrichmentService.enrichWithRestaurant(orderToNotify);
+    
+    // 7. Envoyer notification via UN SEUL canal (priorité)
+    console.log(`[Re-Notification] 📤 Notification commande ${orderToNotify.id} à livreur ${driverId}`);
+    
+    // Priorité : WebSocket > Push > Telegram
+    if (isDriverConnected(driverId)) {
+      // Canal 1 : WebSocket (si connecté)
+      const ws = driverConnections.get(driverId);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: "new_order",
+          orderId: orderToNotify.id,
+          restaurantName: enrichedOrder.restaurantName || "Restaurant",
+          customerName: orderToNotify.customerName,
+          address: orderToNotify.address,
+          totalPrice: orderToNotify.totalPrice,
+          items: orderToNotify.items || []
+        }));
+        console.log(`[Re-Notification] ✅ Notification WebSocket envoyée`);
+        return; // Ne pas envoyer sur les autres canaux
+      }
+    }
+    
+    // Canal 2 : Push (si disponible)
+    if (driver.pushSubscription) {
+      const { sendPushNotificationToDriver } = await import("./services/push-notification-service.js");
+      await sendPushNotificationToDriver(driverId, {
+        title: "Nouvelle commande disponible",
+        body: `${enrichedOrder.restaurantName || "Restaurant"} - ${orderToNotify.customerName}`,
+        orderId: orderToNotify.id,
+        url: `/driver/dashboard?order=${orderToNotify.id}`
+      });
+      console.log(`[Re-Notification] ✅ Notification Push envoyée`);
+      return; // Ne pas envoyer sur Telegram
+    }
+    
+    // Canal 3 : Telegram (fallback)
+    if (driver.telegramId) {
+      const { telegramService } = await import("./services/telegram-service.js");
+      await telegramService.sendOrderNotification(
+        driver.telegramId,
+        orderToNotify.id,
+        orderToNotify.customerName,
+        orderToNotify.totalPrice,
+        orderToNotify.address,
+        enrichedOrder.restaurantName || "Restaurant",
+        driverId
+      );
+      console.log(`[Re-Notification] ✅ Notification Telegram envoyée`);
+    }
+    
+    console.log(`[Re-Notification] ✅ Re-notification envoyée avec succès`);
+    
+  } catch (error: any) {
+    console.error(`[Re-Notification] ❌ Erreur:`, error);
+    console.error(`[Re-Notification] ❌ Stack:`, error.stack);
+  }
+}
+
+/**
+ * Re-notification périodique des commandes en attente
+ * Vérifie toutes les 1 minute s'il y a des commandes en attente
+ * et des livreurs disponibles
+ */
+function startPeriodicReNotification(): void {
+  const RE_NOTIFICATION_INTERVAL_MS = 1 * 60 * 1000; // 1 minute
+  
+  setInterval(async () => {
+    try {
+      console.log("[Periodic Re-Notification] 🔄 Vérification périodique...");
+      
+      const { storage } = await import("./storage.js");
+      
+      // 1. Récupérer UNIQUEMENT les commandes en attente (optimisation)
+      const pendingOrders = await storage.getPendingOrdersWithoutDriver(10); // Limite à 10
+      
+      if (pendingOrders.length === 0) {
+        console.log("[Periodic Re-Notification] ⏭️ Aucune commande en attente");
+        return;
+      }
+      
+      console.log(`[Periodic Re-Notification] 📋 ${pendingOrders.length} commande(s) en attente`);
+      
+      // 2. Récupérer tous les livreurs disponibles
+      const allDrivers = await storage.getAllDrivers();
+      const MAX_ACTIVE_ORDERS_PER_DRIVER = 2;
+      
+      const availableDrivers = await Promise.all(
+        allDrivers
+          .filter(d => d.status === 'available' || d.status === 'on_delivery')
+          .map(async (driver) => {
+            const driverOrders = await storage.getOrdersByDriver(driver.id);
+            const activeOrders = driverOrders.filter(o => 
+              (o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready') &&
+              o.driverId !== null
+            );
+            
+            return {
+              driver,
+              activeOrdersCount: activeOrders.length,
+              canAcceptMore: activeOrders.length < MAX_ACTIVE_ORDERS_PER_DRIVER
+            };
+          })
+      );
+      
+      const trulyAvailableDrivers = availableDrivers
+        .filter(({ canAcceptMore }) => canAcceptMore)
+        .map(({ driver }) => driver);
+      
+      if (trulyAvailableDrivers.length === 0) {
+        console.log("[Periodic Re-Notification] ⏭️ Aucun livreur disponible");
+        return;
+      }
+      
+      console.log(`[Periodic Re-Notification] 📋 ${trulyAvailableDrivers.length} livreur(s) disponible(s)`);
+      
+      // 3. Notifier les livreurs disponibles pour les commandes en attente
+      // Une commande par livreur (éviter le spam)
+      for (let i = 0; i < Math.min(pendingOrders.length, trulyAvailableDrivers.length); i++) {
+        const order = pendingOrders[i];
+        const driver = trulyAvailableDrivers[i];
+        
+        // Vérifier à nouveau que le livreur peut accepter
+        const driverOrders = await storage.getOrdersByDriver(driver.id);
+        const activeOrders = driverOrders.filter(o => 
+          (o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready') &&
+          o.driverId !== null
+        );
+        
+        if (activeOrders.length < MAX_ACTIVE_ORDERS_PER_DRIVER) {
+          // Vérifier que la commande n'a pas été assignée entre-temps
+          const currentOrder = await storage.getOrderById(order.id);
+          if (currentOrder.driverId !== null) {
+            console.log(`[Periodic Re-Notification] ⏭️ Commande ${order.id} déjà assignée`);
+            continue;
+          }
+          
+          // Re-notifier le livreur
+          await checkAndNotifyPendingOrdersForDriver(driver.id);
+        }
+      }
+      
+    } catch (error: any) {
+      console.error("[Periodic Re-Notification] ❌ Erreur:", error);
+    }
+  }, RE_NOTIFICATION_INTERVAL_MS);
+  
+  console.log("[Periodic Re-Notification] ✅ Timer démarré (intervalle: 1 minute)");
 }
 
 /**
