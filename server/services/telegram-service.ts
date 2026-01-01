@@ -527,8 +527,9 @@ ${acceptUrl}`;
       const driversWithOrderCheck = await Promise.all(
         driversWithTelegram.map(async (driver) => {
           const driverOrders = await storage.getOrdersByDriver(driver.id);
+          // ✅ CORRECTION : Inclure aussi les commandes "received" avec driverId (elles sont assignées au livreur)
           const activeOrders = driverOrders.filter(o => 
-            o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready'
+            o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready' || o.status === 'received'
           );
           const canAcceptMore = activeOrders.length < MAX_ACTIVE_ORDERS_PER_DRIVER;
           

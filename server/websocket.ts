@@ -505,8 +505,9 @@ async function cleanupDriverConnection(driverId: string) {
     const driverOrders = await storage.getOrdersByDriver(driverId);
     console.log(`[WebSocket] 📋 Livreur ${driverId}: ${driverOrders.length} commande(s) totale(s) trouvée(s)`);
     
+    // ✅ CORRECTION : Inclure aussi les commandes "received" avec driverId (elles sont assignées au livreur)
     const activeOrders = driverOrders.filter(o => 
-      o.status === "delivery" || o.status === "accepted" || o.status === "ready"
+      o.status === "delivery" || o.status === "accepted" || o.status === "ready" || o.status === "received"
     );
     
     console.log(`[WebSocket] 📊 Livreur ${driverId}: ${activeOrders.length} commande(s) active(s)`);
@@ -603,9 +604,10 @@ export async function checkAndNotifyPendingOrdersForDriver(driverId: string): Pr
     }
     
     // 3. Compter les commandes actives du livreur
+    // ✅ CORRECTION : Inclure aussi les commandes "received" avec driverId (elles sont assignées au livreur)
     const driverOrders = await storage.getOrdersByDriver(driverId);
     const activeOrders = driverOrders.filter(o => 
-      (o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready') &&
+      (o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready' || o.status === 'received') &&
       o.driverId !== null
     );
     
@@ -632,9 +634,10 @@ export async function checkAndNotifyPendingOrdersForDriver(driverId: string): Pr
     const orderToNotify = pendingOrders[0];
     
     // Vérifier à nouveau que le livreur peut accepter (éviter race condition)
+    // ✅ CORRECTION : Inclure aussi les commandes "received" avec driverId
     const currentDriverOrders = await storage.getOrdersByDriver(driverId);
     const currentActiveOrders = currentDriverOrders.filter(o => 
-      (o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready') &&
+      (o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready' || o.status === 'received') &&
       o.driverId !== null
     );
     
@@ -746,8 +749,9 @@ function startPeriodicReNotification(): void {
           .filter(d => d.status === 'available' || d.status === 'on_delivery')
           .map(async (driver) => {
             const driverOrders = await storage.getOrdersByDriver(driver.id);
+            // ✅ CORRECTION : Inclure aussi les commandes "received" avec driverId
             const activeOrders = driverOrders.filter(o => 
-              (o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready') &&
+              (o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready' || o.status === 'received') &&
               o.driverId !== null
             );
             
@@ -777,9 +781,10 @@ function startPeriodicReNotification(): void {
         const driver = trulyAvailableDrivers[i];
         
         // Vérifier à nouveau que le livreur peut accepter
+        // ✅ CORRECTION : Inclure aussi les commandes "received" avec driverId
         const driverOrders = await storage.getOrdersByDriver(driver.id);
         const activeOrders = driverOrders.filter(o => 
-          (o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready') &&
+          (o.status === 'delivery' || o.status === 'accepted' || o.status === 'ready' || o.status === 'received') &&
           o.driverId !== null
         );
         
