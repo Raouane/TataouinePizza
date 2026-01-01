@@ -96,6 +96,7 @@ export function getStatusLabel(status: string, t?: TranslationFn): string {
  */
 export function getDriverStatusLabel(status: string): string {
   const labels: Record<string, string> = {
+    received: "Reçue",
     accepted: "Acceptée",
     ready: "Prête à récupérer",
     delivery: "En livraison",

@@ -931,12 +931,11 @@ export default function DriverDashboard() {
   // PROMPT 1: Liste commune DÉSACTIVÉE - Afficher uniquement les commandes en cours du livreur
   // Écran vide si pas de mission
   // ✅ CORRECTION : Inclure aussi les commandes "received" (elles sont assignées au livreur)
-  // ✅ CORRECTION : Inclure TOUS les statuts actifs (commandes assignées au livreur en cours)
-  // Statuts possibles après acceptation : "received", "accepted", "ready", "delivery"
-  // Le statut ne change PAS lors de l'acceptation (seul driverId est mis à jour)
+  // ✅ SIMPLIFICATION : Après acceptation, statut = "delivery" directement
+  // Seules les commandes "delivery" (en livraison) sont affichées
   const activeDeliveryOrders = myOrders.filter(o => {
     const status = o.status?.toLowerCase()?.trim();
-    return ["received", "accepted", "ready", "delivery"].includes(status);
+    return status === "delivery";
   });
   const deliveredOrders = myOrders.filter(o => o.status === "delivered");
   
@@ -1248,8 +1247,8 @@ export default function DriverDashboard() {
               const commission = Number(order.totalPrice) * DRIVER_COMMISSION_RATE;
               const isAvailable = !order.driverId;
               const isInDelivery = order.status === "delivery";
-              const isReady = order.status === "ready";
               
+              // ✅ SIMPLIFICATION : Après acceptation, statut = "delivery" directement
               // Déterminer l'action selon le statut
               let swipeAction: () => void;
               let swipeLabel: string;
@@ -1257,27 +1256,21 @@ export default function DriverDashboard() {
               let swipeIcon: React.ReactNode;
               
               if (isAvailable) {
-                // Commande disponible → Accepter
+                // Commande disponible → Accepter (passe directement à "delivery")
                 swipeAction = () => handleAcceptOrder(order.id);
                 swipeLabel = "Accepter";
                 swipeColor = "green";
                 swipeIcon = <Check className="w-5 h-5 text-white" />;
-              } else if (isReady) {
-                // Commande prête → Démarrer livraison
-                swipeAction = () => handleStartDelivery(order.id);
-                swipeLabel = "Démarrer livraison";
-                swipeColor = "orange";
-                swipeIcon = <Bike className="w-5 h-5 text-white" />;
               } else if (isInDelivery) {
                 // En livraison → Marquer comme livré
                 swipeAction = () => handleDelivered(order.id);
-                swipeLabel = "Livraison terminée";
+                swipeLabel = "Terminer la livraison";
                 swipeColor = "emerald";
                 swipeIcon = <Check className="w-5 h-5 text-white" />;
               } else {
-                // Autres statuts (accepted) → Pas d'action swipe
+                // Autres statuts (ne devrait plus arriver avec le nouveau workflow)
                 swipeAction = () => {};
-                swipeLabel = "En préparation...";
+                swipeLabel = "En attente...";
                 swipeColor = "orange";
                 swipeIcon = <Clock className="w-5 h-5 text-white" />;
               }
@@ -1374,21 +1367,7 @@ export default function DriverDashboard() {
                       
                       {/* Boutons d'action selon le statut */}
                       {(() => {
-                        // Commande prête ou acceptée → Bouton "Commencer Livraison"
-                        if (isReady || order.status === "accepted") {
-                          return (
-                            <Button
-                              onClick={() => handleStartDelivery(order.id)}
-                              disabled={updating === order.id}
-                              className="w-full bg-orange-600 hover:bg-orange-700 text-white"
-                              size="lg"
-                            >
-                              <Bike className="w-5 h-5 mr-2" />
-                              {updating === order.id ? "En cours..." : "Commencer Livraison"}
-                            </Button>
-                          );
-                        }
-                        
+                        // ✅ SIMPLIFICATION : Après acceptation, statut = "delivery" directement
                         // Commande en livraison → Bouton "Terminer Livraison"
                         if (isInDelivery) {
                           return (
@@ -1399,12 +1378,12 @@ export default function DriverDashboard() {
                               size="lg"
                             >
                               <Check className="w-5 h-5 mr-2" />
-                              {updating === order.id ? "En cours..." : "Terminer Livraison"}
+                              {updating === order.id ? "En cours..." : "Terminer la livraison"}
                             </Button>
                           );
                         }
                         
-                        // Commande disponible → Bouton "Accepter"
+                        // Commande disponible → Bouton "Accepter" (passe directement à "delivery")
                         if (isAvailable) {
                           return (
                             <SwipeButton
@@ -1417,10 +1396,10 @@ export default function DriverDashboard() {
                           );
                         }
                         
-                        // Autres statuts → Message d'attente
+                        // Autres statuts (ne devrait plus arriver avec le nouveau workflow)
                         return (
                           <div className="text-center text-orange-600 font-medium py-2 px-4 bg-orange-100 rounded-lg text-sm">
-                            En préparation...
+                            En attente...
                           </div>
                         );
                       })()}

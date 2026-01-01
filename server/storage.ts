@@ -537,11 +537,13 @@ export class DatabaseStorage implements IStorage {
   // Atomic driver acceptance - prevents race condition
   // Uses .returning() to ensure atomicity: UPDATE returns the row only if it was actually updated
   async acceptOrderByDriver(orderId: string, driverId: string): Promise<Order | null> {
+    // ✅ SIMPLIFICATION : Quand le livreur accepte, passer directement à "delivery"
     // Accept if order is received, accepted or ready AND not assigned to anyone
-    // Driver can accept early to prepare for pickup (MVP: simplified workflow)
+    // Le statut passe directement à "delivery" (en livraison)
     const result = await db.update(orders)
       .set({ 
-        driverId, 
+        driverId,
+        status: "delivery", // ✅ Passer directement à "delivery"
         updatedAt: new Date() 
       })
       .where(and(
