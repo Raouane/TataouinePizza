@@ -926,11 +926,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getReadyOrders(): Promise<Order[]> {
-    // Get orders that are accepted or ready and not yet assigned to a driver
+    // ✅ SIMPLIFICATION : Inclure aussi les commandes "received" (nouveau workflow)
+    // Get orders that are received, accepted or ready and not yet assigned to a driver
     // This allows drivers to see orders early and prepare to pick them up (MVP: simplified workflow)
     const result = await db.select().from(orders)
       .where(and(
-        inArray(orders.status, ['accepted', 'ready']),
+        inArray(orders.status, ['received', 'accepted', 'ready']),
         or(
           isNull(orders.driverId),
           eq(orders.driverId, '')
