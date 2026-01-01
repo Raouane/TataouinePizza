@@ -998,12 +998,28 @@ export default function DriverDashboard() {
   const statusBg = isOnline ? "bg-green-100" : "bg-red-100";
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-16">
       {/* Header simplifié */}
       <div className="border-b bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-3 md:px-4 py-3 md:py-4">
           <div className="flex justify-between items-center gap-2">
-            <div className="flex items-center gap-2 md:gap-3 min-w-0">
+            {/* ✅ Bouton Statut - TOUJOURS VISIBLE */}
+            <Button
+              onClick={toggleStatus}
+              variant="outline"
+              size="sm"
+              className={`flex items-center gap-2 ${
+                isOnline 
+                  ? 'border-green-500 text-green-700 hover:bg-green-50' 
+                  : 'border-red-500 text-red-700 hover:bg-red-50'
+              }`}
+            >
+              <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+              <span className="text-xs font-medium">{statusLabel}</span>
+              <Power className={`w-4 h-4 ${isOnline ? 'text-green-600' : 'text-red-600'}`} />
+            </Button>
+            
+            <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1 justify-center">
               <div className="bg-primary text-primary-foreground p-2 rounded-full flex-shrink-0">
                 <Bike className="w-5 h-5 md:w-6 md:h-6" />
               </div>
@@ -1655,6 +1671,23 @@ export default function DriverDashboard() {
       
       {/* Prompt d'installation PWA */}
       <PwaInstallPrompt />
+      
+      {/* ✅ Bouton Statut Fixe en Bas - TOUJOURS VISIBLE */}
+      <div className="fixed bottom-4 right-4 z-50">
+        <Button
+          onClick={toggleStatus}
+          size="lg"
+          className={`shadow-lg ${
+            isOnline 
+              ? 'bg-green-600 hover:bg-green-700 text-white' 
+              : 'bg-red-600 hover:bg-red-700 text-white'
+          }`}
+        >
+          <div className={`w-2.5 h-2.5 rounded-full mr-2 ${isOnline ? 'bg-white animate-pulse' : 'bg-white'}`} />
+          <span className="font-medium">{statusLabel}</span>
+          <Power className="w-5 h-5 ml-2" />
+        </Button>
+      </div>
     </div>
   );
 }
