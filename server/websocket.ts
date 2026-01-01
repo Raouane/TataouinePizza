@@ -225,25 +225,24 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
     }
   }
 
-  // Envoyer des notifications push PWA à tous les livreurs disponibles
-  // (Fonctionne même si l'app est fermée)
-  try {
-    const { notifyAllAvailableDriversPush } = await import('./services/push-notification-service.js');
-    const pushCount = await notifyAllAvailableDriversPush({
-      id: orderData.orderId,
-      customerName: orderData.customerName,
-      address: orderData.address,
-      totalPrice: orderData.totalPrice,
-      restaurantName: orderData.restaurantName
-    });
-    console.log(`[WebSocket] 📲 ${pushCount} notification(s) push envoyée(s)`);
-  } catch (pushError: any) {
-    console.error('[WebSocket] ❌ Erreur envoi push notifications:', pushError);
-    // Ne pas bloquer si push échoue
-  }
+  // ✅ NOTIFICATIONS PWA DÉSACTIVÉES - On utilise uniquement Telegram
+  // try {
+  //   const { notifyAllAvailableDriversPush } = await import('./services/push-notification-service.js');
+  //   const pushCount = await notifyAllAvailableDriversPush({
+  //     id: orderData.orderId,
+  //     customerName: orderData.customerName,
+  //     address: orderData.address,
+  //     totalPrice: orderData.totalPrice,
+  //     restaurantName: orderData.restaurantName
+  //   });
+  //   console.log(`[WebSocket] 📲 ${pushCount} notification(s) push envoyée(s)`);
+  // } catch (pushError: any) {
+  //   console.error('[WebSocket] ❌ Erreur envoi push notifications:', pushError);
+  //   // Ne pas bloquer si push échoue
+  // }
 
-  // WHATSAPP DÉSACTIVÉ - On utilise uniquement Telegram et Push Notifications
-  console.log('[WebSocket] 📱 WhatsApp désactivé - Utilisation uniquement Telegram et Push Notifications');
+  // WHATSAPP DÉSACTIVÉ - On utilise uniquement Telegram
+  console.log('[WebSocket] 📱 WhatsApp désactivé - Utilisation uniquement Telegram');
 
   // Envoyer des notifications Telegram à tous les livreurs disponibles
   try {
@@ -677,18 +676,19 @@ export async function checkAndNotifyPendingOrdersForDriver(driverId: string): Pr
       }
     }
     
-    // Canal 2 : Push (si disponible)
-    if (driver.pushSubscription) {
-      const { sendPushNotificationToDriver } = await import("./services/push-notification-service.js");
-      await sendPushNotificationToDriver(driverId, {
-        title: "Nouvelle commande disponible",
-        body: `${enrichedOrder.restaurantName || "Restaurant"} - ${orderToNotify.customerName}`,
-        orderId: orderToNotify.id,
-        url: `/driver/dashboard?order=${orderToNotify.id}`
-      });
-      console.log(`[Re-Notification] ✅ Notification Push envoyée`);
-      return; // Ne pas envoyer sur Telegram
-    }
+    // ✅ NOTIFICATIONS PWA DÉSACTIVÉES
+    // Canal 2 : Push (si disponible) - DÉSACTIVÉ
+    // if (driver.pushSubscription) {
+    //   const { sendPushNotificationToDriver } = await import("./services/push-notification-service.js");
+    //   await sendPushNotificationToDriver(driverId, {
+    //     title: "Nouvelle commande disponible",
+    //     body: `${enrichedOrder.restaurantName || "Restaurant"} - ${orderToNotify.customerName}`,
+    //     orderId: orderToNotify.id,
+    //     url: `/driver/dashboard?order=${orderToNotify.id}`
+    //   });
+    //   console.log(`[Re-Notification] ✅ Notification Push envoyée`);
+    //   return; // Ne pas envoyer sur Telegram
+    // }
     
     // Canal 3 : Telegram (fallback)
     if (driver.telegramId) {

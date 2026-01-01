@@ -460,12 +460,13 @@ class TelegramService {
       console.error('[Telegram] ⚠️ Erreur récupération adresse restaurant:', error);
     }
 
-    // ÉTAPE 1: Envoyer plusieurs fichiers audio (sonnerie PUISSANTE)
-    console.log(`[Telegram] 🔊 Envoi fichiers audio PUISSANTS à livreur ${driverTelegramId}`);
-    await this.sendSoundAlert(driverTelegramId, orderId);
-    
-    // Attendre 2 secondes après les audios pour que la sonnerie soit bien entendue
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // ✅ SONS DÉSACTIVÉS - On utilise uniquement la sonnerie native Telegram
+    // ÉTAPE 1: Envoyer plusieurs fichiers audio (sonnerie PUISSANTE) - DÉSACTIVÉ
+    // console.log(`[Telegram] 🔊 Envoi fichiers audio PUISSANTS à livreur ${driverTelegramId}`);
+    // await this.sendSoundAlert(driverTelegramId, orderId);
+    // 
+    // // Attendre 2 secondes après les audios pour que la sonnerie soit bien entendue
+    // await new Promise(resolve => setTimeout(resolve, 2000));
 
     // ÉTAPE 2: Message simplifié et réorganisé avec UN SEUL lien d'acceptation (ancienne version)
     const message = `<b>👤 ${customerName}</b> - <b>💰 +${gain} TND</b>
