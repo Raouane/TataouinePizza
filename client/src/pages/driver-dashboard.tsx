@@ -999,7 +999,7 @@ export default function DriverDashboard() {
   const statusBg = isOnline ? "bg-green-100" : "bg-red-100";
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-16">
+    <div className="min-h-screen bg-gray-50">
       {/* Header simplifié */}
       <div className="border-b bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-3 md:px-4 py-3 md:py-4">
@@ -1670,23 +1670,6 @@ export default function DriverDashboard() {
       {/* ✅ DÉSACTIVÉ : Bannières de notifications */}
       {/* <AudioPermissionBanner /> */}
       {/* <PwaInstallPrompt /> */}
-      
-      {/* ✅ Bouton Statut Fixe en Bas - TOUJOURS VISIBLE */}
-      <div className="fixed bottom-4 right-4 z-50">
-        <Button
-          onClick={toggleStatus}
-          size="lg"
-          className={`shadow-lg ${
-            isOnline 
-              ? 'bg-green-600 hover:bg-green-700 text-white' 
-              : 'bg-red-600 hover:bg-red-700 text-white'
-          }`}
-        >
-          <div className={`w-2.5 h-2.5 rounded-full mr-2 ${isOnline ? 'bg-white animate-pulse' : 'bg-white'}`} />
-          <span className="font-medium">{statusLabel}</span>
-          <Power className="w-5 h-5 ml-2" />
-        </Button>
-      </div>
     </div>
   );
 }
