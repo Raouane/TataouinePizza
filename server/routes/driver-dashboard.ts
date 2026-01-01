@@ -291,6 +291,54 @@ export function registerDriverDashboardRoutes(app: Express): void {
     }
   });
   
+  // ✅ Route pour refuser une commande
+  app.post("/api/driver/orders/:id/refuse", authenticateAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const driverId = getAuthenticatedDriverId(req);
+      const orderId = req.params.id;
+      
+      console.log(`[Driver] ❌ Refus de la commande ${orderId} par livreur ${driverId}`);
+      
+      // Récupérer la commande
+      const order = await storage.getOrderById(orderId);
+      if (!order) {
+        throw errorHandler.notFound("Commande non trouvée");
+      }
+      
+      // Vérifier que la commande n'a pas déjà été acceptée par un autre livreur
+      if (order.driverId && order.driverId !== driverId) {
+        throw errorHandler.badRequest("Cette commande a déjà été prise par un autre livreur");
+      }
+      
+      // Enrichir la commande pour obtenir les infos nécessaires
+      const enrichedOrder = await OrderEnrichmentService.enrichWithRestaurant(order);
+      
+      // Passer au livreur suivant dans la file Round Robin
+      const { notifyNextDriverInQueue } = await import("../services/sms-service.js");
+      const notifiedCount = await notifyNextDriverInQueue(
+        orderId,
+        enrichedOrder.restaurantName || "Restaurant",
+        order.customerName,
+        order.totalPrice.toString(),
+        order.address
+      );
+      
+      if (notifiedCount > 0) {
+        console.log(`[Driver] ✅ ${notifiedCount} livreur(s) suivant(s) notifié(s) pour commande ${orderId}`);
+      } else {
+        console.log(`[Driver] ⚠️ Aucun livreur suivant disponible pour commande ${orderId}`);
+      }
+      
+      res.json({ 
+        success: true, 
+        message: "Commande refusée, passage au livreur suivant",
+        notifiedCount 
+      });
+    } catch (error) {
+      errorHandler.sendError(res, error);
+    }
+  });
+  
   app.patch("/api/driver/orders/:id/status", authenticateAdmin, async (req: AuthRequest, res: Response) => {
     try {
       const { status } = req.body as { status?: string };

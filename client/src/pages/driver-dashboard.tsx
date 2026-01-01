@@ -760,6 +760,43 @@ export default function DriverDashboard() {
     }
   }, [token, loading]);
 
+  const handleRefuseOrder = async (orderId: string) => {
+    if (!confirm("Êtes-vous sûr de vouloir refuser cette commande ? Elle sera proposée à un autre livreur.")) {
+      return;
+    }
+    
+    setUpdating(orderId);
+    try {
+      const token = localStorage.getItem("driverToken");
+      if (!token) {
+        throw new Error("Non authentifié");
+      }
+      
+      const res = await fetch(`/api/driver/orders/${orderId}/refuse`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` 
+        },
+      });
+      
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Erreur");
+      }
+      
+      toast.success("Commande refusée. Elle sera proposée à un autre livreur.");
+      // Retirer immédiatement de la liste des disponibles
+      setAvailableOrders(prev => prev.filter(o => o.id !== orderId));
+      await fetchOrders();
+    } catch (err: any) {
+      setError(err.message);
+      toast.error(err.message);
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const handleAcceptOrder = async (orderId: string) => {
     // ANTI DOUBLE CLIC - Prévenir double acceptation
     if (acceptingOrderId === orderId || updating === orderId) {
@@ -1400,16 +1437,28 @@ export default function DriverDashboard() {
                           );
                         }
                         
-                        // Commande disponible → Bouton "Accepter" (passe directement à "delivery")
+                        // Commande disponible → Boutons "Accepter" et "Refuser"
                         if (isAvailable) {
                           return (
-                            <SwipeButton
-                              onSwipe={swipeAction}
-                              disabled={updating === order.id}
-                              label={swipeLabel}
-                              icon={swipeIcon}
-                              color={swipeColor}
-                            />
+                            <div className="space-y-2">
+                              <SwipeButton
+                                onSwipe={swipeAction}
+                                disabled={updating === order.id}
+                                label={swipeLabel}
+                                icon={swipeIcon}
+                                color={swipeColor}
+                              />
+                              <Button
+                                onClick={() => handleRefuseOrder(order.id)}
+                                disabled={updating === order.id}
+                                variant="outline"
+                                className="w-full border-red-500 text-red-600 hover:bg-red-50"
+                                size="lg"
+                              >
+                                <AlertCircle className="w-5 h-5 mr-2" />
+                                {updating === order.id ? "En cours..." : "Refuser"}
+                              </Button>
+                            </div>
                           );
                         }
                         
