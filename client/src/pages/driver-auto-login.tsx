@@ -60,17 +60,21 @@ export default function DriverAutoLogin() {
       // IMPORTANT: Utiliser window.location.href au lieu de setLocation
       // pour forcer un rechargement complet de la page et s'assurer
       // que le token est bien lu par le dashboard
+      const appUrl = window.location.origin; // Utiliser l'URL complète pour éviter les problèmes de routing
       const dashboardUrl = order && accepted === 'true'
-        ? `/driver/dashboard?order=${order}&accepted=true`
-        : '/driver/dashboard';
+        ? `${appUrl}/driver/dashboard?order=${order}&accepted=true`
+        : `${appUrl}/driver/dashboard`;
       
-      console.log("[Auto-Login] 🔄 Redirection vers:", dashboardUrl);
+      console.log("[Auto-Login] 🔄 Redirection vers (URL complète):", dashboardUrl);
       
       // Petit délai pour s'assurer que localStorage est bien écrit
       setTimeout(() => {
         console.log("[Auto-Login] 🚀 Exécution de la redirection maintenant");
+        console.log("[Auto-Login] 📋 Vérification finale localStorage:");
+        console.log("  - driverToken:", localStorage.getItem("driverToken") ? "✅ PRÉSENT" : "❌ MANQUANT");
+        console.log("  - driverId:", localStorage.getItem("driverId") || "❌ MANQUANT");
         window.location.href = dashboardUrl;
-      }, 100);
+      }, 200); // Augmenter le délai à 200ms pour être sûr
     } else {
       // Si paramètres manquants, rediriger vers login
       console.error("[Auto-Login] ❌ Paramètres manquants:");

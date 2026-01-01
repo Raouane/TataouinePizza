@@ -202,6 +202,27 @@ export function registerDriverDashboardRoutes(app: Express): void {
       const driverId = getAuthenticatedDriverId(req);
       
       const orders = await storage.getOrdersByDriver(driverId);
+      
+      // ✅ DIAGNOSTIC : Logs pour comprendre pourquoi les commandes "received" ne s'affichent pas
+      const statusCounts = orders.reduce((acc: Record<string, number>, o: any) => {
+        acc[o.status] = (acc[o.status] || 0) + 1;
+        return acc;
+      }, {});
+      console.log(`[API Driver] 📊 Répartition des commandes pour driver ${driverId}:`, statusCounts);
+      
+      const activeOrders = orders.filter((o: any) => 
+        ["received", "accepted", "ready", "delivery"].includes(o.status)
+      );
+      console.log(`[API Driver] 📋 Commandes actives retournées: ${activeOrders.length}`);
+      if (activeOrders.length > 0) {
+        console.log(`[API Driver] 📋 Détails commandes actives:`, activeOrders.map((o: any) => ({
+          id: o.id?.slice(0, 8),
+          status: o.status,
+          customerName: o.customerName,
+          driverId: o.driverId
+        })));
+      }
+      
       const enrichedOrders = await OrderEnrichmentService.enrichOrders(orders);
       res.json(enrichedOrders);
     } catch (error) {

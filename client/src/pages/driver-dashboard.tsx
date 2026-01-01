@@ -346,11 +346,18 @@ export default function DriverDashboard() {
   useEffect(() => {
     console.log("[Driver Dashboard] 🔍 useEffect - Vérification token");
     console.log("[Driver Dashboard] Token présent:", !!token);
+    console.log("[Driver Dashboard] URL actuelle:", window.location.href);
+    console.log("[Driver Dashboard] Pathname:", window.location.pathname);
     
     if (!token) {
       console.error("[Driver Dashboard] ❌ AUCUN TOKEN - Redirection vers login");
       console.error("[Driver Dashboard] 💡 Le livreur doit se connecter");
-      setLocation("/driver/login");
+      console.error("[Driver Dashboard] 📋 Contenu localStorage:");
+      console.error("  - driverToken:", localStorage.getItem("driverToken") || "MANQUANT");
+      console.error("  - driverId:", localStorage.getItem("driverId") || "MANQUANT");
+      console.error("  - driverName:", localStorage.getItem("driverName") || "MANQUANT");
+      // Utiliser window.location.href pour forcer une redirection complète
+      window.location.href = '/driver/login';
       return;
     }
     
@@ -680,14 +687,30 @@ export default function DriverDashboard() {
         const data = await myRes.json();
         console.log("[Driver] Mes commandes récupérées:", data.length);
         
-        // LOG DÉTAILLÉ : Voir toutes les commandes du livreur
-        console.log("[DEBUG] Détails de mes commandes:", data.map((o: Order) => ({
-          id: o.id,
-          status: o.status,
-          driverId: o.driverId || "AUCUN",
-          restaurantName: o.restaurantName || "N/A",
-          customerName: o.customerName || "N/A"
-        })));
+        // ✅ DIAGNOSTIC : Compter les commandes par statut
+        const statusCounts = data.reduce((acc: Record<string, number>, o: Order) => {
+          acc[o.status] = (acc[o.status] || 0) + 1;
+          return acc;
+        }, {});
+        console.log("🔍 [DIAGNOSTIC] Répartition des commandes par statut:", statusCounts);
+        
+        // ✅ DIAGNOSTIC : Voir les commandes actives (received, accepted, ready, delivery)
+        const activeOrders = data.filter((o: Order) => 
+          ["received", "accepted", "ready", "delivery"].includes(o.status)
+        );
+        console.log("🔍 [DIAGNOSTIC] Commandes actives trouvées:", activeOrders.length);
+        if (activeOrders.length > 0) {
+          console.log("🔍 [DIAGNOSTIC] Détails des commandes actives:", activeOrders.map((o: Order) => ({
+            id: o.id?.slice(0, 8) || "N/A",
+            status: o.status,
+            customerName: o.customerName,
+            totalPrice: o.totalPrice,
+            driverId: o.driverId
+          })));
+        } else {
+          console.log("⚠️ [DIAGNOSTIC] AUCUNE COMMANDE ACTIVE TROUVÉE !");
+          console.log("🔍 [DIAGNOSTIC] Exemples de statuts trouvés:", [...new Set(data.map((o: Order) => o.status))].slice(0, 10));
+        }
         
         setMyOrders(data);
       }
@@ -888,8 +911,42 @@ export default function DriverDashboard() {
 
   // PROMPT 1: Liste commune DÉSACTIVÉE - Afficher uniquement les commandes en cours du livreur
   // Écran vide si pas de mission
-  const activeDeliveryOrders = myOrders.filter(o => ["accepted", "ready", "delivery"].includes(o.status));
+  // ✅ CORRECTION : Inclure aussi les commandes "received" (elles sont assignées au livreur)
+  const activeDeliveryOrders = myOrders.filter(o => ["received", "accepted", "ready", "delivery"].includes(o.status));
   const deliveredOrders = myOrders.filter(o => o.status === "delivered");
+  
+  // ✅ DIAGNOSTIC : Logs pour comprendre pourquoi aucune commande n'est affichée
+  console.log("🔍 [FILTRAGE] Total myOrders:", myOrders.length);
+  console.log("🔍 [FILTRAGE] activeDeliveryOrders trouvées:", activeDeliveryOrders.length);
+  console.log("🔍 [FILTRAGE] deliveredOrders trouvées:", deliveredOrders.length);
+  if (myOrders.length > 0 && activeDeliveryOrders.length === 0) {
+    console.log("⚠️ [FILTRAGE] PROBLÈME: Des commandes mais 0 active!");
+    const uniqueStatuses = [...new Set(myOrders.map(o => o.status))];
+    console.log("🔍 [FILTRAGE] Statuts uniques des commandes:", uniqueStatuses);
+    console.log("🔍 [FILTRAGE] Exemples de commandes (5 premières):", myOrders.slice(0, 5).map(o => ({
+      id: o.id?.slice(0, 8) || "N/A",
+      status: o.status,
+      statusType: typeof o.status,
+      driverId: o.driverId,
+      customerName: o.customerName
+    })));
+    // Vérifier si le problème vient du filtre
+    const testFilter = myOrders.filter(o => {
+      const status = o.status;
+      const isIncluded = ["received", "accepted", "ready", "delivery"].includes(status);
+      if (!isIncluded && (status === "received" || status === "accepted" || status === "ready" || status === "delivery")) {
+        console.log("⚠️ [FILTRAGE] Commande avec statut qui devrait être inclus mais ne l'est pas:", {
+          id: o.id?.slice(0, 8) || "N/A",
+          status: status,
+          statusLength: status?.length,
+          statusTrimmed: status?.trim(),
+          statusLowercase: status?.toLowerCase()
+        });
+      }
+      return isIncluded;
+    });
+    console.log("🔍 [FILTRAGE] Test filtre manuel:", testFilter.length, "commandes trouvées");
+  }
 
   // Ne plus afficher les commandes disponibles (liste commune désactivée)
   // Afficher uniquement les commandes en cours du livreur
