@@ -11,8 +11,9 @@ import { getStatusColor, getDriverStatusLabel } from "@/lib/order-status-helpers
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { OrderDetailsDialog } from "@/components/order-details-dialog";
-import { AudioPermissionBanner } from "@/components/audio-permission-banner";
-import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
+// ✅ DÉSACTIVÉ : Bannières de notifications
+// import { AudioPermissionBanner } from "@/components/audio-permission-banner";
+// import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { playOrderNotificationSound, startNotificationRepeatViaSW, stopNotificationRepeatViaSW } from "@/lib/sound-utils";
 import { stopCustomSound } from "@/lib/pwa-sound-manager";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
@@ -1666,11 +1667,9 @@ export default function DriverDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Bannière de permission audio */}
-      <AudioPermissionBanner />
-      
-      {/* Prompt d'installation PWA */}
-      <PwaInstallPrompt />
+      {/* ✅ DÉSACTIVÉ : Bannières de notifications */}
+      {/* <AudioPermissionBanner /> */}
+      {/* <PwaInstallPrompt /> */}
       
       {/* ✅ Bouton Statut Fixe en Bas - TOUJOURS VISIBLE */}
       <div className="fixed bottom-4 right-4 z-50">

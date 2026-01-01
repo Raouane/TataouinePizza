@@ -10,7 +10,8 @@ import { getStatusColor, getStatusLabel } from "@/lib/order-status-helpers";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { OrderDetailsDialog } from "@/components/order-details-dialog";
-import { AudioPermissionBanner } from "@/components/audio-permission-banner";
+// ✅ DÉSACTIVÉ : Bannière de notifications
+// import { AudioPermissionBanner } from "@/components/audio-permission-banner";
 import { playOrderNotificationSound } from "@/lib/sound-utils";
 
 interface Order {
@@ -547,8 +548,8 @@ export default function RestaurantDashboard() {
         role="restaurant"
       />
 
-      {/* Bannière de permission audio */}
-      <AudioPermissionBanner />
+      {/* ✅ DÉSACTIVÉ : Bannière de notifications */}
+      {/* <AudioPermissionBanner /> */}
     </div>
   );
 }
