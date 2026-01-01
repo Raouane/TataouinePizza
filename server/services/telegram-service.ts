@@ -468,24 +468,43 @@ class TelegramService {
     // // Attendre 2 secondes après les audios pour que la sonnerie soit bien entendue
     // await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // ÉTAPE 2: Message simplifié et réorganisé avec UN SEUL lien d'acceptation (ancienne version)
+    // ÉTAPE 2: Message simplifié avec boutons inline "Accepter" et "Refuser"
     const message = `<b>👤 ${customerName}</b> - <b>💰 +${gain} TND</b>
 
 🏪 <b>${restaurantName}</b>
 ${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
 
 👤 <b>${customerName}</b>
-📍 ${address}
+📍 ${address}`;
 
-✅ <b>ACCEPTER:</b>
-${acceptUrl}`;
+    // URLs pour les boutons inline
+    const refuseUrl = driverId 
+      ? `${appUrl}/refuse/${orderId}?driverId=${driverId}`
+      : `${appUrl}/refuse/${orderId}`;
 
-    console.log(`[Telegram] 📤 Envoi message simplifié à livreur ${driverTelegramId} (avec sonnerie)`);
+    // Boutons inline : Accepter et Refuser
+    const inlineKeyboard = {
+      inline_keyboard: [
+        [
+          {
+            text: "✅ Accepter",
+            url: acceptUrl
+          },
+          {
+            text: "❌ Refuser",
+            url: refuseUrl
+          }
+        ]
+      ]
+    };
+
+    console.log(`[Telegram] 📤 Envoi message avec boutons inline à livreur ${driverTelegramId} (avec sonnerie)`);
     
-    // UN SEUL MESSAGE TEXTE avec sonnerie activée, SANS boutons (ancienne version)
+    // Message avec boutons inline et sonnerie activée
     const result = await this.sendMessage(driverTelegramId, message, {
       parseMode: 'HTML',
-      disableNotification: false // FORCER la sonnerie pour le message aussi
+      disableNotification: false, // FORCER la sonnerie pour le message aussi
+      replyMarkup: inlineKeyboard
     });
 
     if (result.success) {
