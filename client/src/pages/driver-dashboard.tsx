@@ -912,7 +912,13 @@ export default function DriverDashboard() {
   // PROMPT 1: Liste commune DÉSACTIVÉE - Afficher uniquement les commandes en cours du livreur
   // Écran vide si pas de mission
   // ✅ CORRECTION : Inclure aussi les commandes "received" (elles sont assignées au livreur)
-  const activeDeliveryOrders = myOrders.filter(o => ["received", "accepted", "ready", "delivery"].includes(o.status));
+  // ✅ CORRECTION : Inclure TOUS les statuts actifs (commandes assignées au livreur en cours)
+  // Statuts possibles après acceptation : "received", "accepted", "ready", "delivery"
+  // Le statut ne change PAS lors de l'acceptation (seul driverId est mis à jour)
+  const activeDeliveryOrders = myOrders.filter(o => {
+    const status = o.status?.toLowerCase()?.trim();
+    return ["received", "accepted", "ready", "delivery"].includes(status);
+  });
   const deliveredOrders = myOrders.filter(o => o.status === "delivered");
   
   // ✅ DIAGNOSTIC : Logs pour comprendre pourquoi aucune commande n'est affichée
