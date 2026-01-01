@@ -46,28 +46,30 @@ async function createTestOrderForRefuse() {
       process.exit(1);
     }
 
-    const totalPrice = Number(mediumPrice.price);
+    const quantity = 1;
+    const deliveryFee = 2.0;
+    const totalPrice = (Number(mediumPrice.price) * quantity) + deliveryFee;
 
-    // Créer la commande
+    // Créer la commande (sans vérification de doublon pour le test)
     const order = await storage.createOrderWithItems(
       {
         restaurantId: selectedRestaurant.id,
         customerName: "TEST REFUS",
-        phone: "+21612345678",
+        phone: `+216${Math.floor(Math.random() * 90000000 + 10000000)}`, // Numéro aléatoire
         address: "Adresse de test pour refus",
-        totalPrice: totalPrice.toString(),
+        totalPrice: totalPrice.toFixed(2),
         status: "received",
         paymentMethod: "cash",
+        notes: "Commande de test pour refus",
       },
       [
         {
           pizzaId: selectedPizza.id,
-          size: "medium",
-          quantity: 1,
-          price: totalPrice.toString(),
+          size: mediumPrice.size as "small" | "medium" | "large",
+          quantity: quantity,
+          pricePerUnit: mediumPrice.price,
         },
-      ],
-      { checkDuplicate: false }
+      ]
     );
 
     if (!order) {
@@ -84,11 +86,17 @@ async function createTestOrderForRefuse() {
 
     // Notifier les livreurs
     await notifyDriversOfNewOrder({
+      type: "new_order",
       orderId: order.id,
       restaurantName: selectedRestaurant.name,
-      customerName: "TEST REFUS",
-      totalPrice: totalPrice.toString(),
-      address: "Adresse de test pour refus",
+      customerName: order.customerName,
+      address: order.address,
+      totalPrice: order.totalPrice,
+      items: [{
+        name: selectedPizza.name,
+        size: mediumPrice.size,
+        quantity: quantity,
+      }],
     });
 
     console.log(`\n✅ Commande créée et livreurs notifiés !`);
