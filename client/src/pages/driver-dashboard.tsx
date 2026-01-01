@@ -1151,66 +1151,66 @@ export default function DriverDashboard() {
           </div>
         )}
 
-        {/* Section Informations Livreur - TOUJOURS VISIBLE */}
-        <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Carte Nom et Statut */}
-          <Card className="p-4 border-l-4 border-l-primary">
-            <div className="flex items-center justify-between">
+        {/* Section Informations Livreur - COMPACTE */}
+        <div className="mb-3 grid grid-cols-2 md:grid-cols-4 gap-2">
+          {/* Carte Nom et Statut - Compacte */}
+          <Card className="p-2 border-l-2 border-l-primary">
+            <div className="flex items-center gap-2">
+              <div className={`${statusBg} p-1.5 rounded-full flex-shrink-0`}>
+                <User className="w-4 h-4 text-primary" />
+              </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground mb-1">Livreur</p>
-                <p className="font-bold text-lg truncate">{driverName}</p>
-                <div className="flex items-center gap-2 mt-2">
-                  <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                  <span className={`text-xs font-medium ${statusColor}`}>{statusLabel}</span>
+                <p className="text-[10px] text-muted-foreground truncate">Livreur</p>
+                <p className="font-semibold text-sm truncate">{driverName}</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`} />
+                  <span className={`text-[10px] font-medium ${statusColor}`}>{statusLabel}</span>
                 </div>
               </div>
-              <div className={`${statusBg} p-2 rounded-full flex-shrink-0`}>
-                <User className="w-5 h-5 md:w-6 md:h-6 text-primary" />
-              </div>
             </div>
           </Card>
 
-          {/* Carte Gains Journaliers */}
-          <Card className="p-4 bg-gradient-to-r from-emerald-500 to-green-600 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-emerald-100 text-xs mb-1">Gains aujourd'hui</p>
-                <p className="text-xl md:text-2xl font-bold">
+          {/* Carte Gains Journaliers - Compacte */}
+          <Card className="p-2 bg-gradient-to-r from-emerald-500 to-green-600 text-white">
+            <div className="flex items-center gap-2">
+              <div className="bg-white/20 p-1.5 rounded-full flex-shrink-0">
+                <Banknote className="w-4 h-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-emerald-100 truncate">Aujourd'hui</p>
+                <p className="text-base font-bold truncate">
                   {dailyEarnings.toFixed(2)} TND
                 </p>
-                <p className="text-emerald-100 text-xs mt-1">{dailyDeliveries} livraison{dailyDeliveries > 1 ? 's' : ''}</p>
-              </div>
-              <div className="bg-white/20 p-2 rounded-full">
-                <Banknote className="w-5 h-5 md:w-6 md:h-6" />
+                <p className="text-[10px] text-emerald-100 truncate">{dailyDeliveries} liv.</p>
               </div>
             </div>
           </Card>
 
-          {/* Carte Total Gagné */}
-          <Card className="p-4 border-l-4 border-l-emerald-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Total gagné</p>
-                <p className="text-xl md:text-2xl font-bold text-emerald-600">
+          {/* Carte Total Gagné - Compacte */}
+          <Card className="p-2 border-l-2 border-l-emerald-500">
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground truncate">Total</p>
+                <p className="text-base font-bold text-emerald-600 truncate">
                   {totalEarnings.toFixed(2)} TND
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">{totalDeliveries} livraison{totalDeliveries > 1 ? 's' : ''}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{totalDeliveries} liv.</p>
               </div>
-              <Check className="w-5 h-5 md:w-6 md:h-6 text-emerald-600" />
             </div>
           </Card>
 
-          {/* Carte Commandes en cours */}
-          <Card className="p-4 border-l-4 border-l-indigo-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">En cours</p>
-                <p className="text-xl md:text-2xl font-bold text-indigo-600">
+          {/* Carte Commandes en cours - Compacte */}
+          <Card className="p-2 border-l-2 border-l-indigo-500">
+            <div className="flex items-center gap-2">
+              <Package className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground truncate">En cours</p>
+                <p className="text-base font-bold text-indigo-600">
                   {activeDeliveryOrders.length}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">commande{activeDeliveryOrders.length > 1 ? 's' : ''}</p>
+                <p className="text-[10px] text-muted-foreground truncate">commande{activeDeliveryOrders.length > 1 ? 's' : ''}</p>
               </div>
-              <Package className="w-5 h-5 md:w-6 md:h-6 text-indigo-600" />
             </div>
           </Card>
         </div>
