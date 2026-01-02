@@ -47,6 +47,21 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     }
     
     const data = await response.json();
+    
+    // ✅ AJOUT : Logs de débogage pour vérifier le driverId
+    console.log('[OrderContext] 📥 Données reçues pour commande', orderId, ':', {
+      orderId: data.id,
+      orderIdMatch: data.id === orderId,
+      status: data.status,
+      driverId: data.driverId,
+      driverIdType: typeof data.driverId,
+      driverIdIsNull: data.driverId === null,
+      driverIdIsUndefined: data.driverId === undefined,
+      driverIdIsEmptyString: data.driverId === '',
+      createdAt: data.createdAt,
+      orderAge: data.createdAt ? `${Math.round((Date.now() - new Date(data.createdAt).getTime()) / 1000)}s` : 'N/A'
+    });
+    
     const realStatus = data.status;
     
     // Si la commande est livrée ou rejetée, arrêter le polling mais garder les données
@@ -116,11 +131,26 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const savedOrderId = sessionStorage.getItem('currentOrderId');
     if (savedOrderId) {
+      console.log('[OrderContext] 🔍 Récupération orderId depuis sessionStorage:', savedOrderId);
       // Vérifier immédiatement le statut de la commande
       fetch(`/api/orders/${savedOrderId}`)
         .then(res => res.ok ? res.json() : null)
         .then(data => {
           if (data) {
+            // ✅ AJOUT : Logs de débogage pour vérifier le driverId
+            console.log('[OrderContext] 📥 Commande récupérée depuis sessionStorage:', {
+              savedOrderId,
+              orderId: data.id,
+              orderIdMatch: data.id === savedOrderId,
+              status: data.status,
+              driverId: data.driverId,
+              driverIdType: typeof data.driverId,
+              driverIdIsNull: data.driverId === null,
+              driverIdIsUndefined: data.driverId === undefined,
+              createdAt: data.createdAt,
+              orderAge: data.createdAt ? `${Math.round((Date.now() - new Date(data.createdAt).getTime()) / 1000)}s` : 'N/A'
+            });
+            
             const realStatus = data.status;
             // Si déjà livrée ou rejetée, ne pas activer le suivi
             if (realStatus === 'delivered' || realStatus === 'rejected') {
