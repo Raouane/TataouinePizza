@@ -68,12 +68,23 @@ app.use(
           "'self'", 
           "https:", 
           "http:",
-          "ws://localhost:5000", // HMR WebSocket (même port que le serveur)
+          "ws://localhost:5000", // WebSocket serveur (même port que le serveur)
           "ws://localhost:5173", // HMR WebSocket (port Vite alternatif)
-          "ws://localhost:24678", // WebSocket serveur (port alternatif)
+          "ws://localhost:24678", // WebSocket serveur (port alternatif - peut être utilisé par Vite ou autres services)
           "ws://127.0.0.1:5000",
           "ws://127.0.0.1:5173",
           "ws://127.0.0.1:24678", // WebSocket serveur (port alternatif)
+          // En développement, autoriser aussi les ports communs pour Vite et autres services
+          ...(process.env.NODE_ENV === "development" ? [
+            "ws://localhost:3000",
+            "ws://localhost:3001",
+            "ws://localhost:8080",
+            "ws://localhost:8081",
+            "ws://127.0.0.1:3000",
+            "ws://127.0.0.1:3001",
+            "ws://127.0.0.1:8080",
+            "ws://127.0.0.1:8081",
+          ] : []),
         ], // Pour les API externes et HMR WebSocket
         fontSrc: [
           "'self'", 
