@@ -92,8 +92,24 @@ export function setupWebSocket(httpServer: Server): WebSocketServer {
       return;
     }
 
-    // TODO: Vérifier le token JWT ici si nécessaire
-    // Pour l'instant, on fait confiance au driverId
+    // ✅ NOUVEAU : Vérifier le token JWT AVANT d'accepter la connexion
+    const { verifyToken } = await import("../auth.js");
+    const decoded = verifyToken(token);
+    
+    if (!decoded) {
+      console.log("[WebSocket] ❌ Connexion rejetée: token invalide ou expiré");
+      ws.close(1008, "Token expired or invalid");
+      return;
+    }
+    
+    // Vérifier que le driverId correspond au token
+    if (decoded.id !== driverId) {
+      console.log("[WebSocket] ❌ Connexion rejetée: driverId ne correspond pas au token");
+      ws.close(1008, "Driver ID mismatch");
+      return;
+    }
+    
+    console.log(`[WebSocket] ✅ Token valide pour livreur ${driverId}`);
 
     // Enregistrer la connexion
     driverConnections.set(driverId, ws);

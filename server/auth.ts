@@ -31,6 +31,25 @@ export function generateDriverToken(driverId: string, phone: string): string {
   return jwt.sign({ id: driverId, type: 'driver', phone }, JWT_SECRET, { expiresIn: "7d" });
 }
 
+// ✅ NOUVEAU : Générer un refresh token (longue durée : 30 jours)
+export function generateRefreshToken(driverId: string, phone: string): string {
+  return jwt.sign({ id: driverId, type: 'driver', phone, refresh: true }, JWT_SECRET, { expiresIn: "30d" });
+}
+
+// ✅ NOUVEAU : Vérifier un refresh token
+export function verifyRefreshToken(token: string): { id: string; phone?: string; type?: string } | null {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; phone?: string; type?: string; refresh?: boolean };
+    // Vérifier que c'est bien un refresh token
+    if (!decoded.refresh) {
+      return null;
+    }
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
 export function verifyToken(token: string): { id: string; email?: string; phone?: string; type?: string } | null {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email?: string; phone?: string; type?: string };

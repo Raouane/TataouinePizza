@@ -49,13 +49,16 @@ export function registerDriverDashboardRoutes(app: Express): void {
         return res.status(401).json({ error: "Téléphone ou mot de passe incorrect" });
       }
       
-      // Générer le token JWT
-      const token = generateDriverToken(driver.id, driver.phone);
+      // ✅ NOUVEAU : Générer access token (7 jours) et refresh token (30 jours)
+      const { generateDriverToken, generateRefreshToken } = await import("../auth.js");
+      const accessToken = generateDriverToken(driver.id, driver.phone);
+      const refreshToken = generateRefreshToken(driver.id, driver.phone);
       
       console.log(`[DRIVER LOGIN] ✅ Connexion réussie pour ${driver.name} (${phone})`);
       
       res.json({
-        token,
+        token: accessToken, // Access token (7 jours)
+        refreshToken: refreshToken, // ✅ NOUVEAU : Refresh token (30 jours)
         driver: {
           id: driver.id,
           name: driver.name,

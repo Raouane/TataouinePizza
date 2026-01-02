@@ -29,8 +29,12 @@ export default function DriverLogin() {
         throw new Error(err.error || "Téléphone ou mot de passe incorrect");
       }
       
-      const { token, driver } = await res.json();
+      const { token, refreshToken, driver } = await res.json();
       localStorage.setItem("driverToken", token);
+      // ✅ NOUVEAU : Stocker le refresh token
+      if (refreshToken) {
+        localStorage.setItem("driverRefreshToken", refreshToken);
+      }
       localStorage.setItem("driverId", driver.id);
       localStorage.setItem("driverName", driver.name);
       localStorage.setItem("driverPhone", phone);

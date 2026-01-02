@@ -270,11 +270,26 @@ export default function DriverDashboard() {
           setWsConnected(false);
         };
 
-        ws.onclose = () => {
-          console.log("[WebSocket] Déconnecté");
+        ws.onclose = (event) => {
+          console.log("[WebSocket] Déconnecté", { code: event.code, reason: event.reason });
           setWsConnected(false);
           
-          // Tentative de reconnexion si toujours en ligne
+          // ✅ NOUVEAU : Si le token est expiré, ne pas reconnecter
+          if (event.code === 1008 && (event.reason === "Token expired or invalid" || event.reason === "Authentication required")) {
+            console.error("[WebSocket] ❌ Token expiré, arrêt des reconnexions");
+            handleAuthError();
+            return;
+          }
+          
+          // ✅ NOUVEAU : Vérifier si le token est expiré avant de reconnecter
+          const currentToken = localStorage.getItem("driverToken");
+          if (currentToken && isTokenExpired(currentToken)) {
+            console.error("[WebSocket] ❌ Token expiré détecté, arrêt des reconnexions");
+            handleAuthError();
+            return;
+          }
+          
+          // Tentative de reconnexion si toujours en ligne ET token valide
           if (isOnline && reconnectAttemptsRef.current < 5) {
             const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
             console.log(`[WebSocket] Reconnexion dans ${delay}ms... (tentative ${reconnectAttemptsRef.current + 1}/5)`);
@@ -285,6 +300,16 @@ export default function DriverDashboard() {
           } else if (reconnectAttemptsRef.current >= 5) {
             console.warn("[WebSocket] Nombre maximum de tentatives de reconnexion atteint");
             toast.error("Impossible de se connecter aux notifications. Veuillez rafraîchir la page.");
+          }
+        };
+        
+        ws.onerror = (error) => {
+          console.error("[WebSocket] Erreur:", error);
+          // ✅ NOUVEAU : Vérifier le token en cas d'erreur
+          const currentToken = localStorage.getItem("driverToken");
+          if (currentToken && isTokenExpired(currentToken)) {
+            console.error("[WebSocket] ❌ Token expiré détecté lors de l'erreur");
+            handleAuthError();
           }
         };
       } catch (error) {
@@ -650,10 +675,16 @@ export default function DriverDashboard() {
         }),
       ]);
       
-      // ✅ NOUVEAU : Vérifier les erreurs 401
+      // ✅ NOUVEAU : Vérifier les erreurs 401 et essayer de rafraîchir
       if (availableRes.status === 401 || myRes.status === 401) {
-        handleAuthError();
-        return;
+        await handleAuthError(true); // Essayer de rafraîchir avant de rediriger
+        // Si handleAuthError a réussi à rafraîchir, refaire la requête
+        const newToken = localStorage.getItem("driverToken");
+        if (newToken && newToken !== token) {
+          // Token rafraîchi, refaire la requête
+          return fetchOrders();
+        }
+        return; // Sinon, redirection en cours
       }
       
       if (availableRes.ok) {
