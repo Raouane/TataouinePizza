@@ -39,34 +39,50 @@ export function registerOrderRoutes(app: Express): void {
     console.log("========================================");
 
     try {
+      console.log("[ORDER] 📋 ÉTAPE 1: Validation des données...");
       // 1. Validation
       const validation = validate(createOrderRequestSchema, req.body);
       if (!validation.success) {
+        console.error("[ORDER] ❌ Validation échouée:", validation.error.errors);
         return res.status(400).json({
           error: "Invalid order data",
           details: process.env.NODE_ENV === "development" ? validation.error.errors : undefined
         });
       }
+      console.log("[ORDER] ✅ Validation réussie");
 
       const data = validation.data;
 
+      console.log("[ORDER] 📋 ÉTAPE 2: Création de la commande via OrderService...");
       // 2. Créer la commande via le service
-      const result = await OrderService.createOrder({
-        restaurantId: data.restaurantId,
-        customerName: data.customerName,
-        phone: data.phone,
-        address: data.address,
-        addressDetails: data.addressDetails,
-        customerLat: data.customerLat,
-        customerLng: data.customerLng,
-        clientOrderId: data.clientOrderId,
-        items: data.items,
-        paymentMethod: data.paymentMethod,
-        notes: data.notes,
-      });
+      let result;
+      try {
+        result = await OrderService.createOrder({
+          restaurantId: data.restaurantId,
+          customerName: data.customerName,
+          phone: data.phone,
+          address: data.address,
+          addressDetails: data.addressDetails,
+          customerLat: data.customerLat,
+          customerLng: data.customerLng,
+          clientOrderId: data.clientOrderId,
+          items: data.items,
+          paymentMethod: data.paymentMethod,
+          notes: data.notes,
+        });
+        console.log("[ORDER] ✅ Commande créée avec succès:", { orderId: result.orderId, totalPrice: result.totalPrice });
+      } catch (createError: any) {
+        console.error("[ORDER] ❌ ERREUR lors de OrderService.createOrder:");
+        console.error("[ORDER] ❌ Type:", createError?.constructor?.name || typeof createError);
+        console.error("[ORDER] ❌ Message:", createError?.message || createError?.toString());
+        console.error("[ORDER] ❌ Stack:", createError?.stack || 'Pas de stack');
+        if (createError?.code) console.error("[ORDER] ❌ Code:", createError.code);
+        throw createError; // Re-throw pour être capturé par le catch global
+      }
 
       // 3. Gérer les doublons
       if (result.duplicate) {
+        console.log("[ORDER] ℹ️ Commande dupliquée détectée");
         return res.status(200).json({
           orderId: result.orderId,
           totalPrice: result.totalPrice,
@@ -74,16 +90,32 @@ export function registerOrderRoutes(app: Express): void {
         });
       }
 
+      console.log("[ORDER] 📋 ÉTAPE 3: Récupération de la commande créée...");
       // 4. Récupérer les détails pour les notifications
-      const order = await storage.getOrderById(result.orderId);
-      if (!order) {
-        return res.status(500).json({ error: "Failed to create order" });
+      let order;
+      try {
+        order = await storage.getOrderById(result.orderId);
+        if (!order) {
+          console.error("[ORDER] ❌ Commande créée mais non trouvée lors de la récupération:", result.orderId);
+          return res.status(500).json({ error: "Failed to create order" });
+        }
+        console.log("[ORDER] ✅ Commande récupérée:", { orderId: order.id, status: order.status });
+      } catch (getOrderError: any) {
+        console.error("[ORDER] ❌ ERREUR lors de storage.getOrderById:");
+        console.error("[ORDER] ❌ Type:", getOrderError?.constructor?.name || typeof getOrderError);
+        console.error("[ORDER] ❌ Message:", getOrderError?.message || getOrderError?.toString());
+        console.error("[ORDER] ❌ Stack:", getOrderError?.stack || 'Pas de stack');
+        if (getOrderError?.code) console.error("[ORDER] ❌ Code:", getOrderError.code);
+        throw getOrderError;
       }
 
+      console.log("[ORDER] 📋 ÉTAPE 4: Récupération du restaurant...");
       const restaurant = await storage.getRestaurantById(data.restaurantId);
       if (!restaurant) {
+        console.error("[ORDER] ❌ Restaurant non trouvé:", data.restaurantId);
         return res.status(404).json({ error: "Restaurant not found" });
       }
+      console.log("[ORDER] ✅ Restaurant trouvé:", restaurant.name);
 
       // 5. Préparer les détails des items pour les notifications
       const pizzaIds = Array.from(new Set(data.items.map(item => item.pizzaId)));
@@ -100,6 +132,7 @@ export function registerOrderRoutes(app: Express): void {
       });
 
       // 6. Notifier les livreurs via WebSocket (non-bloquant)
+      console.log("[ORDER] 📋 ÉTAPE 6: Notification des livreurs via WebSocket...");
       try {
         await OrderWebSocket.notifyDrivers({
           type: "new_order",
@@ -112,8 +145,13 @@ export function registerOrderRoutes(app: Express): void {
           totalPrice: result.totalPrice.toString(),
           items: orderItemsDetails,
         });
-      } catch (wsError) {
-        console.error("[ORDER] ❌ Erreur notification WebSocket:", wsError);
+        console.log("[ORDER] ✅ Notification WebSocket envoyée");
+      } catch (wsError: any) {
+        console.error("[ORDER] ❌ ERREUR notification WebSocket (non-bloquant):");
+        console.error("[ORDER] ❌ Type:", wsError?.constructor?.name || typeof wsError);
+        console.error("[ORDER] ❌ Message:", wsError?.message || wsError?.toString());
+        console.error("[ORDER] ❌ Stack:", wsError?.stack || 'Pas de stack');
+        // Ne pas throw - c'est non-bloquant
       }
 
       // 7. Envoyer le webhook n8n (non-bloquant)
@@ -143,12 +181,25 @@ export function registerOrderRoutes(app: Express): void {
       });
 
     } catch (error: any) {
-      console.error("[ORDER] Error creating order:", error);
-      console.error("[ORDER] Error details:", {
-        message: error?.message,
-        stack: error?.stack,
-        body: process.env.NODE_ENV !== "production" ? req.body : undefined,
-      });
+      console.error("========================================");
+      console.error("[ORDER] ❌❌❌ ERREUR 500 LORS DE LA CRÉATION DE COMMANDE ❌❌❌");
+      console.error("[ORDER] ❌ Type d'erreur:", error?.constructor?.name || typeof error);
+      console.error("[ORDER] ❌ Message:", error?.message || error?.toString());
+      console.error("[ORDER] ❌ Stack:", error?.stack || 'Pas de stack trace');
+      if (error?.code) {
+        console.error("[ORDER] ❌ Code d'erreur:", error.code);
+      }
+      if (error?.details) {
+        console.error("[ORDER] ❌ Détails:", error.details);
+      }
+      if (error?.sql) {
+        console.error("[ORDER] ❌ SQL:", error.sql);
+      }
+      if (error?.query) {
+        console.error("[ORDER] ❌ Query:", error.query);
+      }
+      console.error("[ORDER] ❌ Body reçu:", JSON.stringify(req.body, null, 2));
+      console.error("========================================");
       errorHandler.sendError(res, error);
     }
   });
