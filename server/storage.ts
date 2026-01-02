@@ -1,6 +1,6 @@
 import { db } from "./db.js";
 import { 
-  adminUsers, pizzas, pizzaPrices, otpCodes, orders, orderItems, drivers, restaurants, customers, idempotencyKeys,
+  adminUsers, pizzas, pizzaPrices, otpCodes, orders, orderItems, drivers, restaurants, customers, idempotencyKeys, telegramMessages,
   type Pizza, type InsertAdminUser, type AdminUser, type Order, type OrderItem, type OtpCode, type Driver, type InsertDriver, type Restaurant, type InsertRestaurant,
   type PizzaPrice, type InsertOrder, type Customer, type InsertCustomer,
   insertPizzaSchema, insertPizzaPriceSchema
@@ -558,6 +558,15 @@ export class DatabaseStorage implements IStorage {
       return null;
     }
     
+    // ✅ NOUVEAU : Mettre à jour le message Telegram pour afficher "EN COURS DE LIVRAISON"
+    import("./services/telegram-message-updater.js").then(({ updateTelegramMessageToDelivery }) => {
+      updateTelegramMessageToDelivery(orderId, driverId).catch((error) => {
+        console.error(`[Storage] ❌ Erreur mise à jour Telegram (accept, non-bloquant):`, error);
+      });
+    }).catch((error) => {
+      console.error(`[Storage] ⚠️ Erreur import telegram-message-updater (non-bloquant):`, error);
+    });
+    
     // The UPDATE succeeded, return the updated order
     return result[0];
   }
@@ -980,18 +989,37 @@ export class DatabaseStorage implements IStorage {
     
     const updatedOrder = result[0];
     
-    // ✅ NOUVEAU : Déclencher la re-notification si la commande est livrée
-    if (status === 'delivered' && updatedOrder.driverId) {
+    // ✅ NOUVEAU : Mettre à jour le message Telegram selon le statut
+    if (updatedOrder.driverId) {
       const driverId = updatedOrder.driverId;
       
-      // Appeler la fonction de re-notification de manière non-bloquante
-      import("../websocket.js").then(({ checkAndNotifyPendingOrdersForDriver }) => {
-        checkAndNotifyPendingOrdersForDriver(driverId).catch((error) => {
-          console.error(`[Storage] ❌ Erreur re-notification (non-bloquant):`, error);
+      // Mettre à jour le message Telegram de manière non-bloquante
+      if (status === 'delivery') {
+        import("./services/telegram-message-updater.js").then(({ updateTelegramMessageToDelivery }) => {
+          updateTelegramMessageToDelivery(id, driverId).catch((error) => {
+            console.error(`[Storage] ❌ Erreur mise à jour Telegram (delivery, non-bloquant):`, error);
+          });
+        }).catch((error) => {
+          console.error(`[Storage] ⚠️ Erreur import telegram-message-updater (non-bloquant):`, error);
         });
-      }).catch((error) => {
-        console.error(`[Storage] ⚠️ Erreur import websocket (non-bloquant):`, error);
-      });
+      } else if (status === 'delivered') {
+        import("./services/telegram-message-updater.js").then(({ updateTelegramMessageToDelivered }) => {
+          updateTelegramMessageToDelivered(id, driverId).catch((error) => {
+            console.error(`[Storage] ❌ Erreur mise à jour Telegram (delivered, non-bloquant):`, error);
+          });
+        }).catch((error) => {
+          console.error(`[Storage] ⚠️ Erreur import telegram-message-updater (non-bloquant):`, error);
+        });
+        
+        // Déclencher la re-notification si la commande est livrée
+        import("./websocket.js").then(({ checkAndNotifyPendingOrdersForDriver }) => {
+          checkAndNotifyPendingOrdersForDriver(driverId).catch((error) => {
+            console.error(`[Storage] ❌ Erreur re-notification (non-bloquant):`, error);
+          });
+        }).catch((error) => {
+          console.error(`[Storage] ⚠️ Erreur import websocket (non-bloquant):`, error);
+        });
+      }
     }
     
     return updatedOrder;
@@ -1040,6 +1068,114 @@ export class DatabaseStorage implements IStorage {
   async deleteOldIdempotencyKeys(olderThanHours: number = 1): Promise<void> {
     const cutoffTime = new Date(Date.now() - olderThanHours * 60 * 60 * 1000);
     await db.delete(idempotencyKeys).where(sql`created_at < ${cutoffTime}`);
+  }
+
+  // ============ TELEGRAM MESSAGES ============
+  
+  async saveTelegramMessage(
+    orderId: string,
+    driverId: string,
+    chatId: string,
+    messageId: number,
+    status: string = "sent"
+  ): Promise<void> {
+    try {
+      await db.insert(telegramMessages).values({
+        orderId,
+        driverId,
+        chatId,
+        messageId,
+        status,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      this.log('debug', `[STORAGE] Telegram message sauvegardé: orderId=${orderId}, driverId=${driverId}, messageId=${messageId}`);
+    } catch (error: any) {
+      this.log('error', `[STORAGE] Erreur sauvegarde Telegram message:`, error);
+      throw error;
+    }
+  }
+
+  async getTelegramMessagesByOrderId(orderId: string): Promise<Array<{
+    id: string;
+    orderId: string;
+    driverId: string;
+    chatId: string;
+    messageId: number;
+    status: string;
+  }>> {
+    try {
+      const result = await db.select().from(telegramMessages).where(eq(telegramMessages.orderId, orderId));
+      return result.map(msg => ({
+        id: msg.id,
+        orderId: msg.orderId,
+        driverId: msg.driverId,
+        chatId: msg.chatId,
+        messageId: msg.messageId,
+        status: msg.status || "sent",
+      }));
+    } catch (error: any) {
+      this.log('error', `[STORAGE] Erreur récupération Telegram messages:`, error);
+      return [];
+    }
+  }
+
+  async getTelegramMessageByOrderAndDriver(orderId: string, driverId: string): Promise<{
+    id: string;
+    orderId: string;
+    driverId: string;
+    chatId: string;
+    messageId: number;
+    status: string;
+  } | null> {
+    try {
+      const result = await db.select()
+        .from(telegramMessages)
+        .where(and(
+          eq(telegramMessages.orderId, orderId),
+          eq(telegramMessages.driverId, driverId)
+        ))
+        .limit(1);
+      
+      if (result.length === 0) {
+        return null;
+      }
+      
+      const msg = result[0];
+      return {
+        id: msg.id,
+        orderId: msg.orderId,
+        driverId: msg.driverId,
+        chatId: msg.chatId,
+        messageId: msg.messageId,
+        status: msg.status || "sent",
+      };
+    } catch (error: any) {
+      this.log('error', `[STORAGE] Erreur récupération Telegram message:`, error);
+      return null;
+    }
+  }
+
+  async updateTelegramMessageStatus(
+    orderId: string,
+    driverId: string,
+    newStatus: string
+  ): Promise<void> {
+    try {
+      await db.update(telegramMessages)
+        .set({ 
+          status: newStatus,
+          updatedAt: new Date()
+        })
+        .where(and(
+          eq(telegramMessages.orderId, orderId),
+          eq(telegramMessages.driverId, driverId)
+        ));
+      this.log('debug', `[STORAGE] Telegram message mis à jour: orderId=${orderId}, driverId=${driverId}, status=${newStatus}`);
+    } catch (error: any) {
+      this.log('error', `[STORAGE] Erreur mise à jour Telegram message:`, error);
+      throw error;
+    }
   }
 }
 

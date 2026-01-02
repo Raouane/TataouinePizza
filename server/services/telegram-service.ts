@@ -101,6 +101,68 @@ class TelegramService {
   }
 
   /**
+   * Modifie le texte d'un message Telegram existant
+   * @param chatId ID du chat Telegram
+   * @param messageId ID du message à modifier
+   * @param newText Nouveau texte du message
+   * @param options Options (parseMode, replyMarkup)
+   */
+  async editMessageText(
+    chatId: string,
+    messageId: number,
+    newText: string,
+    options?: {
+      parseMode?: 'HTML' | 'Markdown' | 'MarkdownV2';
+      replyMarkup?: any;
+    }
+  ): Promise<{ success: boolean; error?: any }> {
+    if (!this.isConfigured) {
+      return { success: false, error: 'Telegram bot non configuré' };
+    }
+
+    try {
+      const url = `https://api.telegram.org/bot${this.botToken}/editMessageText`;
+      
+      const payload: any = {
+        chat_id: chatId,
+        message_id: messageId,
+        text: newText,
+      };
+
+      if (options?.parseMode) {
+        payload.parse_mode = options.parseMode;
+      }
+
+      if (options?.replyMarkup) {
+        payload.reply_markup = options.replyMarkup;
+      }
+
+      console.log(`[Telegram] ✏️ Modification message ${messageId} pour chat ${chatId}`);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        console.error('[Telegram] ❌ Erreur editMessageText:', data);
+        return { success: false, error: data.description || 'Erreur Telegram API' };
+      }
+
+      console.log(`[Telegram] ✅ Message ${messageId} modifié avec succès`);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Telegram] ❌ Erreur editMessageText:', error);
+      return { success: false, error: error.message || 'Erreur réseau' };
+    }
+  }
+
+  /**
    * Envoie un message vocal directement depuis le système de fichiers (notification automatique plus forte)
    * IMPORTANT: Utiliser sendVoice au lieu de sendAudio car les messages vocaux ont une notification automatique
    * @param chatId ID du chat Telegram
@@ -507,8 +569,25 @@ ${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
       replyMarkup: inlineKeyboard
     });
 
-    if (result.success) {
+    if (result.success && result.messageId && driverId) {
       console.log(`[Telegram] ✅ Message envoyé: ${result.messageId || 'N/A'}`);
+      
+      // ✅ NOUVEAU : Stocker le messageId dans la base de données
+      try {
+        const { storage } = await import("../storage.js");
+        await storage.saveTelegramMessage(
+          orderId,
+          driverId,
+          driverTelegramId,
+          result.messageId,
+          "sent"
+        );
+        console.log(`[Telegram] 💾 MessageId ${result.messageId} sauvegardé pour commande ${orderId}`);
+      } catch (storageError: any) {
+        console.error(`[Telegram] ⚠️ Erreur sauvegarde messageId (non-bloquant):`, storageError);
+        // Ne pas bloquer si la sauvegarde échoue
+      }
+      
       return true;
     } else {
       console.error(`[Telegram] ❌ Erreur envoi:`, result.error);
