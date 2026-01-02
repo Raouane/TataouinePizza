@@ -20,8 +20,8 @@ export const orderDriverQueues = new Map<string, Array<{ driverId: string; notif
 // Key: driverId, Value: NodeJS.Timeout
 const heartbeatTimers = new Map<string, NodeJS.Timeout>();
 
-// Durée du timer d'acceptation (2 minutes pour Round Robin)
-const ACCEPTANCE_TIMEOUT = 2 * 60 * 1000; // 2 minutes (120 secondes)
+// Durée du timer d'acceptation (1 minute pour Round Robin)
+const ACCEPTANCE_TIMEOUT = 1 * 60 * 1000; // 1 minute (60 secondes)
 
 // Timeout pour le heartbeat (30 secondes d'inactivité = connexion morte)
 const HEARTBEAT_TIMEOUT = 30000; // 30 secondes
@@ -302,9 +302,9 @@ export async function startRoundRobinTimer(
     clearTimeout(existingTimer);
   }
 
-  // Créer un nouveau timer de 2 minutes
+  // Créer un nouveau timer de 1 minute
   const timer = setTimeout(async () => {
-    console.log(`[Round Robin] ⏱️ Timer expiré (2 min) pour commande ${orderId}`);
+    console.log(`[Round Robin] ⏱️ Timer expiré (1 min) pour commande ${orderId}`);
     
     // Vérifier si la commande a été acceptée
     const { storage } = await import("./storage.js");
@@ -325,7 +325,7 @@ export async function startRoundRobinTimer(
   }, ACCEPTANCE_TIMEOUT);
 
   orderAcceptanceTimers.set(orderId, timer);
-  console.log(`[Round Robin] ⏱️ Timer de 2 minutes démarré pour commande ${orderId}`);
+  console.log(`[Round Robin] ⏱️ Timer de 1 minute démarré pour commande ${orderId}`);
 }
 
 /**

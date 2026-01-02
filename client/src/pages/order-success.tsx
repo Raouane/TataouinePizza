@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Check, Phone, MessageCircle, MapPin, Clock, ChefHat, Package, Bike, User } from "lucide-react";
+import { Check, Phone, MessageCircle, MapPin, Clock, ChefHat, Package, Bike, User, AlertCircle, X } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useLanguage } from "@/lib/i18n";
 import { useOrder } from "@/lib/order-context";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 type SearchPhase = 'searching' | 'found' | 'success';
 
@@ -20,6 +22,9 @@ export default function OrderSuccess() {
   const [hasShownSearch, setHasShownSearch] = useState(false);
   const [isDelivered, setIsDelivered] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [showTimeoutAlert, setShowTimeoutAlert] = useState(false);
+  const [showTimeoutDialog, setShowTimeoutDialog] = useState(false);
+  const [orderCreatedAt, setOrderCreatedAt] = useState<Date | null>(null);
 
   // Mettre à jour le nom du livreur quand orderData change
   useEffect(() => {
@@ -47,39 +52,116 @@ export default function OrderSuccess() {
     }
   }, [orderData?.status, isDelivered]);
 
+  // Initialiser la date de création de la commande
+  useEffect(() => {
+    if (orderData?.createdAt && !orderCreatedAt) {
+      const createdAt = orderData.createdAt instanceof Date 
+        ? orderData.createdAt 
+        : new Date(orderData.createdAt);
+      setOrderCreatedAt(createdAt);
+      console.log('[OrderSuccess] 📅 Date de création de la commande:', createdAt);
+    }
+  }, [orderData?.createdAt, orderCreatedAt]);
+
+  // Système de timeout global : 5 min (alerte) et 10 min (annulation forcée)
+  useEffect(() => {
+    if (!orderId || !orderCreatedAt || orderData?.driverId) {
+      return; // Pas de timeout si livreur déjà assigné
+    }
+
+    const FIVE_MINUTES = 5 * 60 * 1000; // 5 minutes
+    const TEN_MINUTES = 10 * 60 * 1000; // 10 minutes
+
+    // Vérifier toutes les secondes
+    const interval = setInterval(() => {
+      const currentElapsed = Date.now() - orderCreatedAt.getTime();
+      
+      if (currentElapsed >= TEN_MINUTES) {
+        // 10 minutes : Forcer la proposition d'annulation
+        console.log('[OrderSuccess] ⏰ Timeout global atteint (10 min)');
+        setShowTimeoutDialog(true);
+        clearInterval(interval);
+      } else if (currentElapsed >= FIVE_MINUTES && !showTimeoutAlert) {
+        // 5 minutes : Afficher l'alerte
+        console.log('[OrderSuccess] ⚠️ Alerte timeout (5 min)');
+        setShowTimeoutAlert(true);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [orderId, orderCreatedAt, orderData?.driverId, showTimeoutAlert]);
+
+  // Fonction pour annuler la commande
+  const handleCancelOrder = async () => {
+    if (!orderId) return;
+
+    try {
+      console.log('[OrderSuccess] 🚫 Annulation de la commande', orderId);
+      const response = await fetch(`/api/orders/${orderId}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Erreur lors de l\'annulation');
+      }
+
+      toast.success('Commande annulée avec succès');
+      handleReturnHome();
+    } catch (error: any) {
+      console.error('[OrderSuccess] ❌ Erreur annulation:', error);
+      toast.error(error.message || 'Erreur lors de l\'annulation');
+    }
+  };
+
   // Fonction pour retourner à l'accueil
   const handleReturnHome = () => {
     console.log('[OrderSuccess] 🔄 Retour à l\'accueil');
     // Nettoyer le sessionStorage
     sessionStorage.removeItem('currentOrderId');
-    sessionStorage.removeItem('orderSearchShown');
+    if (orderId) {
+      sessionStorage.removeItem(`orderFoundShown_${orderId}`);
+    }
     sessionStorage.removeItem('orderConfettiShown');
     
     // Rediriger vers l'accueil
     window.location.replace('/');
   };
 
-  // Vérifier si on a déjà affiché la recherche de livreur (dans sessionStorage)
+  // ✅ CORRECTION : Vérifier réellement si un livreur a accepté (driverId présent)
   useEffect(() => {
-    const alreadySearched = sessionStorage.getItem('orderSearchShown');
-    if (alreadySearched === 'true') {
-      // Si déjà fait, passer directement à la page de succès
-      setSearchPhase('success');
-      setHasShownSearch(true);
-    } else {
-      // Première fois : simuler la recherche de livreur pendant 3-5 secondes
-      const searchTimer = setTimeout(() => {
+    if (!orderId) {
+      setSearchPhase('searching');
+      return;
+    }
+
+    // Vérifier si un livreur a vraiment accepté (driverId présent)
+    const hasDriver = orderData?.driverId && 
+                      orderData.driverId !== null && 
+                      orderData.driverId !== undefined && 
+                      String(orderData.driverId).trim() !== '';
+    
+    if (hasDriver) {
+      // Un livreur a vraiment accepté
+      const foundShown = sessionStorage.getItem(`orderFoundShown_${orderId}`);
+      if (foundShown !== 'true') {
+        // Première fois qu'on détecte l'acceptation
+        console.log('[OrderSuccess] ✅ Livreur accepté détecté (driverId présent):', orderData.driverId);
         setSearchPhase('found');
-        sessionStorage.setItem('orderSearchShown', 'true');
-        // Après 2 secondes, passer à la page de succès
+        sessionStorage.setItem(`orderFoundShown_${orderId}`, 'true');
         setTimeout(() => {
           setSearchPhase('success');
         }, 2000);
-      }, 3000 + Math.random() * 2000); // Entre 3 et 5 secondes
-
-      return () => clearTimeout(searchTimer);
+      } else {
+        // Déjà affiché, passer directement au succès
+        setSearchPhase('success');
+      }
+    } else {
+      // Pas encore de livreur, rester en "searching"
+      setSearchPhase('searching');
     }
-  }, []);
+  }, [orderId, orderData?.driverId]);
 
   // Confetti au chargement de la page de succès (seulement la première fois)
   useEffect(() => {
@@ -150,40 +232,115 @@ export default function OrderSuccess() {
   // Phase de recherche de livreur
   if (searchPhase === 'searching') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen px-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center"
-        >
+      <>
+        <div className="flex flex-col items-center justify-center min-h-screen px-4">
           <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-            className="h-24 w-24 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center"
           >
-            <Bike className="h-12 w-12 text-orange-600" />
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              className="h-24 w-24 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6"
+            >
+              <Bike className="h-12 w-12 text-orange-600" />
+            </motion.div>
+            <h1 className="text-2xl font-serif font-bold mb-2">{t('order.tracking.searching.title')}</h1>
+            <p className="text-muted-foreground">{t('order.tracking.searching.desc')}</p>
+            <div className="mt-8 flex gap-2 justify-center">
+              {[0, 1, 2].map((i) => (
+                <motion.div
+                  key={i}
+                  className="h-2 w-2 bg-orange-600 rounded-full"
+                  animate={{
+                    scale: [1, 1.5, 1],
+                    opacity: [0.5, 1, 0.5],
+                  }}
+                  transition={{
+                    duration: 1,
+                    repeat: Infinity,
+                    delay: i * 0.2,
+                  }}
+                />
+              ))}
+            </div>
           </motion.div>
-          <h1 className="text-2xl font-serif font-bold mb-2">{t('order.tracking.searching.title')}</h1>
-          <p className="text-muted-foreground">{t('order.tracking.searching.desc')}</p>
-          <div className="mt-8 flex gap-2 justify-center">
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
-                className="h-2 w-2 bg-orange-600 rounded-full"
-                animate={{
-                  scale: [1, 1.5, 1],
-                  opacity: [0.5, 1, 0.5],
-                }}
-                transition={{
-                  duration: 1,
-                  repeat: Infinity,
-                  delay: i * 0.2,
-                }}
-              />
-            ))}
+        </div>
+
+        {/* Alerte à 5 minutes */}
+        {showTimeoutAlert && (
+          <div className="fixed bottom-4 left-4 right-4 z-50 max-w-md mx-auto">
+            <Card className="p-4 border-orange-500 bg-orange-50">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-orange-900 mb-1">Aucun livreur disponible</h3>
+                  <p className="text-sm text-orange-700 mb-3">
+                    Nous n'avons pas trouvé de livreur disponible. Voulez-vous annuler votre commande ?
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleCancelOrder}
+                      variant="destructive"
+                      size="sm"
+                      className="flex-1"
+                    >
+                      Annuler la commande
+                    </Button>
+                    <Button
+                      onClick={() => setShowTimeoutAlert(false)}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                    >
+                      Continuer à attendre
+                    </Button>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => setShowTimeoutAlert(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </Card>
           </div>
-        </motion.div>
-      </div>
+        )}
+
+        {/* Dialog d'annulation forcée à 10 minutes */}
+        <Dialog open={showTimeoutDialog} onOpenChange={setShowTimeoutDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-orange-600" />
+                Aucun livreur disponible
+              </DialogTitle>
+              <DialogDescription>
+                Après 10 minutes d'attente, nous n'avons pas pu trouver de livreur disponible pour votre commande.
+                Souhaitez-vous annuler votre commande ?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                onClick={() => setShowTimeoutDialog(false)}
+                variant="outline"
+              >
+                Continuer à attendre
+              </Button>
+              <Button
+                onClick={handleCancelOrder}
+                variant="destructive"
+              >
+                Annuler la commande
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 
