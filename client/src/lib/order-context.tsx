@@ -138,6 +138,9 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         .then(data => {
           if (data) {
             // ✅ AJOUT : Logs de débogage pour vérifier le driverId
+            const orderAge = data.createdAt ? Date.now() - new Date(data.createdAt).getTime() : null;
+            const orderAgeMinutes = orderAge ? Math.round(orderAge / 1000 / 60) : null;
+            
             console.log('[OrderContext] 📥 Commande récupérée depuis sessionStorage:', {
               savedOrderId,
               orderId: data.id,
@@ -148,8 +151,17 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
               driverIdIsNull: data.driverId === null,
               driverIdIsUndefined: data.driverId === undefined,
               createdAt: data.createdAt,
-              orderAge: data.createdAt ? `${Math.round((Date.now() - new Date(data.createdAt).getTime()) / 1000)}s` : 'N/A'
+              orderAge: orderAge ? `${Math.round(orderAge / 1000)}s` : 'N/A',
+              orderAgeMinutes: orderAgeMinutes !== null ? `${orderAgeMinutes} min` : 'N/A',
+              isOldOrder: orderAgeMinutes !== null && orderAgeMinutes > 30 // Commande de plus de 30 minutes
             });
+            
+            // ✅ NOUVEAU : Ignorer les anciennes commandes (plus de 30 minutes)
+            if (orderAgeMinutes !== null && orderAgeMinutes > 30) {
+              console.log('[OrderContext] ⚠️ Commande trop ancienne (>30 min), nettoyage sessionStorage');
+              sessionStorage.removeItem('currentOrderId');
+              return;
+            }
             
             const realStatus = data.status;
             // Si déjà livrée ou rejetée, ne pas activer le suivi
