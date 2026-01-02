@@ -70,8 +70,10 @@ app.use(
           "http:",
           "ws://localhost:5000", // HMR WebSocket (même port que le serveur)
           "ws://localhost:5173", // HMR WebSocket (port Vite alternatif)
+          "ws://localhost:24678", // WebSocket serveur (port alternatif)
           "ws://127.0.0.1:5000",
           "ws://127.0.0.1:5173",
+          "ws://127.0.0.1:24678", // WebSocket serveur (port alternatif)
         ], // Pour les API externes et HMR WebSocket
         fontSrc: [
           "'self'", 
