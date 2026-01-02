@@ -3,7 +3,8 @@ import { Server } from "http";
 import { db } from "./db";
 import { drivers } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
-import { verifyToken } from "./auth.js";
+import { verifyToken } from "./auth";
+import jwt from "jsonwebtoken";
 
 // Map pour stocker les connexions WebSocket des livreurs
 // Key: driverId, Value: WebSocket
