@@ -384,11 +384,25 @@ export default function DriverDashboard() {
     };
   }, [token, setLocation]);
 
+  // ✅ NOUVEAU : Fonction helper pour gérer les erreurs 401 (token expiré)
+  const handleAuthError = () => {
+    console.error("[Driver Dashboard] ❌ Token expiré ou invalide, redirection vers login");
+    localStorage.removeItem("driverToken");
+    localStorage.removeItem("driverId");
+    localStorage.removeItem("driverName");
+    toast.error("Votre session a expiré. Veuillez vous reconnecter.");
+    window.location.href = '/driver/login';
+  };
+
   const fetchStatus = async () => {
     try {
       const res = await fetch("/api/driver/status", {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (res.status === 401) {
+        handleAuthError();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setIsOnline(data.status !== "offline");
@@ -404,6 +418,10 @@ export default function DriverDashboard() {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (res.status === 401) {
+        handleAuthError();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setIsOnline(data.status !== "offline");
@@ -575,6 +593,12 @@ export default function DriverDashboard() {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
+      
+      // ✅ NOUVEAU : Vérifier les erreurs 401
+      if (availableRes.status === 401 || myRes.status === 401) {
+        handleAuthError();
+        return;
+      }
       
       if (availableRes.ok) {
         const data = await availableRes.json();
@@ -778,6 +802,11 @@ export default function DriverDashboard() {
         },
       });
       
+      if (res.status === 401) {
+        handleAuthError();
+        return;
+      }
+      
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Erreur");
@@ -834,6 +863,10 @@ export default function DriverDashboard() {
           "Idempotency-Key": idempotencyKey // Anti double commande
         },
       });
+      if (res.status === 401) {
+        handleAuthError();
+        return;
+      }
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Erreur");
@@ -847,6 +880,10 @@ export default function DriverDashboard() {
         },
         body: JSON.stringify({ status: "delivery" }),
       });
+      if (updateRes.status === 401) {
+        handleAuthError();
+        return;
+      }
       if (updateRes.ok) {
         toast.success("Commande acceptée! En route vers le client.");
         // Retirer immédiatement de la liste des disponibles
@@ -878,6 +915,10 @@ export default function DriverDashboard() {
         },
         body: JSON.stringify({ status: "delivery" }),
       });
+      if (res.status === 401) {
+        handleAuthError();
+        return;
+      }
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Erreur");
@@ -907,6 +948,10 @@ export default function DriverDashboard() {
         },
         body: JSON.stringify({ status: "delivered" }),
       });
+      if (res.status === 401) {
+        handleAuthError();
+        return;
+      }
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Erreur");
