@@ -78,7 +78,7 @@ export function setupWebSocket(httpServer: Server): WebSocketServer {
   // Démarrer le timer d'inactivité
   resetInactivityTimer(wss);
 
-  wss.on("connection", (ws: WebSocket, req) => {
+  wss.on("connection", async (ws: WebSocket, req) => {
     console.log("[WebSocket] Nouvelle connexion");
 
     // Authentification du livreur via query params
