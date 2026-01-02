@@ -451,8 +451,49 @@ export default function DriverDashboard() {
     }
   };
 
+  // ✅ NOUVEAU : Fonction pour rafraîchir le token
+  const refreshAccessToken = async (): Promise<string | null> => {
+    const refreshToken = localStorage.getItem("driverRefreshToken");
+    if (!refreshToken) {
+      console.error("[Driver Dashboard] ❌ Pas de refresh token disponible");
+      return null;
+    }
+    
+    try {
+      console.log("[Driver Dashboard] 🔄 Tentative de rafraîchissement du token...");
+      const res = await fetch("/api/driver/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      
+      if (!res.ok) {
+        const err = await res.json();
+        console.error("[Driver Dashboard] ❌ Erreur refresh token:", err.error);
+        return null;
+      }
+      
+      const { token: newAccessToken } = await res.json();
+      localStorage.setItem("driverToken", newAccessToken);
+      console.log("[Driver Dashboard] ✅ Token rafraîchi avec succès");
+      return newAccessToken;
+    } catch (error: any) {
+      console.error("[Driver Dashboard] ❌ Erreur lors du refresh:", error);
+      return null;
+    }
+  };
+
   // ✅ NOUVEAU : Fonction helper pour gérer les erreurs 401 (token expiré)
-  const handleAuthError = () => {
+  const handleAuthError = async (shouldTryRefresh: boolean = true): Promise<boolean | void> => {
+    // ✅ NOUVEAU : Essayer de rafraîchir le token avant de rediriger
+    if (shouldTryRefresh) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        console.log("[Driver Dashboard] ✅ Token rafraîchi, continuation de la session");
+        return true; // Indiquer que le refresh a réussi
+      }
+    }
+    
     console.error("[Driver Dashboard] ❌ Token expiré ou invalide, redirection vers login");
     
     // ✅ NOUVEAU : Arrêter immédiatement l'intervalle de fetchOrders
@@ -462,11 +503,19 @@ export default function DriverDashboard() {
       console.log("[Driver Dashboard] 🧹 Intervalle fetchOrders arrêté");
     }
     
+    // Fermer la connexion WebSocket
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    
     localStorage.removeItem("driverToken");
+    localStorage.removeItem("driverRefreshToken"); // ✅ NOUVEAU : Nettoyer aussi le refresh token
     localStorage.removeItem("driverId");
     localStorage.removeItem("driverName");
     toast.error("Votre session a expiré. Veuillez vous reconnecter.");
     window.location.href = '/driver/login';
+    return false; // Indiquer que le refresh a échoué
   };
 
   const fetchStatus = async () => {
@@ -660,9 +709,45 @@ export default function DriverDashboard() {
 
   const fetchOrders = async () => {
     // ✅ NOUVEAU : Vérifier si le token est expiré AVANT de faire des requêtes
-    if (!token || isTokenExpired(token)) {
-      await handleAuthError(true); // Essayer de refresh avant de rediriger
+    if (!token) {
+      console.error("[Driver Dashboard] ❌ AUCUN TOKEN - Redirection vers login");
+      await handleAuthError(false);
       return;
+    }
+    
+    if (isTokenExpired(token)) {
+      console.error("[Driver Dashboard] ⚠️ TOKEN EXPIRÉ détecté avant fetchOrders");
+      const refreshed = await handleAuthError(true); // Essayer de refresh avant de rediriger
+      if (refreshed === true) {
+        // Token rafraîchi, refaire la requête avec le nouveau token
+        const newToken = localStorage.getItem("driverToken");
+        if (newToken) {
+          console.log("[Driver Dashboard] 🔄 Nouveau token obtenu, nouvelle tentative fetchOrders");
+          // Utiliser le nouveau token pour cette requête
+          const [availableRes, myRes] = await Promise.all([
+            fetch("/api/driver/available-orders", {
+              headers: { Authorization: `Bearer ${newToken}` },
+            }),
+            fetch("/api/driver/orders", {
+              headers: { Authorization: `Bearer ${newToken}` },
+            }),
+          ]);
+          
+          if (availableRes.status === 401 || myRes.status === 401) {
+            console.error("[Driver Dashboard] ❌ Nouveau token aussi invalide, redirection");
+            await handleAuthError(false);
+            return;
+          }
+          
+          // Continuer avec le traitement normal...
+          if (availableRes.ok) {
+            const data = await availableRes.json();
+            // ... reste du code ...
+          }
+          return;
+        }
+      }
+      return; // Redirection en cours
     }
     
     try {
@@ -677,9 +762,10 @@ export default function DriverDashboard() {
       
       // ✅ NOUVEAU : Vérifier les erreurs 401 et essayer de rafraîchir
       if (availableRes.status === 401 || myRes.status === 401) {
+        console.error("[Driver Dashboard] ⚠️ ERREUR 401 détectée dans fetchOrders");
         const refreshed = await handleAuthError(true); // Essayer de rafraîchir avant de rediriger
         // Si handleAuthError a réussi à rafraîchir, refaire la requête
-        if (refreshed !== undefined) {
+        if (refreshed === true) {
           const newToken = localStorage.getItem("driverToken");
           if (newToken && newToken !== token) {
             // Token rafraîchi, refaire la requête avec le nouveau token
