@@ -677,12 +677,15 @@ export default function DriverDashboard() {
       
       // ✅ NOUVEAU : Vérifier les erreurs 401 et essayer de rafraîchir
       if (availableRes.status === 401 || myRes.status === 401) {
-        await handleAuthError(true); // Essayer de rafraîchir avant de rediriger
+        const refreshed = await handleAuthError(true); // Essayer de rafraîchir avant de rediriger
         // Si handleAuthError a réussi à rafraîchir, refaire la requête
-        const newToken = localStorage.getItem("driverToken");
-        if (newToken && newToken !== token) {
-          // Token rafraîchi, refaire la requête
-          return fetchOrders();
+        if (refreshed !== undefined) {
+          const newToken = localStorage.getItem("driverToken");
+          if (newToken && newToken !== token) {
+            // Token rafraîchi, refaire la requête avec le nouveau token
+            console.log("[Driver Dashboard] 🔄 Nouveau token obtenu, nouvelle tentative fetchOrders");
+            return fetchOrders();
+          }
         }
         return; // Sinon, redirection en cours
       }

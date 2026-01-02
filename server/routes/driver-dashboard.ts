@@ -71,6 +71,51 @@ export function registerDriverDashboardRoutes(app: Express): void {
     }
   });
   
+  // ✅ NOUVEAU : POST /api/driver/refresh - Rafraîchir le token
+  app.post("/api/driver/refresh", async (req, res) => {
+    console.log("[DRIVER REFRESH] Requête de rafraîchissement de token");
+    try {
+      const { refreshToken } = req.body as { refreshToken?: string };
+      
+      if (!refreshToken) {
+        return res.status(400).json({ error: "Refresh token requis" });
+      }
+      
+      // Vérifier le refresh token
+      const { verifyRefreshToken, generateDriverToken } = await import("../auth.js");
+      const decoded = verifyRefreshToken(refreshToken);
+      
+      if (!decoded || !decoded.id || !decoded.phone) {
+        console.log(`[DRIVER REFRESH] ❌ Refresh token invalide ou expiré`);
+        return res.status(401).json({ error: "Refresh token invalide ou expiré" });
+      }
+      
+      // Vérifier que le livreur existe toujours
+      const driver = await storage.getDriverById(decoded.id);
+      if (!driver) {
+        console.log(`[DRIVER REFRESH] ❌ Livreur non trouvé: ${decoded.id}`);
+        return res.status(401).json({ error: "Livreur non trouvé" });
+      }
+      
+      // Générer un nouveau access token
+      const newAccessToken = generateDriverToken(driver.id, driver.phone);
+      
+      console.log(`[DRIVER REFRESH] ✅ Token rafraîchi pour ${driver.name} (${driver.phone})`);
+      
+      res.json({
+        token: newAccessToken,
+        driver: {
+          id: driver.id,
+          name: driver.name,
+          phone: driver.phone,
+        },
+      });
+    } catch (error: any) {
+      console.error("[DRIVER REFRESH] Erreur lors du rafraîchissement:", error);
+      res.status(500).json({ error: "Erreur serveur lors du rafraîchissement" });
+    }
+  });
+  
   // ============ DRIVER AUTH (OTP) ============
   // OTP TOUJOURS ACTIVÉ pour les livreurs (indépendamment de ENABLE_SMS_OTP)
   // (Gardé pour compatibilité, mais la connexion téléphone + mot de passe est recommandée)
