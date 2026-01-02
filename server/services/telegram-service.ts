@@ -163,6 +163,52 @@ class TelegramService {
   }
 
   /**
+   * Supprime un message Telegram
+   * @param chatId ID du chat Telegram
+   * @param messageId ID du message à supprimer
+   */
+  async deleteMessage(
+    chatId: string,
+    messageId: number
+  ): Promise<{ success: boolean; error?: any }> {
+    if (!this.isConfigured) {
+      return { success: false, error: 'Telegram bot non configuré' };
+    }
+
+    try {
+      const url = `https://api.telegram.org/bot${this.botToken}/deleteMessage`;
+      
+      const payload = {
+        chat_id: chatId,
+        message_id: messageId,
+      };
+
+      console.log(`[Telegram] 🗑️ Suppression message ${messageId} pour chat ${chatId}`);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        console.error('[Telegram] ❌ Erreur deleteMessage:', data);
+        return { success: false, error: data.description || 'Erreur Telegram API' };
+      }
+
+      console.log(`[Telegram] ✅ Message ${messageId} supprimé avec succès`);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Telegram] ❌ Erreur deleteMessage:', error);
+      return { success: false, error: error.message || 'Erreur réseau' };
+    }
+  }
+
+  /**
    * Envoie un message vocal directement depuis le système de fichiers (notification automatique plus forte)
    * IMPORTANT: Utiliser sendVoice au lieu de sendAudio car les messages vocaux ont une notification automatique
    * @param chatId ID du chat Telegram
@@ -660,19 +706,29 @@ ${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
         return 0;
       }
 
-      const firstDriver = trulyAvailableDrivers[0];
-      
-      const success = await this.sendOrderNotification(
-        firstDriver.telegramId!,
-        orderId,
-        customerName,
-        totalPrice,
-        address,
-        restaurantName,
-        firstDriver.id
-      );
+      // ✅ MODIFIÉ : Envoyer à TOUS les livreurs disponibles (pas seulement le premier)
+      let successCount = 0;
+      for (const driver of trulyAvailableDrivers) {
+        console.log(`[Telegram] 📤 Envoi notification à ${driver.name} (${driver.telegramId})`);
+        const success = await this.sendOrderNotification(
+          driver.telegramId!,
+          orderId,
+          customerName,
+          totalPrice,
+          address,
+          restaurantName,
+          driver.id
+        );
+        if (success) {
+          successCount++;
+          console.log(`[Telegram] ✅ Notification envoyée avec succès à ${driver.name}`);
+        } else {
+          console.log(`[Telegram] ❌ Échec envoi notification à ${driver.name}`);
+        }
+      }
 
-      return success ? 1 : 0;
+      console.log(`[Telegram] ✅ ${successCount}/${trulyAvailableDrivers.length} notification(s) Telegram envoyée(s) avec succès`);
+      return successCount;
     } catch (error: any) {
       console.error('[Telegram] ❌ Erreur envoi aux livreurs:', error);
       return 0;
