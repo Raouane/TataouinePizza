@@ -94,11 +94,29 @@ export function setupWebSocket(httpServer: Server): WebSocketServer {
 
     // ✅ NOUVEAU : Vérifier le token JWT AVANT d'accepter la connexion
     const { verifyToken } = await import("../auth.js");
-    const decoded = verifyToken(token);
+    const result = verifyToken(token);
     
-    if (!decoded) {
-      console.log("[WebSocket] ❌ Connexion rejetée: token invalide ou expiré");
-      ws.close(1008, "Token expired or invalid");
+    if (!result.valid) {
+      if (result.reason === "expired") {
+        console.log(`[WebSocket] ❌ Connexion rejetée: token expiré le ${result.expiredAt}`);
+        ws.close(1008, "Token expired or invalid");
+      } else {
+        console.log("[WebSocket] ❌ Connexion rejetée: token invalide");
+        ws.close(1008, "Token expired or invalid");
+      }
+      return;
+    }
+    
+    const decoded = result.decoded;
+    
+    // ✅ NOUVEAU : Refuser les tokens qui expirent dans < 60 secondes
+    const jwt = await import("jsonwebtoken");
+    const decodedRaw = jwt.decode(token) as any;
+    const now = Math.floor(Date.now() / 1000);
+    
+    if (!decodedRaw?.exp || decodedRaw.exp < now + 60) {
+      console.log(`[WebSocket] ❌ Connexion rejetée: token expire dans < 60s (exp: ${new Date(decodedRaw.exp * 1000).toISOString()})`);
+      ws.close(1008, "Token expired or too close to expiry");
       return;
     }
     
@@ -109,7 +127,7 @@ export function setupWebSocket(httpServer: Server): WebSocketServer {
       return;
     }
     
-    console.log(`[WebSocket] ✅ Token valide pour livreur ${driverId}`);
+    console.log(`[WebSocket] ✅ Token valide pour livreur ${driverId} (expire dans ${decodedRaw.exp - now}s)`);
 
     // Enregistrer la connexion
     driverConnections.set(driverId, ws);

@@ -265,9 +265,17 @@ export default function DriverDashboard() {
           }
         };
 
+        // ✅ NOUVEAU : Un seul ws.onerror (le double était un bug)
         ws.onerror = (error) => {
           console.error("[WebSocket] Erreur:", error);
           setWsConnected(false);
+          
+          // ✅ NOUVEAU : Vérifier le token en cas d'erreur
+          const currentToken = localStorage.getItem("driverToken");
+          if (currentToken && isTokenExpired(currentToken)) {
+            console.error("[WebSocket] ❌ Token expiré détecté lors de l'erreur");
+            handleAuthError(true); // Essayer de refresh avant de rediriger
+          }
         };
 
         ws.onclose = (event) => {
@@ -275,7 +283,7 @@ export default function DriverDashboard() {
           setWsConnected(false);
           
           // ✅ NOUVEAU : Si le token est expiré, ne pas reconnecter
-          if (event.code === 1008 && (event.reason === "Token expired or invalid" || event.reason === "Authentication required")) {
+          if (event.code === 1008 && (event.reason === "Token expired or invalid" || event.reason === "Token expired or too close to expiry" || event.reason === "Authentication required")) {
             console.error("[WebSocket] ❌ Token expiré, arrêt des reconnexions");
             handleAuthError(false); // Ne pas essayer de refresh, le token est vraiment expiré
             return;
@@ -300,16 +308,6 @@ export default function DriverDashboard() {
           } else if (reconnectAttemptsRef.current >= 5) {
             console.warn("[WebSocket] Nombre maximum de tentatives de reconnexion atteint");
             toast.error("Impossible de se connecter aux notifications. Veuillez rafraîchir la page.");
-          }
-        };
-        
-        ws.onerror = (error) => {
-          console.error("[WebSocket] Erreur:", error);
-          // ✅ NOUVEAU : Vérifier le token en cas d'erreur
-          const currentToken = localStorage.getItem("driverToken");
-          if (currentToken && isTokenExpired(currentToken)) {
-            console.error("[WebSocket] ❌ Token expiré détecté lors de l'erreur");
-            handleAuthError(true); // Essayer de refresh avant de rediriger
           }
         };
       } catch (error) {

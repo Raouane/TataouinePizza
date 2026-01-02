@@ -50,12 +50,20 @@ export function verifyRefreshToken(token: string): { id: string; phone?: string;
   }
 }
 
-export function verifyToken(token: string): { id: string; email?: string; phone?: string; type?: string } | null {
+// ✅ NOUVEAU : Type de retour détaillé pour distinguer expired/invalid
+export type TokenVerificationResult =
+  | { valid: true; decoded: { id: string; email?: string; phone?: string; type?: string } }
+  | { valid: false; reason: "expired" | "invalid"; expiredAt?: Date };
+
+export function verifyToken(token: string): TokenVerificationResult {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email?: string; phone?: string; type?: string };
-    return decoded;
-  } catch {
-    return null;
+    return { valid: true, decoded };
+  } catch (err: any) {
+    if (err.name === "TokenExpiredError") {
+      return { valid: false, reason: "expired", expiredAt: err.expiredAt };
+    }
+    return { valid: false, reason: "invalid" };
   }
 }
 
