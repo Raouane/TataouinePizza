@@ -531,13 +531,21 @@ class TelegramService {
     // await new Promise(resolve => setTimeout(resolve, 2000));
 
     // ÉTAPE 2: Message simplifié avec boutons inline "Accepter" et "Refuser"
-    const message = `<b>👤 ${customerName}</b> - <b>💰 +${gain} TND</b>
+    const message = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔵 <b>NOUVELLE COMMANDE</b> 🔵
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 <b>Commande #${orderId.slice(0, 8).toUpperCase()}</b>
+
+<b>👤 ${customerName}</b> - <b>💰 +${gain} TND</b>
 
 🏪 <b>${restaurantName}</b>
 ${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
 
 👤 <b>${customerName}</b>
-📍 ${address}`;
+📍 ${address}
+
+<i>⏱️ Cliquez sur "Accepter" pour commencer la livraison</i>`;
 
     // URLs pour les boutons inline
     const refuseUrl = driverId 

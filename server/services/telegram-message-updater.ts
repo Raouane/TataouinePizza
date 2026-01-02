@@ -43,10 +43,14 @@ export async function updateTelegramMessageToDelivery(orderId: string, driverId:
     const DRIVER_COMMISSION_RATE = 0.15;
     const gain = (Number(order.totalPrice) * DRIVER_COMMISSION_RATE).toFixed(2);
 
-    // Construire le message avec badge "EN COURS DE LIVRAISON"
+    // Construire le message avec badge VISIBLE "EN COURS DE LIVRAISON"
     let restaurantAddress = restaurant.address || "";
     
-    const message = `<b>🚚 EN COURS DE LIVRAISON</b>
+    const message = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🟡 <b>EN COURS DE LIVRAISON</b> 🟡
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 <b>Commande #${orderId.slice(0, 8).toUpperCase()}</b>
 
 <b>👤 ${order.customerName}</b> - <b>💰 +${gain} TND</b>
 
@@ -54,7 +58,9 @@ export async function updateTelegramMessageToDelivery(orderId: string, driverId:
 ${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
 
 👤 <b>${order.customerName}</b>
-📍 ${order.address}`;
+📍 ${order.address}
+
+<i>⏱️ Commande en cours de livraison</i>`;
 
     // Désactiver les boutons (la commande est déjà acceptée)
     const replyMarkup = {
@@ -117,10 +123,14 @@ export async function updateTelegramMessageToDelivered(orderId: string, driverId
     const DRIVER_COMMISSION_RATE = 0.15;
     const gain = (Number(order.totalPrice) * DRIVER_COMMISSION_RATE).toFixed(2);
 
-    // Construire le message avec badge "✅ LIVRÉE"
+    // Construire le message avec badge VISIBLE "✅ LIVRÉE"
     let restaurantAddress = restaurant.address || "";
     
-    const message = `<b>✅ LIVRÉE</b>
+    const message = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🟢 <b>✅ LIVRÉE</b> 🟢
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 <b>Commande #${orderId.slice(0, 8).toUpperCase()}</b>
 
 <b>👤 ${order.customerName}</b> - <b>💰 +${gain} TND</b>
 
@@ -128,7 +138,9 @@ export async function updateTelegramMessageToDelivered(orderId: string, driverId
 ${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
 
 👤 <b>${order.customerName}</b>
-📍 ${order.address}`;
+📍 ${order.address}
+
+<i>✅ Commande livrée avec succès</i>`;
 
     // Désactiver les boutons (la commande est livrée)
     const replyMarkup = {
