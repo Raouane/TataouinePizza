@@ -162,6 +162,24 @@ export function registerWhatsAppWebhookRoutes(app: Express): void {
         // PROMPT 3: Refuser la commande - Passer au livreur suivant dans la file
         console.log(`[WhatsApp Webhook] ❌ Livreur ${driver.name} refuse la commande ${pendingOrder.id}`);
         
+        // ✅ NOUVEAU : Marquer le livreur comme ayant refusé
+        const { storage } = await import("../storage.js");
+        try {
+          await storage.markOrderAsIgnoredByDriver(pendingOrder.id, driver.id);
+          console.log(`[WhatsApp Webhook] ✅ Livreur ${driver.id} marqué comme ayant refusé`);
+        } catch (error) {
+          console.error(`[WhatsApp Webhook] ⚠️ Erreur marquage ignoré (non-bloquant):`, error);
+        }
+
+        // ✅ NOUVEAU : Annuler le timer Round Robin immédiatement
+        const { orderAcceptanceTimers } = await import("../websocket.js");
+        const timer = orderAcceptanceTimers.get(pendingOrder.id);
+        if (timer) {
+          clearTimeout(timer);
+          orderAcceptanceTimers.delete(pendingOrder.id);
+          console.log(`[WhatsApp Webhook] ⏱️ Timer Round Robin annulé`);
+        }
+        
         // Enrichir la commande pour obtenir les infos nécessaires
         const { OrderEnrichmentService } = await import("../services/order-enrichment-service.js");
         const enrichedOrder = await OrderEnrichmentService.enrichWithRestaurant(pendingOrder);
@@ -172,7 +190,7 @@ export function registerWhatsAppWebhookRoutes(app: Express): void {
           `La commande sera proposée à un autre livreur.`
         );
 
-        // Passer au livreur suivant dans la file Round Robin
+        // ✅ NOUVEAU : Passer IMMÉDIATEMENT au livreur suivant (sans attendre le timer)
         const { notifyNextDriverInQueue } = await import("../services/sms-service.js");
         await notifyNextDriverInQueue(
           pendingOrder.id,

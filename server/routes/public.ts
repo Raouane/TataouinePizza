@@ -271,25 +271,28 @@ export function registerPublicRoutes(app: Express): void {
           `);
         }
 
-        // ✅ NOUVEAU : Marquer la commande comme ignorée par ce livreur (optionnel)
-        // TODO: Implémenter markOrderAsIgnoredByDriver() dans storage.ts si nécessaire
-        // Pour l'instant, on utilise la file Round Robin qui évite déjà de re-notifier le même livreur
+        // ✅ NOUVEAU : Marquer le livreur comme ayant refusé
         try {
-          // Si la fonction existe, l'utiliser
-          // if (typeof storage.markOrderAsIgnoredByDriver === 'function') {
-          //   await storage.markOrderAsIgnoredByDriver(orderId, driverId);
-          //   console.log(`[REFUSE] ✅ Commande ${orderId} marquée comme ignorée par livreur ${driverId}`);
-          // }
-          console.log(`[REFUSE] 📋 Commande ${orderId} refusée par livreur ${driverId} (gestion via Round Robin)`);
+          await storage.markOrderAsIgnoredByDriver(orderId, driverId);
+          console.log(`[REFUSE] ✅ Commande ${orderId} marquée comme ignorée par livreur ${driverId}`);
         } catch (error) {
           console.error(`[REFUSE] ⚠️ Erreur marquage ignoré (non-bloquant):`, error);
+        }
+
+        // ✅ NOUVEAU : Annuler le timer Round Robin immédiatement
+        const { orderAcceptanceTimers } = await import("../websocket.js");
+        const timer = orderAcceptanceTimers.get(orderId);
+        if (timer) {
+          clearTimeout(timer);
+          orderAcceptanceTimers.delete(orderId);
+          console.log(`[REFUSE] ⏱️ Timer Round Robin annulé pour commande ${orderId}`);
         }
 
         // Enrichir la commande
         const enrichedOrder = await OrderEnrichmentService.enrichWithRestaurant(order);
 
-        // Passer au livreur suivant dans la file Round Robin
-        console.log(`[REFUSE] 🔄 Passage au livreur suivant pour commande ${orderId}...`);
+        // ✅ NOUVEAU : Passer IMMÉDIATEMENT au livreur suivant (sans attendre le timer)
+        console.log(`[REFUSE] 🔄 Passage immédiat au livreur suivant pour commande ${orderId}...`);
         const notifiedCount = await notifyNextDriverInQueue(
           orderId,
           enrichedOrder.restaurantName || "Restaurant",

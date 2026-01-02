@@ -779,12 +779,29 @@ export async function notifyNextDriverInQueue(
       })
     );
 
+    // ✅ NOUVEAU : Récupérer la liste des livreurs qui ont refusé (ignoredBy)
+    const order = await storage.getOrderById(orderId);
+    let ignoredDriverIds: string[] = [];
+    if (order?.ignoredBy) {
+      try {
+        ignoredDriverIds = JSON.parse(order.ignoredBy);
+      } catch (e) {
+        // Si le JSON est invalide, on ignore
+        ignoredDriverIds = [];
+      }
+    }
+
     // Trier par temps d'attente
     driversWithWaitTime.sort((a, b) => b.waitTime - a.waitTime);
 
-    // Trouver le prochain livreur qui n'a pas encore été notifié
+    // ✅ MODIFIÉ : Trouver le prochain livreur qui :
+    // 1. N'a pas encore été notifié (pas dans la file)
+    // 2. N'a pas refusé la commande (pas dans ignoredBy)
     const notifiedDriverIds = new Set(queue.map(item => item.driverId));
-    const nextDriver = driversWithWaitTime.find(driver => !notifiedDriverIds.has(driver.id));
+    const ignoredDriverIdsSet = new Set(ignoredDriverIds);
+    const nextDriver = driversWithWaitTime.find(driver => 
+      !notifiedDriverIds.has(driver.id) && !ignoredDriverIdsSet.has(driver.id)
+    );
 
     if (!nextDriver) {
       console.log(`[Round Robin] ⚠️ Tous les livreurs disponibles ont déjà été notifiés pour commande ${orderId}`);

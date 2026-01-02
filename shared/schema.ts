@@ -119,6 +119,7 @@ export const orders = pgTable("orders", {
   estimatedDeliveryTime: integer("estimated_delivery_time"), // in minutes
   driverId: varchar("driver_id").references(() => drivers.id, { onDelete: "set null" }),
   assignedAt: timestamp("assigned_at"), // Timestamp d'assignation pour le timer 20 secondes
+  ignoredBy: text("ignored_by"), // JSON array des driverId qui ont refusé cette commande
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

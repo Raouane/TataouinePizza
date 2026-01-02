@@ -377,10 +377,23 @@ export function registerDriverDashboardRoutes(app: Express): void {
         throw errorHandler.badRequest("Cette commande a déjà été prise par un autre livreur");
       }
       
+      // ✅ NOUVEAU : Marquer le livreur comme ayant refusé
+      await storage.markOrderAsIgnoredByDriver(orderId, driverId);
+      console.log(`[Driver] ✅ Livreur ${driverId} marqué comme ayant refusé la commande ${orderId}`);
+
+      // ✅ NOUVEAU : Annuler le timer Round Robin immédiatement
+      const { orderAcceptanceTimers } = await import("../websocket.js");
+      const timer = orderAcceptanceTimers.get(orderId);
+      if (timer) {
+        clearTimeout(timer);
+        orderAcceptanceTimers.delete(orderId);
+        console.log(`[Driver] ⏱️ Timer Round Robin annulé pour commande ${orderId}`);
+      }
+
       // Enrichir la commande pour obtenir les infos nécessaires
       const enrichedOrder = await OrderEnrichmentService.enrichWithRestaurant(order);
       
-      // Passer au livreur suivant dans la file Round Robin
+      // ✅ NOUVEAU : Passer IMMÉDIATEMENT au livreur suivant (sans attendre le timer)
       const { notifyNextDriverInQueue } = await import("../services/sms-service.js");
       const notifiedCount = await notifyNextDriverInQueue(
         orderId,

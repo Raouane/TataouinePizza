@@ -12,7 +12,7 @@ const driverConnections = new Map<string, WebSocket>();
 
 // Map pour stocker les timers d'acceptation de commande
 // Key: orderId, Value: NodeJS.Timeout
-const orderAcceptanceTimers = new Map<string, NodeJS.Timeout>();
+export const orderAcceptanceTimers = new Map<string, NodeJS.Timeout>();
 
 // Map pour stocker les files d'attente Round Robin par commande
 // Key: orderId, Value: Array<{ driverId: string; notifiedAt: Date }>

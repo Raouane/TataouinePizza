@@ -254,10 +254,7 @@ export function registerOrderRoutes(app: Express): void {
         { type: "webhook" } // Permet l'annulation côté client
       );
 
-      // ✅ TODO : Supprimer les messages Telegram envoyés aux livreurs
-      // ⚠️ Fonctionnalité désactivée temporairement - les méthodes nécessaires n'existent pas encore
-      // Pour activer : créer getTelegramMessagesByOrderId(), deleteMessage() et markTelegramMessageAsDeleted()
-      /*
+      // ✅ Supprimer les messages Telegram envoyés aux livreurs
       try {
         const { storage } = await import("../../../storage.js");
         const { telegramService } = await import("../../../services/telegram-service.js");
@@ -265,32 +262,38 @@ export function registerOrderRoutes(app: Express): void {
         // Récupérer tous les messages Telegram pour cette commande
         const telegramMessages = await storage.getTelegramMessagesByOrderId(orderId);
         
-        console.log(`[ORDER] 🗑️ Suppression de ${telegramMessages.length} message(s) Telegram pour commande ${orderId}`);
+        // Filtrer les messages non supprimés (statut != "deleted")
+        const activeMessages = telegramMessages.filter(msg => msg.status !== "deleted");
         
-        // Supprimer chaque message
-        let deletedCount = 0;
-        for (const msg of telegramMessages) {
-          try {
-            const deleteResult = await telegramService.deleteMessage(msg.driverTelegramId, msg.messageId);
-            if (deleteResult.success) {
-              // Marquer comme supprimé dans la DB
-              await storage.markTelegramMessageAsDeleted(msg.id);
-              deletedCount++;
-            } else {
-              console.error(`[ORDER] ⚠️ Erreur suppression message ${msg.messageId}:`, deleteResult.error);
+        if (activeMessages.length === 0) {
+          console.log(`[ORDER] ℹ️ Aucun message Telegram actif à supprimer pour commande ${orderId}`);
+        } else {
+          console.log(`[ORDER] 🗑️ Suppression de ${activeMessages.length} message(s) Telegram pour commande ${orderId}`);
+          
+          // Supprimer chaque message
+          let deletedCount = 0;
+          for (const msg of activeMessages) {
+            try {
+              const deleteResult = await telegramService.deleteMessage(msg.chatId, msg.messageId);
+              if (deleteResult.success) {
+                // Marquer comme supprimé dans la DB
+                await storage.markTelegramMessageAsDeleted(msg.id);
+                deletedCount++;
+              } else {
+                console.error(`[ORDER] ⚠️ Erreur suppression message ${msg.messageId}:`, deleteResult.error);
+              }
+            } catch (error) {
+              console.error(`[ORDER] ⚠️ Erreur suppression message ${msg.messageId}:`, error);
+              // Continuer même si un message échoue
             }
-          } catch (error) {
-            console.error(`[ORDER] ⚠️ Erreur suppression message ${msg.messageId}:`, error);
-            // Continuer même si un message échoue
           }
+          
+          console.log(`[ORDER] ✅ ${deletedCount}/${activeMessages.length} message(s) Telegram supprimé(s) pour commande ${orderId}`);
         }
-        
-        console.log(`[ORDER] ✅ ${deletedCount}/${telegramMessages.length} message(s) Telegram supprimé(s) pour commande ${orderId}`);
       } catch (telegramError) {
         console.error('[ORDER] ⚠️ Erreur suppression messages Telegram:', telegramError);
         // Ne pas bloquer l'annulation si la suppression échoue
       }
-      */
 
       console.log(`[ORDER] ✅ Commande ${orderId} annulée avec succès`);
       res.json({ success: true, order: cancelledOrder });

@@ -879,6 +879,47 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  /**
+   * Marque un livreur comme ayant refusé une commande (ajoute à ignoredBy)
+   */
+  async markOrderAsIgnoredByDriver(orderId: string, driverId: string): Promise<void> {
+    try {
+      const order = await this.getOrderById(orderId);
+      if (!order) {
+        throw new Error(`Order ${orderId} not found`);
+      }
+
+      // Récupérer la liste actuelle des livreurs qui ont refusé
+      let ignoredList: string[] = [];
+      if (order.ignoredBy) {
+        try {
+          ignoredList = JSON.parse(order.ignoredBy);
+        } catch (e) {
+          // Si le JSON est invalide, on repart de zéro
+          ignoredList = [];
+        }
+      }
+
+      // Ajouter le driverId s'il n'est pas déjà dans la liste
+      if (!ignoredList.includes(driverId)) {
+        ignoredList.push(driverId);
+      }
+
+      // Mettre à jour la commande avec la nouvelle liste
+      await db.update(orders)
+        .set({
+          ignoredBy: JSON.stringify(ignoredList),
+          updatedAt: new Date()
+        })
+        .where(eq(orders.id, orderId));
+
+      this.log('debug', `[STORAGE] Livreur ${driverId} ajouté à ignoredBy pour commande ${orderId}`);
+    } catch (error: any) {
+      this.log('error', `[STORAGE] Erreur markOrderAsIgnoredByDriver:`, error);
+      throw error;
+    }
+  }
+
   async getOrderById(id: string): Promise<Order | undefined> {
     const result = await db.select().from(orders).where(eq(orders.id, id));
     return result[0];
@@ -1174,6 +1215,25 @@ export class DatabaseStorage implements IStorage {
       this.log('debug', `[STORAGE] Telegram message mis à jour: orderId=${orderId}, driverId=${driverId}, status=${newStatus}`);
     } catch (error: any) {
       this.log('error', `[STORAGE] Erreur mise à jour Telegram message:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Marque un message Telegram comme supprimé (met le statut à "deleted")
+   * @param messageId ID du message Telegram dans la DB
+   */
+  async markTelegramMessageAsDeleted(messageId: string): Promise<void> {
+    try {
+      await db.update(telegramMessages)
+        .set({ 
+          status: "deleted",
+          updatedAt: new Date()
+        })
+        .where(eq(telegramMessages.id, messageId));
+      this.log('debug', `[STORAGE] Telegram message marqué comme supprimé: messageId=${messageId}`);
+    } catch (error: any) {
+      this.log('error', `[STORAGE] Erreur marquage Telegram message comme supprimé:`, error);
       throw error;
     }
   }
