@@ -391,21 +391,26 @@ export default function DriverDashboard() {
     }
     
     // ✅ NOUVEAU : Vérifier si le token est expiré AVANT de faire des requêtes
-    if (isTokenExpired(token)) {
-      console.error("[Driver Dashboard] ❌ TOKEN EXPIRÉ - Tentative de refresh");
-      await handleAuthError(true); // Essayer de refresh avant de rediriger
-      return;
-    }
-    
-    console.log("[Driver Dashboard] ✅ Token présent et valide, chargement du dashboard");
-    
-    fetchOrders();
-    fetchStatus();
-    // Augmenter l'intervalle pour éviter de perturber les timers de visibilité
-    // Les timers durent 30 secondes, donc on vérifie toutes les 30 secondes
-    fetchOrdersIntervalRef.current = setInterval(() => {
+    // Wrapper async pour pouvoir utiliser await
+    const checkTokenAndInit = async () => {
+      if (isTokenExpired(token)) {
+        console.error("[Driver Dashboard] ❌ TOKEN EXPIRÉ - Tentative de refresh");
+        await handleAuthError(true); // Essayer de refresh avant de rediriger
+        return;
+      }
+      
+      console.log("[Driver Dashboard] ✅ Token présent et valide, chargement du dashboard");
+      
       fetchOrders();
-    }, 30000); // 30 secondes pour ne pas perturber les timers de visibilité
+      fetchStatus();
+      // Augmenter l'intervalle pour éviter de perturber les timers de visibilité
+      // Les timers durent 30 secondes, donc on vérifie toutes les 30 secondes
+      fetchOrdersIntervalRef.current = setInterval(() => {
+        fetchOrders();
+      }, 30000); // 30 secondes pour ne pas perturber les timers de visibilité
+    };
+    
+    checkTokenAndInit();
     
     return () => {
       if (fetchOrdersIntervalRef.current) {
