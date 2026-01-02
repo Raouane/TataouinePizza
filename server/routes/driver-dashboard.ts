@@ -30,10 +30,29 @@ export function registerDriverDashboardRoutes(app: Express): void {
         return res.status(400).json({ error: "Téléphone et mot de passe requis" });
       }
       
-      // Trouver le livreur par téléphone
-      const driver = await storage.getDriverByPhone(phone);
+      // Trouver le livreur par téléphone (essayer plusieurs formats)
+      let driver = await storage.getDriverByPhone(phone);
+      
+      // Si pas trouvé, essayer sans le +
+      if (!driver && phone.startsWith('+')) {
+        const phoneWithoutPlus = phone.replace('+', '');
+        driver = await storage.getDriverByPhone(phoneWithoutPlus);
+        if (driver) {
+          console.log(`[DRIVER LOGIN] ✅ Livreur trouvé avec format sans +: ${phoneWithoutPlus}`);
+        }
+      }
+      
+      // Si toujours pas trouvé, essayer avec le +
+      if (!driver && !phone.startsWith('+')) {
+        const phoneWithPlus = `+${phone}`;
+        driver = await storage.getDriverByPhone(phoneWithPlus);
+        if (driver) {
+          console.log(`[DRIVER LOGIN] ✅ Livreur trouvé avec format avec +: ${phoneWithPlus}`);
+        }
+      }
+      
       if (!driver) {
-        console.log(`[DRIVER LOGIN] ❌ Livreur non trouvé: ${phone}`);
+        console.log(`[DRIVER LOGIN] ❌ Livreur non trouvé: ${phone} (essayé aussi avec/sans +)`);
         return res.status(401).json({ error: "Téléphone ou mot de passe incorrect" });
       }
       

@@ -5,8 +5,8 @@ import { hashPassword } from "../auth.js";
 import { eq } from "drizzle-orm";
 
 async function createDriver() {
-  const phone = "+33783698509";
-  const name = "Raouane";
+  const phone = "+33775702464";
+  const name = "YASCO";
   const password = "driver123"; // Mot de passe par défaut
 
   try {
