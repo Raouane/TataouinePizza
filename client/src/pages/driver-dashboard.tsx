@@ -367,7 +367,14 @@ export default function DriverDashboard() {
       return;
     }
     
-    console.log("[Driver Dashboard] ✅ Token présent, chargement du dashboard");
+    // ✅ NOUVEAU : Vérifier si le token est expiré AVANT de faire des requêtes
+    if (isTokenExpired(token)) {
+      console.error("[Driver Dashboard] ❌ TOKEN EXPIRÉ - Redirection vers login");
+      handleAuthError();
+      return;
+    }
+    
+    console.log("[Driver Dashboard] ✅ Token présent et valide, chargement du dashboard");
     
     fetchOrders();
     fetchStatus();
@@ -391,6 +398,33 @@ export default function DriverDashboard() {
       soundIntervalsRef.current.clear();
     };
   }, [token, setLocation]);
+
+  // ✅ NOUVEAU : Fonction pour vérifier si le token est expiré (sans vérifier la signature)
+  const isTokenExpired = (token: string): boolean => {
+    try {
+      // Décoder le JWT (sans vérifier la signature, juste pour lire l'expiration)
+      const parts = token.split('.');
+      if (parts.length !== 3) return true;
+      
+      const payload = JSON.parse(atob(parts[1]));
+      const exp = payload.exp; // Timestamp Unix de l'expiration
+      
+      if (!exp) return true;
+      
+      // Vérifier si le token est expiré (avec une marge de 60 secondes)
+      const now = Math.floor(Date.now() / 1000);
+      const isExpired = exp < (now + 60); // 60 secondes de marge
+      
+      if (isExpired) {
+        console.log(`[Driver Dashboard] ⚠️ Token expiré (exp: ${new Date(exp * 1000).toISOString()}, now: ${new Date(now * 1000).toISOString()})`);
+      }
+      
+      return isExpired;
+    } catch (error) {
+      console.error("[Driver Dashboard] ❌ Erreur décodage token:", error);
+      return true; // En cas d'erreur, considérer comme expiré
+    }
+  };
 
   // ✅ NOUVEAU : Fonction helper pour gérer les erreurs 401 (token expiré)
   const handleAuthError = () => {
@@ -600,6 +634,12 @@ export default function DriverDashboard() {
   };
 
   const fetchOrders = async () => {
+    // ✅ NOUVEAU : Vérifier si le token est expiré AVANT de faire des requêtes
+    if (!token || isTokenExpired(token)) {
+      handleAuthError();
+      return;
+    }
+    
     try {
       const [availableRes, myRes] = await Promise.all([
         fetch("/api/driver/available-orders", {
