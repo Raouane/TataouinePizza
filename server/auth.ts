@@ -108,24 +108,21 @@ export function authenticateAdmin(req: AuthRequest, res: Response, next: NextFun
   }
 
   console.log(`[AUTH] 🔍 Vérification du token (longueur: ${token.length}, préfixe: ${token.substring(0, 20)}...)`);
-  const decoded = verifyToken(token);
-  if (!decoded) {
-    console.log("[AUTH] ❌ Token invalide ou expiré");
-    // Log plus de détails
-    try {
-      const jwt = require("jsonwebtoken");
-      jwt.verify(token, JWT_SECRET);
-    } catch (error: any) {
-      console.log(`[AUTH] ❌ Erreur JWT: ${error.message}`);
-      if (error.name === "JsonWebTokenError") {
-        console.log("[AUTH] ⚠️  Le JWT_SECRET pourrait être différent entre dev et prod");
-      } else if (error.name === "TokenExpiredError") {
-        console.log(`[AUTH] ⚠️  Token expiré le: ${error.expiredAt}`);
-      }
+  const result = verifyToken(token);
+  
+  if (!result.valid) {
+    // ✅ NOUVEAU : Différencier TOKEN_EXPIRED / TOKEN_INVALID
+    if (result.reason === "expired") {
+      console.log(`[AUTH] ❌ Token expiré le: ${result.expiredAt}`);
+      res.status(401).json({ error: "TOKEN_EXPIRED", expiredAt: result.expiredAt });
+    } else {
+      console.log("[AUTH] ❌ Token invalide (signature ou format incorrect)");
+      res.status(401).json({ error: "TOKEN_INVALID" });
     }
-    res.status(401).json({ error: "Invalid token" });
     return;
   }
+
+  const decoded = result.decoded;
 
   // Gérer les deux types de tokens : admin (avec email) et driver (avec phone)
   if (decoded.email) {
