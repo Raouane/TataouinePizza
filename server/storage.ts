@@ -927,6 +927,7 @@ export class DatabaseStorage implements IStorage {
           // Autre erreur, on la propage
           throw sqlError;
         }
+      }
     } catch (error: any) {
       this.log('error', `[STORAGE] Erreur markOrderAsIgnoredByDriver:`, error);
       // Ne pas throw pour ne pas bloquer le flux si la colonne n'existe pas
@@ -935,8 +936,50 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOrderById(id: string): Promise<Order | undefined> {
-    const result = await db.select().from(orders).where(eq(orders.id, id));
-    return result[0];
+    try {
+      const result = await db.select().from(orders).where(eq(orders.id, id));
+      return result[0];
+    } catch (error: any) {
+      // ✅ NOUVEAU : Gérer le cas où la colonne ignored_by n'existe pas encore
+      if (error?.message?.includes('ignored_by') || error?.message?.includes('column') || error?.code === '42703') {
+        this.log('error', `[STORAGE] ⚠️ Colonne ignored_by manquante, tentative SELECT explicite sans ignored_by`);
+        try {
+          const result = await db.execute(sql`
+            SELECT id, restaurant_id, customer_name, phone, address, address_details, 
+                   customer_lat, customer_lng, client_order_id, status, total_price, 
+                   payment_method, notes, estimated_delivery_time, driver_id, assigned_at, 
+                   created_at, updated_at
+            FROM orders 
+            WHERE id = ${id}
+          `);
+          if (result.rows && result.rows.length > 0) {
+            const row = result.rows[0] as any;
+            return {
+              ...row,
+              restaurantId: row.restaurant_id,
+              customerName: row.customer_name,
+              addressDetails: row.address_details,
+              customerLat: row.customer_lat,
+              customerLng: row.customer_lng,
+              clientOrderId: row.client_order_id,
+              totalPrice: row.total_price,
+              paymentMethod: row.payment_method,
+              estimatedDeliveryTime: row.estimated_delivery_time,
+              driverId: row.driver_id,
+              assignedAt: row.assigned_at,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at,
+              ignoredBy: undefined // Colonne n'existe pas encore
+            } as Order;
+          }
+          return undefined;
+        } catch (fallbackError: any) {
+          this.log('error', `[STORAGE] Erreur SELECT explicite (fallback):`, fallbackError);
+          throw error; // Re-throw l'erreur originale
+        }
+      }
+      throw error;
+    }
   }
 
   /**
