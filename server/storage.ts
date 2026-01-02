@@ -478,7 +478,49 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOrdersByDriver(driverId: string): Promise<Order[]> {
-    return await db.select().from(orders).where(eq(orders.driverId, driverId));
+    try {
+      return await db.select().from(orders).where(eq(orders.driverId, driverId));
+    } catch (error: any) {
+      // ✅ NOUVEAU : Gérer le cas où la colonne ignored_by n'existe pas encore
+      if (error?.message?.includes('ignored_by') || error?.message?.includes('column') || error?.code === '42703') {
+        this.log('error', `[STORAGE] ⚠️ Colonne ignored_by manquante, utilisation SELECT SQL brut`);
+        try {
+          const result = await db.execute(sql`
+            SELECT id, restaurant_id, customer_name, phone, address, address_details, 
+                   customer_lat, customer_lng, client_order_id, status, total_price, 
+                   payment_method, notes, estimated_delivery_time, driver_id, assigned_at, 
+                   created_at, updated_at
+            FROM orders 
+            WHERE driver_id = ${driverId}
+            ORDER BY created_at DESC
+          `);
+          if (result.rows && result.rows.length > 0) {
+            return result.rows.map((row: any) => ({
+              ...row,
+              restaurantId: row.restaurant_id,
+              customerName: row.customer_name,
+              addressDetails: row.address_details,
+              customerLat: row.customer_lat,
+              customerLng: row.customer_lng,
+              clientOrderId: row.client_order_id,
+              totalPrice: row.total_price,
+              paymentMethod: row.payment_method,
+              estimatedDeliveryTime: row.estimated_delivery_time,
+              driverId: row.driver_id,
+              assignedAt: row.assigned_at,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at,
+              ignoredBy: undefined
+            })) as Order[];
+          }
+          return [];
+        } catch (fallbackError: any) {
+          this.log('error', `[STORAGE] Erreur SELECT explicite (fallback):`, fallbackError);
+          return [];
+        }
+      }
+      throw error;
+    }
   }
 
   async updateDriverStatus(id: string, status: string): Promise<Driver> {
@@ -846,11 +888,64 @@ export class DatabaseStorage implements IStorage {
       
       // Create order
       const orderId = randomUUID();
-      const orderWithId = { ...order, id: orderId };
+      // ✅ NOUVEAU : Exclure ignoredBy si la colonne n'existe pas encore en base
+      const { ignoredBy, ...orderWithoutIgnoredBy } = order as any;
+      const orderWithId = { ...orderWithoutIgnoredBy, id: orderId };
       
-      const orderResult = await tx.insert(orders)
-        .values(orderWithId)
-        .returning();
+      // ✅ NOUVEAU : Gérer le cas où la colonne ignored_by n'existe pas encore
+      let orderResult;
+      try {
+        orderResult = await tx.insert(orders)
+          .values(orderWithId)
+          .returning();
+      } catch (insertError: any) {
+        // Si l'erreur est liée à la colonne ignored_by manquante, utiliser INSERT SQL brut
+        if (insertError?.message?.includes('ignored_by') || insertError?.message?.includes('column') || insertError?.code === '42703') {
+          this.log('error', `[STORAGE] ⚠️ Colonne ignored_by manquante, utilisation INSERT SQL brut`);
+          // INSERT SQL brut sans ignored_by
+          const insertResult = await tx.execute(sql`
+            INSERT INTO orders (
+              id, restaurant_id, customer_name, phone, address, address_details,
+              customer_lat, customer_lng, client_order_id, status, total_price,
+              payment_method, notes, estimated_delivery_time, driver_id, assigned_at,
+              created_at, updated_at
+            ) VALUES (
+              ${orderId}, ${order.restaurantId}, ${order.customerName}, ${order.phone},
+              ${order.address}, ${order.addressDetails || null}, ${order.customerLat || null},
+              ${order.customerLng || null}, ${order.clientOrderId || null}, ${order.status},
+              ${order.totalPrice}, ${order.paymentMethod || 'cash'}, ${order.notes || null},
+              ${order.estimatedDeliveryTime || null}, ${order.driverId || null}, ${order.assignedAt || null},
+              NOW(), NOW()
+            ) RETURNING *
+          `);
+          
+          if (!insertResult.rows || insertResult.rows.length === 0) {
+            throw new Error("Failed to create order");
+          }
+          
+          // Mapper le résultat SQL brut vers le format Order
+          const row = insertResult.rows[0] as any;
+          orderResult = [{
+            ...row,
+            restaurantId: row.restaurant_id,
+            customerName: row.customer_name,
+            addressDetails: row.address_details,
+            customerLat: row.customer_lat,
+            customerLng: row.customer_lng,
+            clientOrderId: row.client_order_id,
+            totalPrice: row.total_price,
+            paymentMethod: row.payment_method,
+            estimatedDeliveryTime: row.estimated_delivery_time,
+            driverId: row.driver_id,
+            assignedAt: row.assigned_at,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+            ignoredBy: undefined
+          }];
+        } else {
+          throw insertError; // Re-throw si c'est une autre erreur
+        }
+      }
       
       if (!orderResult || !orderResult[0]) {
         throw new Error("Failed to create order");
@@ -1017,7 +1112,48 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllOrders(): Promise<Order[]> {
-    return await db.select().from(orders).orderBy(desc(orders.createdAt));
+    try {
+      return await db.select().from(orders).orderBy(desc(orders.createdAt));
+    } catch (error: any) {
+      // ✅ NOUVEAU : Gérer le cas où la colonne ignored_by n'existe pas encore
+      if (error?.message?.includes('ignored_by') || error?.message?.includes('column') || error?.code === '42703') {
+        this.log('error', `[STORAGE] ⚠️ Colonne ignored_by manquante, utilisation SELECT SQL brut`);
+        try {
+          const result = await db.execute(sql`
+            SELECT id, restaurant_id, customer_name, phone, address, address_details, 
+                   customer_lat, customer_lng, client_order_id, status, total_price, 
+                   payment_method, notes, estimated_delivery_time, driver_id, assigned_at, 
+                   created_at, updated_at
+            FROM orders 
+            ORDER BY created_at DESC
+          `);
+          if (result.rows && result.rows.length > 0) {
+            return result.rows.map((row: any) => ({
+              ...row,
+              restaurantId: row.restaurant_id,
+              customerName: row.customer_name,
+              addressDetails: row.address_details,
+              customerLat: row.customer_lat,
+              customerLng: row.customer_lng,
+              clientOrderId: row.client_order_id,
+              totalPrice: row.total_price,
+              paymentMethod: row.payment_method,
+              estimatedDeliveryTime: row.estimated_delivery_time,
+              driverId: row.driver_id,
+              assignedAt: row.assigned_at,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at,
+              ignoredBy: undefined
+            })) as Order[];
+          }
+          return [];
+        } catch (fallbackError: any) {
+          this.log('error', `[STORAGE] Erreur SELECT explicite (fallback):`, fallbackError);
+          return [];
+        }
+      }
+      throw error;
+    }
   }
 
   async getOrdersByPhone(phone: string): Promise<Order[]> {
@@ -1071,19 +1207,62 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getReadyOrders(): Promise<Order[]> {
-    // ✅ SIMPLIFICATION : Inclure aussi les commandes "received" (nouveau workflow)
-    // Get orders that are received, accepted or ready and not yet assigned to a driver
-    // This allows drivers to see orders early and prepare to pick them up (MVP: simplified workflow)
-    const result = await db.select().from(orders)
-      .where(and(
-        inArray(orders.status, ['received', 'accepted', 'ready']),
-        or(
-          isNull(orders.driverId),
-          eq(orders.driverId, '')
-        )
-      ))
-      .orderBy(desc(orders.createdAt));
-    return result || [];
+    try {
+      // ✅ SIMPLIFICATION : Inclure aussi les commandes "received" (nouveau workflow)
+      // Get orders that are received, accepted or ready and not yet assigned to a driver
+      // This allows drivers to see orders early and prepare to pick them up (MVP: simplified workflow)
+      const result = await db.select().from(orders)
+        .where(and(
+          inArray(orders.status, ['received', 'accepted', 'ready']),
+          or(
+            isNull(orders.driverId),
+            eq(orders.driverId, '')
+          )
+        ))
+        .orderBy(desc(orders.createdAt));
+      return result || [];
+    } catch (error: any) {
+      // ✅ NOUVEAU : Gérer le cas où la colonne ignored_by n'existe pas encore
+      if (error?.message?.includes('ignored_by') || error?.message?.includes('column') || error?.code === '42703') {
+        this.log('error', `[STORAGE] ⚠️ Colonne ignored_by manquante, utilisation SELECT SQL brut`);
+        try {
+          const result = await db.execute(sql`
+            SELECT id, restaurant_id, customer_name, phone, address, address_details, 
+                   customer_lat, customer_lng, client_order_id, status, total_price, 
+                   payment_method, notes, estimated_delivery_time, driver_id, assigned_at, 
+                   created_at, updated_at
+            FROM orders 
+            WHERE status IN ('received', 'accepted', 'ready')
+              AND (driver_id IS NULL OR driver_id = '')
+            ORDER BY created_at DESC
+          `);
+          if (result.rows && result.rows.length > 0) {
+            return result.rows.map((row: any) => ({
+              ...row,
+              restaurantId: row.restaurant_id,
+              customerName: row.customer_name,
+              addressDetails: row.address_details,
+              customerLat: row.customer_lat,
+              customerLng: row.customer_lng,
+              clientOrderId: row.client_order_id,
+              totalPrice: row.total_price,
+              paymentMethod: row.payment_method,
+              estimatedDeliveryTime: row.estimated_delivery_time,
+              driverId: row.driver_id,
+              assignedAt: row.assigned_at,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at,
+              ignoredBy: undefined
+            })) as Order[];
+          }
+          return [];
+        } catch (fallbackError: any) {
+          this.log('error', `[STORAGE] Erreur SELECT explicite (fallback):`, fallbackError);
+          return [];
+        }
+      }
+      throw error;
+    }
   }
 
   /**
@@ -1111,6 +1290,48 @@ export class DatabaseStorage implements IStorage {
       this.log('debug', `[STORAGE] getPendingOrdersWithoutDriver - ${result.length} commande(s) trouvée(s)`);
       return result || [];
     } catch (error: any) {
+      // ✅ NOUVEAU : Gérer le cas où la colonne ignored_by n'existe pas encore
+      if (error?.message?.includes('ignored_by') || error?.message?.includes('column') || error?.code === '42703') {
+        this.log('error', `[STORAGE] ⚠️ Colonne ignored_by manquante, utilisation SELECT SQL brut`);
+        try {
+          const result = await db.execute(sql`
+            SELECT id, restaurant_id, customer_name, phone, address, address_details, 
+                   customer_lat, customer_lng, client_order_id, status, total_price, 
+                   payment_method, notes, estimated_delivery_time, driver_id, assigned_at, 
+                   created_at, updated_at
+            FROM orders 
+            WHERE status IN ('received', 'accepted', 'ready')
+              AND (driver_id IS NULL OR driver_id = '')
+            ORDER BY created_at ASC
+            LIMIT ${limit}
+          `);
+          if (result.rows && result.rows.length > 0) {
+            const mapped = result.rows.map((row: any) => ({
+              ...row,
+              restaurantId: row.restaurant_id,
+              customerName: row.customer_name,
+              addressDetails: row.address_details,
+              customerLat: row.customer_lat,
+              customerLng: row.customer_lng,
+              clientOrderId: row.client_order_id,
+              totalPrice: row.total_price,
+              paymentMethod: row.payment_method,
+              estimatedDeliveryTime: row.estimated_delivery_time,
+              driverId: row.driver_id,
+              assignedAt: row.assigned_at,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at,
+              ignoredBy: undefined
+            })) as Order[];
+            this.log('debug', `[STORAGE] getPendingOrdersWithoutDriver - ${mapped.length} commande(s) trouvée(s) (fallback)`);
+            return mapped;
+          }
+          return [];
+        } catch (fallbackError: any) {
+          this.log('error', `[STORAGE] Erreur SELECT explicite (fallback):`, fallbackError);
+          return [];
+        }
+      }
       this.log('error', `[STORAGE] getPendingOrdersWithoutDriver - Erreur:`, error);
       throw error;
     }
