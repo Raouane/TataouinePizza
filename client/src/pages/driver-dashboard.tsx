@@ -429,10 +429,9 @@ export default function DriverDashboard() {
     
     // Jouer le son immédiatement
     console.log(`[Sound] 🎵 Premier son pour commande ${orderId}`);
-    playOrderNotificationSound();
-    
-    // Démarrer aussi la répétition via Service Worker pour fonctionner même en arrière-plan/écran éteint
-    startNotificationRepeatViaSW(orderId, SOUND_REPEAT_INTERVAL);
+    // ✅ NOTIFICATIONS PWA DÉSACTIVÉES - On utilise uniquement Telegram
+    // playOrderNotificationSound();
+    // startNotificationRepeatViaSW(orderId, SOUND_REPEAT_INTERVAL);
     
     // Créer un nouvel intervalle qui répète le son toutes les SOUND_REPEAT_INTERVAL ms
     const soundInterval = setInterval(() => {
@@ -448,16 +447,16 @@ export default function DriverDashboard() {
       });
       
       if (orderStillAvailable) {
-        console.log(`[Sound] 🎵 Son répété pour commande ${orderId}`);
-        playOrderNotificationSound();
+        // ✅ NOTIFICATIONS PWA DÉSACTIVÉES - On utilise uniquement Telegram
+        // console.log(`[Sound] 🎵 Son répété pour commande ${orderId}`);
+        // playOrderNotificationSound();
       } else {
         console.log(`[Sound] ⏹️ Arrêt répétition son pour ${orderId} - commande acceptée`);
         clearInterval(soundInterval);
         soundIntervalsRef.current.delete(orderId);
-        // Arrêter aussi la répétition via Service Worker
-        stopNotificationRepeatViaSW(orderId);
-        // Arrêter le son personnalisé
-        stopCustomSound();
+        // ✅ NOTIFICATIONS PWA DÉSACTIVÉES - On utilise uniquement Telegram
+        // stopNotificationRepeatViaSW(orderId);
+        // stopCustomSound();
       }
     }, SOUND_REPEAT_INTERVAL);
     
@@ -474,10 +473,9 @@ export default function DriverDashboard() {
       soundIntervalsRef.current.delete(orderId);
       console.log(`[Sound] ✅ Répétition son arrêtée pour ${orderId}`);
     }
-    // Arrêter aussi la répétition via Service Worker
-    stopNotificationRepeatViaSW(orderId);
-    // Arrêter le son personnalisé
-    stopCustomSound();
+    // ✅ NOTIFICATIONS PWA DÉSACTIVÉES - On utilise uniquement Telegram
+    // stopNotificationRepeatViaSW(orderId);
+    // stopCustomSound();
   };
 
   const showOrder = (orderId: string, playSound: boolean = true) => {

@@ -146,69 +146,22 @@ function sendSystemNotification(title: string, body: string, options?: Notificat
 /**
  * Démarre la répétition de notifications via Service Worker
  * Fonctionne même quand l'écran est éteint ou l'app en arrière-plan
+ * ✅ DÉSACTIVÉ - On utilise uniquement Telegram pour les notifications
  */
 export function startNotificationRepeatViaSW(orderId: string, interval: number) {
-  if ('serviceWorker' in navigator) {
-    // Attendre que le Service Worker soit prêt
-    navigator.serviceWorker.ready.then((registration) => {
-      // Envoyer le message au Service Worker
-      if (registration.active) {
-        registration.active.postMessage({
-          type: 'START_NOTIFICATION_REPEAT',
-          orderId,
-          interval,
-        });
-        console.log(`[Notifications] 🔔 Répétition notification démarrée via SW pour ${orderId}, intervalle: ${interval}ms`);
-      } else {
-        console.warn("[Notifications] ⚠️ Service Worker actif non disponible");
-        // Essayer avec le controller
-        if (navigator.serviceWorker.controller) {
-          navigator.serviceWorker.controller.postMessage({
-            type: 'START_NOTIFICATION_REPEAT',
-            orderId,
-            interval,
-          });
-          console.log(`[Notifications] 🔔 Répétition notification démarrée via SW controller pour ${orderId}`);
-        }
-      }
-    }).catch((error) => {
-      console.error("[Notifications] ❌ Erreur lors de l'envoi au Service Worker:", error);
-    });
-  } else {
-    console.warn("[Notifications] ⚠️ Service Worker non disponible pour répétition");
-  }
+  console.log(`[Notifications] ⚠️ Notifications PWA désactivées - Ignoré pour ${orderId}`);
+  // Ne rien faire - les notifications sont gérées par Telegram uniquement
+  return;
 }
 
 /**
  * Arrête la répétition de notifications via Service Worker
+ * ✅ DÉSACTIVÉ - On utilise uniquement Telegram pour les notifications
  */
 export function stopNotificationRepeatViaSW(orderId: string) {
-  if ('serviceWorker' in navigator) {
-    // Attendre que le Service Worker soit prêt
-    navigator.serviceWorker.ready.then((registration) => {
-      // Envoyer le message au Service Worker
-      if (registration.active) {
-        registration.active.postMessage({
-          type: 'STOP_NOTIFICATION_REPEAT',
-          orderId,
-        });
-        console.log(`[Notifications] ⏹️ Répétition notification arrêtée via SW pour ${orderId}`);
-      } else {
-        // Essayer avec le controller
-        if (navigator.serviceWorker.controller) {
-          navigator.serviceWorker.controller.postMessage({
-            type: 'STOP_NOTIFICATION_REPEAT',
-            orderId,
-          });
-          console.log(`[Notifications] ⏹️ Répétition notification arrêtée via SW controller pour ${orderId}`);
-        }
-      }
-    }).catch((error) => {
-      console.error("[Notifications] ❌ Erreur lors de l'envoi au Service Worker:", error);
-    });
-  } else {
-    console.warn("[Notifications] ⚠️ Service Worker non disponible pour arrêt");
-  }
+  console.log(`[Notifications] ⚠️ Notifications PWA désactivées - Ignoré pour ${orderId}`);
+  // Ne rien faire - les notifications sont gérées par Telegram uniquement
+  return;
 }
 
 /**
@@ -319,19 +272,19 @@ export function playOrderNotificationSound() {
     playCustomSound(true, 30000); // Répéter toutes les 30 secondes (optimisé pour éviter throttling Android/iOS)
   }
   
-  // Notification système (fonctionne même en arrière-plan)
-  // Le Service Worker gérera le son système automatiquement quand l'app est en background
-  if (hasNotificationPermission()) {
-    sendSystemNotification(
-      '🔔 Nouvelle commande!',
-      'Une nouvelle commande est disponible',
-      {}
-    );
-    // Vibrate séparément si disponible
-    if (isMobile && 'vibrate' in navigator) {
-      navigator.vibrate([200, 100, 200, 100, 200]);
-    }
-  }
+  // ✅ NOTIFICATIONS PWA DÉSACTIVÉES - On utilise uniquement Telegram
+  // Notification système désactivée - les notifications sont gérées par Telegram uniquement
+  // if (hasNotificationPermission()) {
+  //   sendSystemNotification(
+  //     '🔔 Nouvelle commande!',
+  //     'Une nouvelle commande est disponible',
+  //     {}
+  //   );
+  //   // Vibrate séparément si disponible
+  //   if (isMobile && 'vibrate' in navigator) {
+  //     navigator.vibrate([200, 100, 200, 100, 200]);
+  //   }
+  // }
   
   // Vérifier la permission AVANT de jouer le son Web Audio (fallback)
   if (!hasAudioPermission()) {

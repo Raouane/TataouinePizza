@@ -186,28 +186,11 @@ function startNotificationRepeat(orderId, interval, title, body) {
 self.addEventListener('message', (event) => {
   console.log('[SW] Message reçu:', event.data);
   
+  // ✅ NOTIFICATIONS PWA DÉSACTIVÉES - On utilise uniquement Telegram
   if (event.data && event.data.type === 'START_NOTIFICATION_REPEAT') {
-    const { orderId, interval } = event.data;
-    const title = '🔔 Nouvelle commande!';
-    const body = 'Une nouvelle commande est disponible';
-    
-    // Envoyer une notification immédiatement
-    // IMPORTANT: Le son système fonctionne même quand le téléphone est éteint
-    // Le son par défaut du système est utilisé automatiquement si silent: false
-    self.registration.showNotification(title, {
-      body,
-      icon: '/favicon-32x32.png',
-      badge: '/favicon-32x32.png',
-      tag: `order-${orderId}`,
-      requireInteraction: true,
-      silent: false, // Activer le son système (fonctionne même téléphone éteint)
-      vibrate: [200, 100, 200, 100, 200],
-    }).catch((error) => {
-      console.error('[SW] Erreur affichage notification:', error);
-    });
-    
-    // Démarrer la répétition
-    startNotificationRepeat(orderId, interval, title, body);
+    console.log('[SW] ⚠️ Notifications PWA désactivées - Ignoré');
+    // Ne rien faire - les notifications sont gérées par Telegram uniquement
+    return;
   }
   
   if (event.data && event.data.type === 'STOP_NOTIFICATION_REPEAT') {
