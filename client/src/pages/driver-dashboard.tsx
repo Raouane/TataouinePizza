@@ -235,7 +235,7 @@ export default function DriverDashboard() {
                   body: JSON.stringify({ status: "delivery" }),
                 });
                 if (updateRes.status === 401) {
-                  handleAuthError();
+                  await handleAuthError(true);
                   return;
                 }
                 if (updateRes.ok) {
@@ -277,7 +277,7 @@ export default function DriverDashboard() {
           // ✅ NOUVEAU : Si le token est expiré, ne pas reconnecter
           if (event.code === 1008 && (event.reason === "Token expired or invalid" || event.reason === "Authentication required")) {
             console.error("[WebSocket] ❌ Token expiré, arrêt des reconnexions");
-            handleAuthError();
+            handleAuthError(false); // Ne pas essayer de refresh, le token est vraiment expiré
             return;
           }
           
@@ -285,7 +285,7 @@ export default function DriverDashboard() {
           const currentToken = localStorage.getItem("driverToken");
           if (currentToken && isTokenExpired(currentToken)) {
             console.error("[WebSocket] ❌ Token expiré détecté, arrêt des reconnexions");
-            handleAuthError();
+            handleAuthError(true); // Essayer de refresh avant de rediriger
             return;
           }
           
@@ -309,7 +309,7 @@ export default function DriverDashboard() {
           const currentToken = localStorage.getItem("driverToken");
           if (currentToken && isTokenExpired(currentToken)) {
             console.error("[WebSocket] ❌ Token expiré détecté lors de l'erreur");
-            handleAuthError();
+            handleAuthError(true); // Essayer de refresh avant de rediriger
           }
         };
       } catch (error) {
@@ -394,8 +394,8 @@ export default function DriverDashboard() {
     
     // ✅ NOUVEAU : Vérifier si le token est expiré AVANT de faire des requêtes
     if (isTokenExpired(token)) {
-      console.error("[Driver Dashboard] ❌ TOKEN EXPIRÉ - Redirection vers login");
-      handleAuthError();
+      console.error("[Driver Dashboard] ❌ TOKEN EXPIRÉ - Tentative de refresh");
+      await handleAuthError(true); // Essayer de refresh avant de rediriger
       return;
     }
     
@@ -475,7 +475,7 @@ export default function DriverDashboard() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 401) {
-        handleAuthError();
+        await handleAuthError(true);
         return;
       }
       if (res.ok) {
@@ -494,7 +494,7 @@ export default function DriverDashboard() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 401) {
-        handleAuthError();
+        await handleAuthError(true);
         return;
       }
       if (res.ok) {
@@ -661,7 +661,7 @@ export default function DriverDashboard() {
   const fetchOrders = async () => {
     // ✅ NOUVEAU : Vérifier si le token est expiré AVANT de faire des requêtes
     if (!token || isTokenExpired(token)) {
-      handleAuthError();
+      await handleAuthError(true); // Essayer de refresh avant de rediriger
       return;
     }
     
@@ -954,7 +954,7 @@ export default function DriverDashboard() {
         },
       });
       if (res.status === 401) {
-        handleAuthError();
+        await handleAuthError(true);
         return;
       }
       if (!res.ok) {
@@ -971,7 +971,7 @@ export default function DriverDashboard() {
         body: JSON.stringify({ status: "delivery" }),
       });
       if (updateRes.status === 401) {
-        handleAuthError();
+        await handleAuthError(true);
         return;
       }
       if (updateRes.ok) {
@@ -1006,7 +1006,7 @@ export default function DriverDashboard() {
         body: JSON.stringify({ status: "delivery" }),
       });
       if (res.status === 401) {
-        handleAuthError();
+        await handleAuthError(true);
         return;
       }
       if (!res.ok) {
@@ -1039,7 +1039,7 @@ export default function DriverDashboard() {
         body: JSON.stringify({ status: "delivered" }),
       });
       if (res.status === 401) {
-        handleAuthError();
+        await handleAuthError(true);
         return;
       }
       if (!res.ok) {
@@ -1091,6 +1091,7 @@ export default function DriverDashboard() {
 
   const handleLogout = () => {
     localStorage.removeItem("driverToken");
+    localStorage.removeItem("driverRefreshToken"); // ✅ NOUVEAU : Nettoyer aussi le refresh token
     localStorage.removeItem("driverId");
     localStorage.removeItem("driverName");
     localStorage.removeItem("driverPhone");
