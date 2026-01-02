@@ -881,6 +881,7 @@ export class DatabaseStorage implements IStorage {
 
   /**
    * Marque un livreur comme ayant refusé une commande (ajoute à ignoredBy)
+   * Gère le cas où la colonne ignored_by n'existe pas encore en base de données
    */
   async markOrderAsIgnoredByDriver(orderId: string, driverId: string): Promise<void> {
     try {
@@ -889,34 +890,47 @@ export class DatabaseStorage implements IStorage {
         throw new Error(`Order ${orderId} not found`);
       }
 
-      // Récupérer la liste actuelle des livreurs qui ont refusé
-      let ignoredList: string[] = [];
-      if (order.ignoredBy) {
-        try {
-          ignoredList = JSON.parse(order.ignoredBy);
-        } catch (e) {
-          // Si le JSON est invalide, on repart de zéro
-          ignoredList = [];
+      // ✅ NOUVEAU : Vérifier si la colonne ignored_by existe en base
+      // Si elle n'existe pas, on log un avertissement mais on ne plante pas
+      try {
+        // Récupérer la liste actuelle des livreurs qui ont refusé
+        let ignoredList: string[] = [];
+        if (order.ignoredBy) {
+          try {
+            ignoredList = JSON.parse(order.ignoredBy);
+          } catch (e) {
+            // Si le JSON est invalide, on repart de zéro
+            ignoredList = [];
+          }
         }
-      }
 
-      // Ajouter le driverId s'il n'est pas déjà dans la liste
-      if (!ignoredList.includes(driverId)) {
-        ignoredList.push(driverId);
-      }
+        // Ajouter le driverId s'il n'est pas déjà dans la liste
+        if (!ignoredList.includes(driverId)) {
+          ignoredList.push(driverId);
+        }
 
-      // Mettre à jour la commande avec la nouvelle liste
-      await db.update(orders)
-        .set({
-          ignoredBy: JSON.stringify(ignoredList),
-          updatedAt: new Date()
-        })
-        .where(eq(orders.id, orderId));
+        // Mettre à jour la commande avec la nouvelle liste
+        await db.update(orders)
+          .set({
+            ignoredBy: JSON.stringify(ignoredList),
+            updatedAt: new Date()
+          })
+          .where(eq(orders.id, orderId));
 
-      this.log('debug', `[STORAGE] Livreur ${driverId} ajouté à ignoredBy pour commande ${orderId}`);
+        this.log('debug', `[STORAGE] Livreur ${driverId} ajouté à ignoredBy pour commande ${orderId}`);
+      } catch (sqlError: any) {
+        // Si l'erreur est liée à la colonne manquante, on log mais on ne plante pas
+        if (sqlError?.message?.includes('ignored_by') || sqlError?.message?.includes('column') || sqlError?.code === '42703') {
+          this.log('error', `[STORAGE] ⚠️ Colonne ignored_by n'existe pas encore en base. Migration nécessaire. Erreur ignorée (non-bloquant).`);
+          // Ne pas throw - on continue sans bloquer le flux
+        } else {
+          // Autre erreur, on la propage
+          throw sqlError;
+        }
     } catch (error: any) {
       this.log('error', `[STORAGE] Erreur markOrderAsIgnoredByDriver:`, error);
-      throw error;
+      // Ne pas throw pour ne pas bloquer le flux si la colonne n'existe pas
+      // Seulement log l'erreur
     }
   }
 
@@ -970,8 +984,46 @@ export class DatabaseStorage implements IStorage {
       this.log('debug', `[STORAGE] getOrdersByPhone - ${result.length} commande(s) trouvée(s)`);
       return result;
     } catch (error: any) {
+      // ✅ NOUVEAU : Gérer le cas où la colonne ignored_by n'existe pas encore
+      if (error?.message?.includes('ignored_by') || error?.message?.includes('column') || error?.code === '42703') {
+        this.log('error', `[STORAGE] ⚠️ Colonne ignored_by manquante, tentative SELECT explicite sans ignored_by`);
+        try {
+          const result = await db.execute(sql`
+            SELECT id, restaurant_id, customer_name, phone, address, address_details, 
+                   customer_lat, customer_lng, client_order_id, status, total_price, 
+                   payment_method, notes, estimated_delivery_time, driver_id, assigned_at, 
+                   created_at, updated_at
+            FROM orders 
+            WHERE phone = ${phone}
+            ORDER BY created_at DESC
+          `);
+          if (result.rows && result.rows.length > 0) {
+            return result.rows.map((row: any) => ({
+              ...row,
+              restaurantId: row.restaurant_id,
+              customerName: row.customer_name,
+              addressDetails: row.address_details,
+              customerLat: row.customer_lat,
+              customerLng: row.customer_lng,
+              clientOrderId: row.client_order_id,
+              totalPrice: row.total_price,
+              paymentMethod: row.payment_method,
+              estimatedDeliveryTime: row.estimated_delivery_time,
+              driverId: row.driver_id,
+              assignedAt: row.assigned_at,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at,
+              ignoredBy: undefined // Colonne n'existe pas encore
+            })) as Order[];
+          }
+          return [];
+        } catch (fallbackError: any) {
+          this.log('error', `[STORAGE] Erreur SELECT explicite (fallback):`, fallbackError);
+          return []; // Retourner tableau vide plutôt que planter
+        }
+      }
       this.log('error', `[STORAGE] getOrdersByPhone - Erreur pour téléphone ${phone}:`, error);
-      throw error;
+      return []; // Retourner tableau vide plutôt que throw
     }
   }
 

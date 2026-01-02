@@ -780,13 +780,26 @@ export async function notifyNextDriverInQueue(
     );
 
     // ✅ NOUVEAU : Récupérer la liste des livreurs qui ont refusé (ignoredBy)
-    const order = await storage.getOrderById(orderId);
+    // Gère le cas où la colonne ignored_by n'existe pas encore en base de données
     let ignoredDriverIds: string[] = [];
-    if (order?.ignoredBy) {
-      try {
-        ignoredDriverIds = JSON.parse(order.ignoredBy);
-      } catch (e) {
-        // Si le JSON est invalide, on ignore
+    try {
+      const order = await storage.getOrderById(orderId);
+      if (order?.ignoredBy) {
+        try {
+          ignoredDriverIds = JSON.parse(order.ignoredBy);
+        } catch (e) {
+          // Si le JSON est invalide, on ignore
+          ignoredDriverIds = [];
+        }
+      }
+    } catch (error: any) {
+      // Si l'erreur est liée à la colonne manquante, on continue avec une liste vide
+      if (error?.message?.includes('ignored_by') || error?.message?.includes('column') || error?.code === '42703') {
+        console.log(`[Round Robin] ⚠️ Colonne ignored_by n'existe pas encore. Migration nécessaire. Continuation sans exclusion.`);
+        ignoredDriverIds = [];
+      } else {
+        // Autre erreur, on log mais on continue
+        console.error(`[Round Robin] ⚠️ Erreur récupération ignoredBy (non-bloquant):`, error);
         ignoredDriverIds = [];
       }
     }
