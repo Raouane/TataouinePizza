@@ -742,8 +742,13 @@ export default function DriverDashboard() {
           // Continuer avec le traitement normal...
           if (availableRes.ok) {
             const data = await availableRes.json();
-            // ... reste du code ...
+            setAvailableOrders(data);
           }
+          if (myRes.ok) {
+            const data = await myRes.json();
+            setMyOrders(data);
+          }
+          setLoading(false);
           return;
         }
       }
