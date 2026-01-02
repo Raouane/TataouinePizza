@@ -142,6 +142,18 @@ export const idempotencyKeys = pgTable("idempotency_keys", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Telegram Messages (pour stocker les messageId et pouvoir les modifier)
+export const telegramMessages = pgTable("telegram_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
+  driverId: varchar("driver_id").notNull().references(() => drivers.id, { onDelete: "cascade" }),
+  chatId: text("chat_id").notNull(), // Telegram chat ID (driverTelegramId)
+  messageId: integer("message_id").notNull(), // Telegram message ID
+  status: text("status").default("sent"), // "sent", "accepted", "delivery", "delivered"
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Zod Schemas for validation
 export const insertAdminUserSchema = createInsertSchema(adminUsers)
   .pick({ email: true, password: true })

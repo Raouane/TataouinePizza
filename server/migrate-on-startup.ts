@@ -288,6 +288,33 @@ export async function runMigrationsOnStartup() {
     `);
     console.log("[DB] ✅ Table order_items créée/vérifiée");
 
+    // Créer la table telegram_messages si elle n'existe pas (pour stocker les messageId et pouvoir les modifier)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS telegram_messages (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        order_id VARCHAR NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+        driver_id VARCHAR NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,
+        chat_id TEXT NOT NULL,
+        message_id INTEGER NOT NULL,
+        status TEXT DEFAULT 'sent',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    console.log("[DB] ✅ Table telegram_messages créée/vérifiée");
+    
+    // Créer les index pour améliorer les performances
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_telegram_messages_order_id ON telegram_messages(order_id);
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_telegram_messages_driver_id ON telegram_messages(driver_id);
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_telegram_messages_order_driver ON telegram_messages(order_id, driver_id);
+    `);
+    console.log("[DB] ✅ Index telegram_messages créés/vérifiés");
+
     console.log("[DB] 🎉 Toutes les migrations sont terminées avec succès!");
   } catch (error: any) {
     console.error("[DB] ❌ Erreur lors des migrations:", error.message);
