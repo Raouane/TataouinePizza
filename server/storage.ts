@@ -4,7 +4,7 @@ import {
   type Pizza, type InsertAdminUser, type AdminUser, type Order, type OrderItem, type OtpCode, type Driver, type InsertDriver, type Restaurant, type InsertRestaurant,
   type PizzaPrice, type InsertOrder, type Customer, type InsertCustomer,
   insertPizzaSchema, insertPizzaPriceSchema
-} from "@shared/schema";
+} from "../shared/schema";
 import type { z } from "zod";
 import { eq, and, desc, asc, sql, inArray, or, isNull } from "drizzle-orm";
 import { randomUUID } from "crypto";

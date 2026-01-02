@@ -61,10 +61,11 @@ async function buildAll() {
     minify: true,
     external: externals,
     logLevel: "info",
-    resolveExtensions: [".ts", ".js"],
-    alias: {
-      "@shared": resolve(process.cwd(), "shared"),
-    },
+    plugins: [
+      aliasPlugin({
+        "@shared": resolve(process.cwd(), "shared"),
+      }),
+    ],
   });
 }
 
