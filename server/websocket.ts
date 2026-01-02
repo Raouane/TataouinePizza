@@ -3,6 +3,7 @@ import { Server } from "http";
 import { db } from "./db";
 import { drivers } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
+import { verifyToken } from "./auth.js";
 
 // Map pour stocker les connexions WebSocket des livreurs
 // Key: driverId, Value: WebSocket
@@ -93,7 +94,6 @@ export function setupWebSocket(httpServer: Server): WebSocketServer {
     }
 
     // ✅ NOUVEAU : Vérifier le token JWT AVANT d'accepter la connexion
-    const { verifyToken } = await import("../auth.js");
     const result = verifyToken(token);
     
     if (!result.valid) {
@@ -110,7 +110,6 @@ export function setupWebSocket(httpServer: Server): WebSocketServer {
     const decoded = result.decoded;
     
     // ✅ NOUVEAU : Refuser les tokens qui expirent dans < 60 secondes
-    const jwt = await import("jsonwebtoken");
     const decodedRaw = jwt.decode(token) as any;
     const now = Math.floor(Date.now() / 1000);
     
