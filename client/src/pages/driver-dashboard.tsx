@@ -47,6 +47,7 @@ export default function DriverDashboard() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null); // Anti double clic
   const [error, setError] = useState("");
+  const fetchOrdersIntervalRef = useRef<NodeJS.Timeout | null>(null); // ✅ NOUVEAU : Référence pour l'intervalle de fetchOrders
 
   const [isOnline, setIsOnline] = useState(true);
   const [wsConnected, setWsConnected] = useState(false);
@@ -372,12 +373,15 @@ export default function DriverDashboard() {
     fetchStatus();
     // Augmenter l'intervalle pour éviter de perturber les timers de visibilité
     // Les timers durent 30 secondes, donc on vérifie toutes les 30 secondes
-    const interval = setInterval(() => {
+    fetchOrdersIntervalRef.current = setInterval(() => {
       fetchOrders();
     }, 30000); // 30 secondes pour ne pas perturber les timers de visibilité
     
     return () => {
-      clearInterval(interval);
+      if (fetchOrdersIntervalRef.current) {
+        clearInterval(fetchOrdersIntervalRef.current);
+        fetchOrdersIntervalRef.current = null;
+      }
       // Nettoyer tous les intervalles de son au démontage
       console.log("[Sound] 🧹 Nettoyage de tous les intervalles de son au démontage");
       soundIntervalsRef.current.forEach((interval, orderId) => {
@@ -391,6 +395,14 @@ export default function DriverDashboard() {
   // ✅ NOUVEAU : Fonction helper pour gérer les erreurs 401 (token expiré)
   const handleAuthError = () => {
     console.error("[Driver Dashboard] ❌ Token expiré ou invalide, redirection vers login");
+    
+    // ✅ NOUVEAU : Arrêter immédiatement l'intervalle de fetchOrders
+    if (fetchOrdersIntervalRef.current) {
+      clearInterval(fetchOrdersIntervalRef.current);
+      fetchOrdersIntervalRef.current = null;
+      console.log("[Driver Dashboard] 🧹 Intervalle fetchOrders arrêté");
+    }
+    
     localStorage.removeItem("driverToken");
     localStorage.removeItem("driverId");
     localStorage.removeItem("driverName");
