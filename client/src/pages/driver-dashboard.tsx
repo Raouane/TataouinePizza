@@ -522,7 +522,12 @@ export default function DriverDashboard() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 401) {
-        await handleAuthError(true);
+        const errorData = await res.json().catch(() => ({}));
+        if (errorData.error === "TOKEN_EXPIRED") {
+          await handleAuthError(true);
+        } else {
+          await handleAuthError(false);
+        }
         return;
       }
       if (res.ok) {
@@ -541,7 +546,12 @@ export default function DriverDashboard() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 401) {
-        await handleAuthError(true);
+        const errorData = await res.json().catch(() => ({}));
+        if (errorData.error === "TOKEN_EXPIRED") {
+          await handleAuthError(true);
+        } else {
+          await handleAuthError(false);
+        }
         return;
       }
       if (res.ok) {
@@ -1060,7 +1070,12 @@ export default function DriverDashboard() {
         body: JSON.stringify({ status: "delivery" }),
       });
       if (updateRes.status === 401) {
-        await handleAuthError(true);
+        const errorData = await updateRes.json().catch(() => ({}));
+        if (errorData.error === "TOKEN_EXPIRED") {
+          await handleAuthError(true);
+        } else {
+          await handleAuthError(false);
+        }
         return;
       }
       if (updateRes.ok) {
@@ -1128,7 +1143,12 @@ export default function DriverDashboard() {
         body: JSON.stringify({ status: "delivered" }),
       });
       if (res.status === 401) {
-        await handleAuthError(true);
+        const errorData = await res.json().catch(() => ({}));
+        if (errorData.error === "TOKEN_EXPIRED") {
+          await handleAuthError(true);
+        } else {
+          await handleAuthError(false);
+        }
         return;
       }
       if (!res.ok) {
