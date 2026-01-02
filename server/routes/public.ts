@@ -956,6 +956,42 @@ export function registerPublicRoutes(app: Express): void {
     }
   });
 
+  // POST /api/orders/:id/cancel - Annuler une commande (client)
+  app.post("/api/orders/:id/cancel", async (req, res) => {
+    try {
+      const orderId = req.params.id;
+      console.log(`[ORDER] 🚫 Annulation de la commande ${orderId} par le client`);
+
+      // Vérifier que la commande existe
+      const order = await storage.getOrderById(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Vérifier que la commande peut être annulée (pas déjà livrée ou en cours de livraison)
+      if (order.status === 'delivered' || order.status === 'delivery') {
+        return res.status(400).json({ 
+          error: "Cannot cancel order", 
+          message: "La commande est déjà en cours de livraison ou livrée" 
+        });
+      }
+
+      // Annuler la commande (statut 'rejected')
+      const { OrderService: OrderServiceLegacy } = await import("../services/order-service.js");
+      const cancelledOrder = await OrderServiceLegacy.updateStatus(
+        orderId,
+        'rejected',
+        { type: "webhook" } // Permet l'annulation côté client
+      );
+
+      console.log(`[ORDER] ✅ Commande ${orderId} annulée avec succès`);
+      res.json({ success: true, order: cancelledOrder });
+    } catch (error: any) {
+      console.error("[ORDER] Error cancelling order:", error);
+      errorHandler.sendError(res, error);
+    }
+  });
+
   // ============ ORDER ACCEPTANCE (PUBLIC LINK) - DOUBLON SUPPRIMÉ ============
   // ✅ La route /accept/:orderId est maintenant définie EN PREMIER (ligne 43)
   // pour éviter l'interception par le middleware Vite/Static
