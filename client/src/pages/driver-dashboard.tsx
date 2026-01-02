@@ -233,6 +233,10 @@ export default function DriverDashboard() {
                   },
                   body: JSON.stringify({ status: "delivery" }),
                 });
+                if (updateRes.status === 401) {
+                  handleAuthError();
+                  return;
+                }
                 if (updateRes.ok) {
                   toast.info("En route vers le client!");
                 }
