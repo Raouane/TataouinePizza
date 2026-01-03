@@ -374,9 +374,11 @@ const I18NEXT_STORAGE_KEY = 'i18nextLng'; // Clé standard i18next
 /**
  * Détecte la langue du navigateur/téléphone
  * Hiérarchie de détection :
- * 1. localStorage (clé i18nextLng ou tataouine-pizza-language)
- * 2. navigator.language (détection automatique)
- * 3. Fallback : arabe (ar) par défaut
+ * 1. localStorage (clé i18nextLng ou tataouine-pizza-language) - PRIORITÉ ABSOLUE
+ * 2. Si aucune préférence sauvegardée → ARABE par défaut (ignorer navigator.language)
+ * 
+ * Note: L'arabe est la langue par défaut même si le navigateur est en anglais/français.
+ * L'utilisateur peut changer manuellement via le sélecteur de langue.
  */
 function detectLanguage(): Language {
   const supportedLanguages: Language[] = ['fr', 'en', 'ar'];
@@ -389,31 +391,15 @@ function detectLanguage(): Language {
     savedLanguage = localStorage.getItem(STORAGE_KEY);
   }
   
-  // 3. Si une langue est sauvegardée et qu'elle est supportée, l'utiliser
+  // 3. Si une langue est sauvegardée et qu'elle est supportée, l'utiliser (PRIORITÉ ABSOLUE)
   if (savedLanguage && (supportedLanguages.includes(savedLanguage as Language))) {
     console.log(`[i18n] ✅ Langue détectée depuis localStorage: ${savedLanguage}`);
     return savedLanguage as Language;
   }
 
-  // 4. Détecter depuis le navigateur/téléphone
-  if (typeof navigator !== 'undefined') {
-    // navigator.language : langue principale (ex: 'fr-FR', 'ar-DZ', 'en-US')
-    // navigator.languages : liste des langues préférées
-    const browserLanguages = navigator.languages || [navigator.language];
-    
-    for (const lang of browserLanguages) {
-      const langCode = lang.toLowerCase().split('-')[0]; // Extraire 'fr' de 'fr-FR'
-      
-      // Vérifier si la langue détectée est supportée
-      if (supportedLanguages.includes(langCode as Language)) {
-        console.log(`[i18n] ✅ Langue détectée depuis navigator: ${langCode} (${lang})`);
-        return langCode as Language;
-      }
-    }
-  }
-
-  // 5. Fallback : ARABE par défaut (au lieu de 'fr')
-  console.log(`[i18n] ✅ Langue par défaut utilisée: ar (aucune détection valide)`);
+  // 4. Si aucune préférence sauvegardée → ARABE par défaut (ignorer navigator.language)
+  // L'arabe est la langue par défaut de l'application
+  console.log(`[i18n] ✅ Langue par défaut utilisée: ar (aucune préférence sauvegardée)`);
   return 'ar';
 }
 
