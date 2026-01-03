@@ -876,10 +876,17 @@ export function registerPublicRoutes(app: Express): void {
       }
       
       const orders = await storage.getOrdersByPhone(phone);
+      
+      // ✅ SÉCURITÉ : Ne pas exposer l'adresse dans les commandes (protection de la vie privée)
+      const sanitizedOrders = orders.map(order => {
+        const { address, addressDetails, customerLat, customerLng, ...rest } = order;
+        return rest;
+      });
+      
       if (process.env.NODE_ENV !== "production") {
-        console.log(`[ORDERS] ${orders.length} commande(s) trouvée(s) pour ${phone}`);
+        console.log(`[ORDERS] ${sanitizedOrders.length} commande(s) trouvée(s) pour ${phone} (adresses masquées pour sécurité)`);
       }
-      res.json(orders);
+      res.json(sanitizedOrders);
     } catch (error: any) {
       console.error("[ORDERS] Error fetching orders by phone:", error);
       console.error("[ORDERS] Error details:", {

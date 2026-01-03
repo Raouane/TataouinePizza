@@ -60,27 +60,95 @@ export default function CartPage() {
   const [newAddressDetails, setNewAddressDetails] = useState("");
   const [addressDetails, setAddressDetails] = useState(onboarding?.addressDetails || "");
 
-  // Charger les adresses sauvegardées au montage
+  // ✅ MODIFIÉ : Charger uniquement name et phone, nettoyer les anciennes clés
   useEffect(() => {
-    if (!phone || phone.length < 8) return;
+    // ✅ NETTOYAGE : Supprimer les anciennes clés d'adresse (migration)
+    localStorage.removeItem('customerAddress');
+    localStorage.removeItem('customerAddressDetails');
+    
+    // Charger les données client depuis localStorage
+    const savedName = localStorage.getItem('customerName');
+    const savedPhone = localStorage.getItem('customerPhone');
+    
+    // Pré-remplir seulement si les champs sont vides et qu'on a des données sauvegardées
+    if (!name && savedName) {
+      setName(savedName);
+    }
+    if (!phone && savedPhone) {
+      setPhone(savedPhone);
+    }
+    
+    if (savedName || savedPhone) {
+      console.log('[Cart] ✅ Données client chargées depuis localStorage');
+    }
+  }, []); // Seulement au montage
+
+  // ✅ MODIFIÉ : Charger les adresses sauvegardées + intégrer onboarding si première fois
+  useEffect(() => {
+    if (!phone || phone.length < 8) {
+      // Si pas de téléphone mais qu'on a des données d'onboarding, les intégrer
+      if (onboarding?.phone && onboarding?.address) {
+        const onboardingPhone = onboarding.phone;
+        const saved = localStorage.getItem(`savedAddresses_${onboardingPhone}`);
+        
+        // Si aucune adresse sauvegardée, créer la première depuis onboarding
+        if (!saved) {
+          const firstAddress: SavedAddress = {
+            id: generateAddressId(),
+            label: language === 'ar' ? "المنزل" : language === 'en' ? "Home" : "Domicile",
+            street: onboarding.address,
+            details: onboarding.addressDetails || undefined,
+            isDefault: true,
+          };
+          const addresses = [firstAddress];
+          setSavedAddresses(addresses);
+          localStorage.setItem(`savedAddresses_${onboardingPhone}`, JSON.stringify(addresses));
+          setSelectedAddressId(firstAddress.id);
+          setAddress(firstAddress.street);
+          setAddressDetails(firstAddress.details || "");
+          console.log('[Cart] ✅ Adresse onboarding intégrée dans savedAddresses');
+          return;
+        }
+      }
+      return;
+    }
     
     const saved = localStorage.getItem(`savedAddresses_${phone}`);
+    let addresses: SavedAddress[] = [];
+    
     if (saved) {
       try {
-        const addresses = JSON.parse(saved) as SavedAddress[];
-        setSavedAddresses(addresses);
-        // Sélectionner l'adresse par défaut ou la première
-        const defaultAddress = addresses.find(a => a.isDefault) || addresses[0];
-        if (defaultAddress) {
-          setSelectedAddressId(defaultAddress.id);
-          setAddress(defaultAddress.street);
-          setAddressDetails(defaultAddress.details || "");
-        }
+        addresses = JSON.parse(saved) as SavedAddress[];
       } catch (e) {
         console.error("Erreur chargement adresses:", e);
       }
     }
-  }, [phone]);
+    
+    // ✅ NOUVEAU : Si pas d'adresses sauvegardées mais qu'on a onboarding, l'intégrer
+    if (addresses.length === 0 && onboarding?.address && onboarding?.phone === phone) {
+      const firstAddress: SavedAddress = {
+        id: generateAddressId(),
+        label: language === 'ar' ? "المنزل" : language === 'en' ? "Home" : "Domicile",
+        street: onboarding.address,
+        details: onboarding.addressDetails || undefined,
+        isDefault: true,
+      };
+      addresses = [firstAddress];
+      localStorage.setItem(`savedAddresses_${phone}`, JSON.stringify(addresses));
+      console.log('[Cart] ✅ Adresse onboarding intégrée dans savedAddresses');
+    }
+    
+    if (addresses.length > 0) {
+      setSavedAddresses(addresses);
+      // ✅ MODIFIÉ : Sélectionner l'adresse la plus récente (première dans la liste) ou celle par défaut
+      const defaultAddress = addresses.find(a => a.isDefault) || addresses[0];
+      if (defaultAddress) {
+        setSelectedAddressId(defaultAddress.id);
+        setAddress(defaultAddress.street);
+        setAddressDetails(defaultAddress.details || "");
+      }
+    }
+  }, [phone, onboarding, language]);
 
   // Vérifier si le client a une commande active
   useEffect(() => {
@@ -212,23 +280,98 @@ export default function CartPage() {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   };
 
+  // ✅ NOUVEAU : Fonction utilitaire pour sauvegarder intelligemment une adresse
+  const saveAddressToHistory = (newStreet: string, newDetails: string, phone: string): SavedAddress[] => {
+    const key = `savedAddresses_${phone}`;
+    const saved = localStorage.getItem(key);
+    let addresses: SavedAddress[] = saved ? JSON.parse(saved) : [];
+
+    // 1. Normalisation pour comparer (éviter les doublons à cause d'une majuscule ou d'un espace)
+    const normalizedNew = newStreet.trim().toLowerCase();
+    
+    // 2. Vérifier si elle existe déjà
+    const existingIndex = addresses.findIndex(
+      a => a.street.trim().toLowerCase() === normalizedNew
+    );
+
+    if (existingIndex > -1) {
+      // Elle existe : On la met à jour et on la remonte en premier (isDefault)
+      const existing = addresses[existingIndex];
+      addresses.splice(existingIndex, 1); // On l'enlève de sa place actuelle
+      
+      const updatedAddress: SavedAddress = {
+        ...existing,
+        details: newDetails.trim() || existing.details, // On met à jour les détails si fournis
+        isDefault: true,
+      };
+      
+      addresses.unshift(updatedAddress); // Ajouter en haut
+      console.log('[Cart] ✅ Adresse existante mise à jour et remontée en haut');
+    } else {
+      // Nouvelle adresse : On l'ajoute en haut
+      const addressCount = addresses.length;
+      const addressLabel = language === 'ar' 
+        ? `عنوان ${addressCount + 1}`
+        : language === 'en'
+        ? `Address ${addressCount + 1}`
+        : `Adresse ${addressCount + 1}`;
+      
+      const newAddress: SavedAddress = {
+        id: generateAddressId(),
+        label: addressLabel,
+        street: newStreet.trim(),
+        details: newDetails.trim() || undefined,
+        isDefault: true,
+      };
+      
+      addresses.unshift(newAddress); // Ajouter en haut
+      console.log('[Cart] ✅ Nouvelle adresse ajoutée:', addressLabel);
+    }
+
+    // 3. Toutes les autres adresses perdent le statut "isDefault"
+    addresses = addresses.map((a, i) => ({ 
+      ...a, 
+      isDefault: i === 0 // Seule la première est par défaut
+    }));
+
+    // 4. Limiter à 5 adresses max pour rester propre
+    const limitedAddresses = addresses.slice(0, 5);
+    
+    // Sauvegarder dans localStorage
+    localStorage.setItem(key, JSON.stringify(limitedAddresses));
+    
+    return limitedAddresses;
+  };
+
+  // ✅ NOUVEAU : Handler pour gérer la saisie manuelle d'adresse
+  const handleAddressInputChange = (value: string) => {
+    setAddress(value);
+    // Si l'utilisateur saisit manuellement, désélectionner l'adresse sauvegardée
+    // pour préparer l'ajout d'une nouvelle adresse
+    if (value.trim() && selectedAddressId) {
+      const selectedAddr = savedAddresses.find(addr => addr.id === selectedAddressId);
+      // Si l'adresse saisie est différente de celle sélectionnée, désélectionner
+      if (selectedAddr && selectedAddr.street.trim().toLowerCase() !== value.trim().toLowerCase()) {
+        setSelectedAddressId(null);
+      }
+    }
+  };
+
   const proceedWithOrderCreation = async () => {
     // Récupérer les détails de l'adresse sélectionnée si elle existe
     const selectedAddress = savedAddresses.find(addr => addr.id === selectedAddressId);
     const finalAddressDetails = selectedAddress?.details || addressDetails.trim() || onboarding?.addressDetails || "";
+    const finalAddress = address.trim();
     
-    // Sauvegarder l'adresse actuelle si elle n'est pas dans les adresses sauvegardées
-    if (address.trim() && !selectedAddress && address.trim().length >= 5) {
-      const newAddress: SavedAddress = {
-        id: generateAddressId(),
-        label: language === 'ar' ? "آخر" : language === 'en' ? "Other" : "Autre",
-        street: address.trim(),
-        details: finalAddressDetails || undefined,
-        isDefault: savedAddresses.length === 0,
-      };
-      const updated = [...savedAddresses, newAddress];
-      setSavedAddresses(updated);
-      localStorage.setItem(`savedAddresses_${phone}`, JSON.stringify(updated));
+    // ✅ NOUVEAU : Sauvegarder intelligemment l'adresse dans l'historique
+    if (finalAddress && finalAddress.length >= 5 && phone && phone.length >= 8) {
+      const updatedAddresses = saveAddressToHistory(finalAddress, finalAddressDetails, phone);
+      setSavedAddresses(updatedAddresses);
+      
+      // Mettre à jour la sélection avec la première adresse (la plus récente)
+      if (updatedAddresses.length > 0) {
+        setSelectedAddressId(updatedAddresses[0].id);
+      }
     }
     
     // Créer une commande par restaurant
@@ -250,7 +393,7 @@ export default function CartPage() {
         restaurantId: restaurantCart.restaurantId,
         customerName: name.trim(),
         phone: phone.trim(),
-        address: address.trim(),
+        address: finalAddress,
         addressDetails: finalAddressDetails,
         customerLat: onboarding?.lat, // Optionnel
         customerLng: onboarding?.lng, // Optionnel
@@ -261,6 +404,13 @@ export default function CartPage() {
     try {
       const results = await Promise.all(orderPromises);
       console.log(`[Cart] ${results.length} commande(s) créée(s) avec succès:`, results);
+      
+      // ✅ MODIFIÉ : Sauvegarder uniquement name et phone (pas d'adresse)
+      if (name.trim() && phone.trim()) {
+        localStorage.setItem('customerName', name.trim());
+        localStorage.setItem('customerPhone', phone.trim());
+        console.log('[Cart] ✅ Données client sauvegardées dans localStorage');
+      }
       
       clearCart();
       // Réinitialiser les flags pour la nouvelle commande
@@ -806,7 +956,7 @@ export default function CartPage() {
                             <Input 
                                 placeholder={t('cart.address.street.ph')}
                                 value={address}
-                                onChange={(e) => setAddress(e.target.value)}
+                                onChange={(e) => handleAddressInputChange(e.target.value)}
                                 autoFocus={savedAddresses.length === 0}
                                 className="text-sm md:text-base"
                             />

@@ -440,14 +440,13 @@ export function registerDriverDashboardRoutes(app: Express): void {
         
         // ✅ NOUVEAU : Supprimer les messages Telegram envoyés aux livreurs
         try {
-          const { storage } = await import("../../storage.js");
-          const { telegramService } = await import("../../services/telegram-service.js");
+          const { telegramService } = await import("../services/telegram-service.js");
           
           // Récupérer tous les messages Telegram pour cette commande
           const telegramMessages = await storage.getTelegramMessagesByOrderId(orderId);
           
           // Filtrer les messages non supprimés (statut != "deleted")
-          const activeMessages = telegramMessages.filter(msg => msg.status !== "deleted");
+          const activeMessages = telegramMessages.filter((msg: any) => msg.status !== "deleted");
           
           if (activeMessages.length === 0) {
             console.log(`[Driver] ℹ️ Aucun message Telegram actif à supprimer pour commande ${orderId}`);
