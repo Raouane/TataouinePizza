@@ -579,38 +579,100 @@ export class DatabaseStorage implements IStorage {
   // Atomic driver acceptance - prevents race condition
   // Uses .returning() to ensure atomicity: UPDATE returns the row only if it was actually updated
   async acceptOrderByDriver(orderId: string, driverId: string): Promise<Order | null> {
-    // ✅ SIMPLIFICATION : Quand le livreur accepte, passer directement à "delivery"
-    // Accept if order is received, accepted or ready AND not assigned to anyone
-    // Le statut passe directement à "delivery" (en livraison)
-    const result = await db.update(orders)
-      .set({ 
-        driverId,
-        status: "delivery", // ✅ Passer directement à "delivery"
-        updatedAt: new Date() 
-      })
-      .where(and(
-        eq(orders.id, orderId),
-        sql`${orders.status} IN ('received', 'accepted', 'ready')`,
-        sql`(${orders.driverId} IS NULL OR ${orders.driverId} = '')`
-      ))
-      .returning();
-    
-    // If result is empty, the WHERE conditions were not met (order already assigned or wrong status)
-    if (!result || result.length === 0) {
-      return null;
-    }
-    
-    // ✅ NOUVEAU : Mettre à jour le message Telegram pour afficher "EN COURS DE LIVRAISON"
-    import("./services/telegram-message-updater.js").then(({ updateTelegramMessageToDelivery }) => {
-      updateTelegramMessageToDelivery(orderId, driverId).catch((error) => {
-        console.error(`[Storage] ❌ Erreur mise à jour Telegram (accept, non-bloquant):`, error);
+    try {
+      // ✅ SIMPLIFICATION : Quand le livreur accepte, passer directement à "delivery"
+      // Accept if order is received, accepted or ready AND not assigned to anyone
+      // Le statut passe directement à "delivery" (en livraison)
+      const result = await db.update(orders)
+        .set({ 
+          driverId,
+          status: "delivery", // ✅ Passer directement à "delivery"
+          updatedAt: new Date() 
+        })
+        .where(and(
+          eq(orders.id, orderId),
+          sql`${orders.status} IN ('received', 'accepted', 'ready')`,
+          sql`(${orders.driverId} IS NULL OR ${orders.driverId} = '')`
+        ))
+        .returning();
+      
+      // If result is empty, the WHERE conditions were not met (order already assigned or wrong status)
+      if (!result || result.length === 0) {
+        return null;
+      }
+      
+      // ✅ NOUVEAU : Mettre à jour le message Telegram pour afficher "EN COURS DE LIVRAISON"
+      import("./services/telegram-message-updater.js").then(({ updateTelegramMessageToDelivery }) => {
+        updateTelegramMessageToDelivery(orderId, driverId).catch((error) => {
+          console.error(`[Storage] ❌ Erreur mise à jour Telegram (accept, non-bloquant):`, error);
+        });
+      }).catch((error) => {
+        console.error(`[Storage] ⚠️ Erreur import telegram-message-updater (non-bloquant):`, error);
       });
-    }).catch((error) => {
-      console.error(`[Storage] ⚠️ Erreur import telegram-message-updater (non-bloquant):`, error);
-    });
-    
-    // The UPDATE succeeded, return the updated order
-    return result[0];
+      
+      // The UPDATE succeeded, return the updated order
+      return result[0];
+    } catch (error: any) {
+      // ✅ NOUVEAU : Gérer le cas où la colonne ignored_by n'existe pas encore
+      if (error?.message?.includes('ignored_by') || error?.message?.includes('column') || error?.code === '42703') {
+        this.log('error', `[STORAGE] ⚠️ Colonne ignored_by manquante, utilisation UPDATE SQL brut`);
+        try {
+          // UPDATE SQL brut sans ignored_by
+          const updateResult = await db.execute(sql`
+            UPDATE orders 
+            SET driver_id = ${driverId},
+                status = 'delivery',
+                updated_at = NOW()
+            WHERE id = ${orderId}
+              AND status IN ('received', 'accepted', 'ready')
+              AND (driver_id IS NULL OR driver_id = '')
+            RETURNING id, restaurant_id, customer_name, phone, address, address_details,
+                      customer_lat, customer_lng, client_order_id, status, total_price,
+                      payment_method, notes, estimated_delivery_time, driver_id, assigned_at,
+                      created_at, updated_at
+          `);
+          
+          if (!updateResult.rows || updateResult.rows.length === 0) {
+            return null;
+          }
+          
+          // Mapper le résultat SQL brut vers le format Order
+          const row = updateResult.rows[0] as any;
+          const mappedOrder = {
+            ...row,
+            restaurantId: row.restaurant_id,
+            customerName: row.customer_name,
+            addressDetails: row.address_details,
+            customerLat: row.customer_lat,
+            customerLng: row.customer_lng,
+            clientOrderId: row.client_order_id,
+            totalPrice: row.total_price,
+            paymentMethod: row.payment_method,
+            estimatedDeliveryTime: row.estimated_delivery_time,
+            driverId: row.driver_id,
+            assignedAt: row.assigned_at,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+            ignoredBy: undefined
+          } as Order;
+          
+          // ✅ NOUVEAU : Mettre à jour le message Telegram pour afficher "EN COURS DE LIVRAISON"
+          import("./services/telegram-message-updater.js").then(({ updateTelegramMessageToDelivery }) => {
+            updateTelegramMessageToDelivery(orderId, driverId).catch((error) => {
+              console.error(`[Storage] ❌ Erreur mise à jour Telegram (accept, non-bloquant):`, error);
+            });
+          }).catch((error) => {
+            console.error(`[Storage] ⚠️ Erreur import telegram-message-updater (non-bloquant):`, error);
+          });
+          
+          return mappedOrder;
+        } catch (fallbackError: any) {
+          this.log('error', `[STORAGE] Erreur UPDATE SQL brut (fallback):`, fallbackError);
+          throw error; // Re-throw l'erreur originale
+        }
+      }
+      throw error;
+    }
   }
 
   // ============ PIZZAS ============

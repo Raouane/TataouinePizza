@@ -1384,14 +1384,19 @@ export default function DriverDashboard() {
                     {/* Historique */}
                     <Button
                       variant="ghost"
-                      className="w-full justify-start gap-3 h-auto py-3"
+                      className="w-full justify-start gap-3 h-auto py-3 relative"
                       onClick={() => {
                         setShowHistoryDialog(true);
                         setShowMenu(false);
                       }}
                     >
-                      <div className="bg-purple-100 p-2 rounded-lg">
+                      <div className="bg-purple-100 p-2 rounded-lg relative">
                         <History className="w-5 h-5 text-purple-600" />
+                        {deliveredOrders.length > 0 && (
+                          <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs bg-purple-600 text-white">
+                            {deliveredOrders.length}
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-left">
                         <p className="font-medium">Historique</p>

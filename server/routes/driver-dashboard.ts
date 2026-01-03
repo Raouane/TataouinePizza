@@ -277,10 +277,11 @@ export function registerDriverDashboardRoutes(app: Express): void {
       }, {});
       console.log(`[API Driver] 📊 Répartition des commandes pour driver ${driverId}:`, statusCounts);
       
+      // ✅ MODIFIÉ : Inclure les commandes livrées dans la réponse (pour l'historique)
       const activeOrders = orders.filter((o: any) => 
-        ["received", "accepted", "ready", "delivery"].includes(o.status)
+        ["received", "accepted", "ready", "delivery", "delivered"].includes(o.status)
       );
-      console.log(`[API Driver] 📋 Commandes actives retournées: ${activeOrders.length}`);
+      console.log(`[API Driver] 📋 Commandes actives + livrées retournées: ${activeOrders.length}`);
       if (activeOrders.length > 0) {
         console.log(`[API Driver] 📋 Détails commandes actives:`, activeOrders.map((o: any) => ({
           id: o.id?.slice(0, 8),
@@ -436,6 +437,47 @@ export function registerDriverDashboardRoutes(app: Express): void {
       if (status === "delivered") {
         const orderId = req.params.id;
         console.log(`[Driver] ✅ Commande ${orderId} livrée, vérification du statut du livreur ${driverId}`);
+        
+        // ✅ NOUVEAU : Supprimer les messages Telegram envoyés aux livreurs
+        try {
+          const { storage } = await import("../../storage.js");
+          const { telegramService } = await import("../../services/telegram-service.js");
+          
+          // Récupérer tous les messages Telegram pour cette commande
+          const telegramMessages = await storage.getTelegramMessagesByOrderId(orderId);
+          
+          // Filtrer les messages non supprimés (statut != "deleted")
+          const activeMessages = telegramMessages.filter(msg => msg.status !== "deleted");
+          
+          if (activeMessages.length === 0) {
+            console.log(`[Driver] ℹ️ Aucun message Telegram actif à supprimer pour commande ${orderId}`);
+          } else {
+            console.log(`[Driver] 🗑️ Suppression de ${activeMessages.length} message(s) Telegram pour commande ${orderId}`);
+            
+            // Supprimer chaque message
+            let deletedCount = 0;
+            for (const msg of activeMessages) {
+              try {
+                const deleteResult = await telegramService.deleteMessage(msg.chatId, msg.messageId);
+                if (deleteResult.success) {
+                  // Marquer comme supprimé dans la DB
+                  await storage.markTelegramMessageAsDeleted(msg.id);
+                  deletedCount++;
+                } else {
+                  console.error(`[Driver] ⚠️ Erreur suppression message ${msg.messageId}:`, deleteResult.error);
+                }
+              } catch (error) {
+                console.error(`[Driver] ⚠️ Erreur suppression message ${msg.messageId}:`, error);
+                // Continuer même si un message échoue
+              }
+            }
+            
+            console.log(`[Driver] ✅ ${deletedCount}/${activeMessages.length} message(s) Telegram supprimé(s) pour commande ${orderId}`);
+          }
+        } catch (telegramError) {
+          console.error('[Driver] ⚠️ Erreur suppression messages Telegram:', telegramError);
+          // Ne pas bloquer la livraison si la suppression échoue
+        }
         
         // Vérifier s'il a d'autres commandes en cours
         // IMPORTANT: Exclure la commande qui vient d'être marquée comme "delivered"
