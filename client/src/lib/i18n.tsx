@@ -369,22 +369,33 @@ type LanguageContextType = {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'tataouine-pizza-language';
+const I18NEXT_STORAGE_KEY = 'i18nextLng'; // Clé standard i18next
 
 /**
  * Détecte la langue du navigateur/téléphone
- * Règles :
- * - Si la langue commence par 'fr' → français
- * - Si la langue commence par 'ar' → arabe
- * - Sinon → anglais par défaut
+ * Hiérarchie de détection :
+ * 1. localStorage (clé i18nextLng ou tataouine-pizza-language)
+ * 2. navigator.language (détection automatique)
+ * 3. Fallback : arabe (ar) par défaut
  */
 function detectLanguage(): Language {
-  // 1. Vérifier si une langue est déjà sauvegardée dans localStorage
-  const savedLanguage = localStorage.getItem(STORAGE_KEY);
-  if (savedLanguage === 'fr' || savedLanguage === 'en' || savedLanguage === 'ar') {
+  const supportedLanguages: Language[] = ['fr', 'en', 'ar'];
+  
+  // 1. Vérifier d'abord localStorage avec la clé i18nextLng (standard)
+  let savedLanguage = localStorage.getItem(I18NEXT_STORAGE_KEY);
+  
+  // 2. Si vide, vérifier l'ancienne clé pour compatibilité
+  if (!savedLanguage) {
+    savedLanguage = localStorage.getItem(STORAGE_KEY);
+  }
+  
+  // 3. Si une langue est sauvegardée et qu'elle est supportée, l'utiliser
+  if (savedLanguage && (supportedLanguages.includes(savedLanguage as Language))) {
+    console.log(`[i18n] ✅ Langue détectée depuis localStorage: ${savedLanguage}`);
     return savedLanguage as Language;
   }
 
-  // 2. Détecter depuis le navigateur
+  // 4. Détecter depuis le navigateur/téléphone
   if (typeof navigator !== 'undefined') {
     // navigator.language : langue principale (ex: 'fr-FR', 'ar-DZ', 'en-US')
     // navigator.languages : liste des langues préférées
@@ -393,27 +404,34 @@ function detectLanguage(): Language {
     for (const lang of browserLanguages) {
       const langCode = lang.toLowerCase().split('-')[0]; // Extraire 'fr' de 'fr-FR'
       
-      if (langCode === 'fr') {
-        return 'fr';
-      }
-      if (langCode === 'ar') {
-        return 'ar';
+      // Vérifier si la langue détectée est supportée
+      if (supportedLanguages.includes(langCode as Language)) {
+        console.log(`[i18n] ✅ Langue détectée depuis navigator: ${langCode} (${lang})`);
+        return langCode as Language;
       }
     }
   }
 
-  // 3. Fallback : anglais par défaut
-  return 'en';
+  // 5. Fallback : ARABE par défaut (au lieu de 'fr')
+  console.log(`[i18n] ✅ Langue par défaut utilisée: ar (aucune détection valide)`);
+  return 'ar';
 }
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   // Détecter la langue au chargement (une seule fois)
-  const [language, setLanguageState] = useState<Language>(() => detectLanguage());
+  const [language, setLanguageState] = useState<Language>(() => {
+    const detected = detectLanguage();
+    console.log(`[i18n] 🌍 Langue détectée au démarrage: ${detected}`);
+    return detected;
+  });
 
   // Sauvegarder la langue dans localStorage quand elle change
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
+    // Sauvegarder dans les deux clés pour compatibilité
     localStorage.setItem(STORAGE_KEY, lang);
+    localStorage.setItem(I18NEXT_STORAGE_KEY, lang);
+    console.log(`[i18n] ✅ Langue changée et sauvegardée: ${lang}`);
   };
 
   // Appliquer RTL/LTR et lang au document
