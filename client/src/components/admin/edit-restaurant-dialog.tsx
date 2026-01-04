@@ -31,6 +31,7 @@ interface RestaurantFormData {
   deliveryTime: number;
   minOrder: string;
   rating: string;
+  password: string;
 }
 
 interface EditRestaurantDialogProps {
@@ -53,6 +54,7 @@ const defaultForm: RestaurantFormData = {
   deliveryTime: 30,
   minOrder: "0",
   rating: "4.5",
+  password: "",
 };
 
 export function EditRestaurantDialog({ open, onOpenChange, restaurant, onSubmit, onCancel }: EditRestaurantDialogProps) {
@@ -79,6 +81,7 @@ export function EditRestaurantDialog({ open, onOpenChange, restaurant, onSubmit,
         deliveryTime: restaurant.deliveryTime || 30,
         minOrder: restaurant.minOrder?.toString() || "0",
         rating: restaurant.rating?.toString() || "4.5",
+        password: "", // Le mot de passe n'est jamais affiché pour des raisons de sécurité
       });
     }
   }, [restaurant, open]);
@@ -103,7 +106,7 @@ export function EditRestaurantDialog({ open, onOpenChange, restaurant, onSubmit,
         form.closedDay !== "none" ? form.closedDay : null
       );
 
-      const restaurantData = {
+      const restaurantData: any = {
         name: form.name,
         phone: form.phone,
         address: form.address,
@@ -115,6 +118,11 @@ export function EditRestaurantDialog({ open, onOpenChange, restaurant, onSubmit,
         rating: form.rating,
         openingHours: openingHours || null,
       };
+      
+      // Ajouter le mot de passe seulement s'il est rempli (pour le modifier)
+      if (form.password && form.password.trim() !== "") {
+        restaurantData.password = form.password;
+      }
 
       await onSubmit(restaurant.id, restaurantData);
       onOpenChange(false);
@@ -351,6 +359,19 @@ export function EditRestaurantDialog({ open, onOpenChange, restaurant, onSubmit,
               min="0"
               max="5"
             />
+          </div>
+          <div>
+            <Label>Nouveau mot de passe (optionnel)</Label>
+            <Input
+              type="password"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              placeholder="Laisser vide pour ne pas modifier"
+              minLength={6}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Minimum 6 caractères. Laisser vide pour conserver le mot de passe actuel.
+            </p>
           </div>
           <div className="flex gap-2">
             <Button onClick={handleSubmit} className="flex-1" disabled={isSubmitting}>

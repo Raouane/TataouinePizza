@@ -190,6 +190,7 @@ export const insertRestaurantSchema = createInsertSchema(restaurants)
     minOrder: z.string().optional(),
     rating: z.string().optional(),
     orderType: z.enum(["online", "phone_call", "coming_soon"]).optional().default("online"),
+    password: z.string().min(6, "Mot de passe min 6 caractères").optional(),
   });
 
 export const insertPizzaSchema = createInsertSchema(pizzas)
@@ -324,6 +325,7 @@ export const updateRestaurantSchema = z.object({
   deliveryTime: z.coerce.number().int().min(10).max(120).optional(),
   minOrder: z.coerce.number().nonnegative().optional(),
   rating: z.coerce.number().min(0).max(5).optional(),
+  password: z.string().min(6, "Mot de passe min 6 caractères").optional(),
 });
 
 export const updateDriverSchema = z.object({

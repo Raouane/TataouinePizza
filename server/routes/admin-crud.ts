@@ -365,7 +365,7 @@ export function registerAdminCrudRoutes(app: Express): void {
       }
       
       // storage.createRestaurant attend categories: string[] et le convertit en JSON automatiquement
-      const restaurantData = {
+      const restaurantData: any = {
         name: data.name,
         phone: data.phone,
         address: data.address,
@@ -378,6 +378,11 @@ export function registerAdminCrudRoutes(app: Express): void {
         rating: data.rating || "4.5",
         orderType: data.orderType || "online",
       };
+      
+      // Ajouter le mot de passe hashé si fourni
+      if (data.password !== undefined && data.password.trim() !== "") {
+        restaurantData.password = await hashPassword(data.password);
+      }
       
       const restaurant = await storage.createRestaurant(restaurantData);
       
@@ -431,6 +436,7 @@ export function registerAdminCrudRoutes(app: Express): void {
         deliveryTime: number;
         minOrder: string;
         rating: string;
+        password: string;
       }> = {};
       
       if (updateData.name !== undefined) finalUpdateData.name = updateData.name;
@@ -446,6 +452,11 @@ export function registerAdminCrudRoutes(app: Express): void {
       if (updateData.deliveryTime !== undefined) finalUpdateData.deliveryTime = updateData.deliveryTime;
       if (updateData.minOrder !== undefined) finalUpdateData.minOrder = updateData.minOrder.toString();
       if (updateData.rating !== undefined) finalUpdateData.rating = updateData.rating.toString();
+      
+      // Gérer le mot de passe : hash si fourni et non vide
+      if (updateData.password !== undefined && updateData.password.trim() !== "") {
+        finalUpdateData.password = await hashPassword(updateData.password);
+      }
       
       const updated = await storage.updateRestaurant(restaurantId, finalUpdateData);
       

@@ -33,6 +33,7 @@ interface RestaurantFormData {
   deliveryTime: number;
   minOrder: string;
   rating: string;
+  password: string;
 }
 
 interface CreateRestaurantDialogProps {
@@ -53,6 +54,7 @@ const defaultForm: RestaurantFormData = {
   deliveryTime: 30,
   minOrder: "0",
   rating: "4.5",
+  password: "",
 };
 
 export function CreateRestaurantDialog({ open, onOpenChange, onSubmit }: CreateRestaurantDialogProps) {
@@ -81,7 +83,7 @@ export function CreateRestaurantDialog({ open, onOpenChange, onSubmit }: CreateR
         form.closedDay !== "none" ? form.closedDay : null
       );
 
-      const restaurantData = {
+      const restaurantData: any = {
         name: form.name,
         phone: form.phone,
         address: form.address,
@@ -93,6 +95,11 @@ export function CreateRestaurantDialog({ open, onOpenChange, onSubmit }: CreateR
         rating: form.rating,
         openingHours: openingHours || null,
       };
+      
+      // Ajouter le mot de passe seulement s'il est rempli
+      if (form.password && form.password.trim() !== "") {
+        restaurantData.password = form.password;
+      }
 
       adminLog("Création du restaurant avec:", restaurantData);
       await onSubmit(restaurantData);
@@ -321,6 +328,19 @@ export function CreateRestaurantDialog({ open, onOpenChange, onSubmit }: CreateR
                 min="0"
                 max="5"
               />
+            </div>
+            <div>
+              <Label>Mot de passe (optionnel)</Label>
+              <Input
+                type="password"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder="Minimum 6 caractères"
+                minLength={6}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Minimum 6 caractères. Si non renseigné, le mot de passe devra être défini plus tard.
+              </p>
             </div>
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? "Création..." : "Créer"}
