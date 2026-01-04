@@ -135,8 +135,8 @@ async function createTestOrder(restaurantId: string, menu: any[]) {
     const randomPhone = `+216${Math.floor(Math.random() * 90000000 + 10000000)}`;
     
     // Coordonnées GPS de test (Tataouine, Tunisie)
-    const testLat = 33.8869;
-    const testLng = 10.1000;
+    const testLat = 32.9297; // Latitude de Tataouine
+    const testLng = 10.4518; // Longitude de Tataouine
     
     // Créer la commande
     const orderData = {

@@ -436,8 +436,11 @@ export async function sendWhatsAppToDrivers(
         );
         
         if (activeOrders.length === 0) {
+          // 🛡️ RÈGLE : Si le livreur n'a plus de commandes actives, le remettre en "available"
+          // (statut de travail par défaut). On ne touche jamais aux statuts "offline" ou "available"
+          // car ce sont des choix explicites via le bouton ON/OFF.
           console.log(`[WhatsApp] 🔧 CORRECTION AUTO: ${driver.name} est en "on_delivery" mais n'a pas de commande en cours`);
-          console.log(`[WhatsApp] 🔧 Remise automatique en statut "available"`);
+          console.log(`[WhatsApp] 🔧 Remise automatique en statut "available" (retour au statut de travail par défaut)`);
           await storage.updateDriver(driver.id, { status: 'available' });
           driver.status = 'available'; // Mettre à jour aussi dans la liste locale
         }
@@ -647,7 +650,11 @@ export async function notifyNextDriverInQueue(
         );
         
         if (activeOrders.length === 0) {
+          // 🛡️ RÈGLE : Si le livreur n'a plus de commandes actives, le remettre en "available"
+          // (statut de travail par défaut). On ne touche jamais aux statuts "offline" ou "available"
+          // car ce sont des choix explicites via le bouton ON/OFF.
           console.log(`[Round Robin] 🔧 CORRECTION AUTO: ${driver.name} est en "on_delivery" mais n'a pas de commande en cours`);
+          console.log(`[Round Robin] 🔧 Remise automatique en statut "available" (retour au statut de travail par défaut)`);
           await storage.updateDriver(driver.id, { status: 'available' });
           driver.status = 'available';
         }

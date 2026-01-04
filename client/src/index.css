@@ -113,3 +113,10 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+/* Classe pour protéger les éléments techniques (numéros, prix) de l'inversion RTL */
+.format-technical {
+  direction: ltr !important;
+  unicode-bidi: isolate;
+  display: inline-block;
+}

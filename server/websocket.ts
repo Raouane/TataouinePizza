@@ -504,9 +504,11 @@ function resetHeartbeat(driverId: string, ws: WebSocket) {
 
 /**
  * Nettoie les ressources d'une connexion livreur
- * ✅ CORRECTION : Ne met JAMAIS le statut à "offline" si le livreur est en "available"
- * (choix explicite via bouton ON/OFF). La perte de connexion WebSocket ne doit pas
- * déconnecter le livreur de l'application.
+ * 🛡️ RÈGLE D'OR : Le statut est piloté par l'INTENTION de l'humain, pas par l'état de la socket.
+ * 
+ * - "available" et "offline" sont des choix explicites via le bouton ON/OFF → JAMAIS modifiés automatiquement
+ * - "on_delivery" est un statut transitoire de travail
+ * - La perte de connexion WebSocket ne doit JAMAIS changer un statut intentionnel
  */
 async function cleanupDriverConnection(driverId: string) {
   console.log(`[WebSocket] 🧹 Nettoyage connexion pour livreur ${driverId}`);
@@ -518,9 +520,9 @@ async function cleanupDriverConnection(driverId: string) {
     heartbeatTimers.delete(driverId);
   }
   
-  // ✅ CORRECTION : Ne JAMAIS changer le statut si le livreur est en "available"
-  // La déconnexion WebSocket (perte réseau, etc.) ne doit pas déconnecter le livreur
-  // de l'application. Seul le bouton ON/OFF ou 10h d'inactivité peuvent changer le statut.
+  // 🛡️ RÈGLE STRICTE : Ne JAMAIS modifier les statuts intentionnels ("available" ou "offline")
+  // La déconnexion WebSocket (perte réseau, etc.) ne doit JAMAIS changer le statut intentionnel
+  // Seul le bouton ON/OFF peut changer entre "available" et "offline"
   try {
     console.log(`[WebSocket] 🔍 Vérification statut pour livreur ${driverId}...`);
     const { storage } = await import("./storage.js");
@@ -531,10 +533,10 @@ async function cleanupDriverConnection(driverId: string) {
       return;
     }
     
-    // ✅ RÈGLE CRITIQUE : Si le livreur est en "available", c'est un choix explicite
-    // → NE JAMAIS changer le statut, même en cas de déconnexion WebSocket
-    if (driver.status === "available") {
-      console.log(`[WebSocket] ✅ Livreur ${driverId} en "available" (choix explicite via bouton ON/OFF), statut préservé malgré déconnexion WebSocket`);
+    // 🛡️ RÈGLE CRITIQUE : Les statuts "available" et "offline" sont des choix explicites
+    // → NE JAMAIS les modifier, même en cas de déconnexion WebSocket
+    if (driver.status === "available" || driver.status === "offline") {
+      console.log(`[WebSocket] ✅ Livreur ${driverId} en "${driver.status}" (choix explicite via bouton ON/OFF), statut préservé malgré déconnexion WebSocket`);
       // Mettre à jour last_seen pour éviter le nettoyage automatique à 10h
       await db
         .update(drivers)
@@ -543,7 +545,7 @@ async function cleanupDriverConnection(driverId: string) {
       return;
     }
     
-    // Vérifier les commandes actives
+    // Vérifier les commandes actives (uniquement pour le statut "on_delivery")
     const driverOrders = await storage.getOrdersByDriver(driverId);
     console.log(`[WebSocket] 📋 Livreur ${driverId}: ${driverOrders.length} commande(s) totale(s) trouvée(s)`);
     
@@ -564,14 +566,16 @@ async function cleanupDriverConnection(driverId: string) {
       return;
     }
     
-    // Aucune commande active ET statut différent de "available"
-    // → Mettre à "offline" uniquement si le statut n'est pas "available"
-    // (par exemple, si le livreur était en "on_delivery" mais n'a plus de commandes)
-    if (driver.status !== "available") {
-      console.log(`[WebSocket] 🔄 Mise à jour statut livreur ${driverId} à "offline"...`);
-      await storage.updateDriver(driverId, { status: "offline" });
-      console.log(`[WebSocket] ✅ Livreur ${driverId} mis à "offline" (déconnexion sans commande active et statut non-available)`);
+    // Aucune commande active ET statut "on_delivery"
+    // ✅ CORRECTION : Si le livreur n'a plus de commandes actives, le remettre en "available"
+    // (statut de travail par défaut). On suppose qu'il était en "available" avant d'accepter la commande
+    // car un livreur "offline" ne peut pas accepter de commandes.
+    if (driver.status === "on_delivery") {
+      console.log(`[WebSocket] 🔄 Livreur ${driverId} n'a plus de commandes actives, remise en "available" (retour au statut de travail par défaut)`);
+      await storage.updateDriver(driverId, { status: "available" });
+      console.log(`[WebSocket] ✅ Livreur ${driverId} remis en "available" (aucune commande active, prêt pour nouvelles commandes)`);
     }
+    // Si le statut n'est ni "available", ni "offline", ni "on_delivery", on ne le modifie pas
   } catch (error) {
     console.error(`[WebSocket] ❌ Erreur lors de la mise à jour du statut du livreur ${driverId}:`, error);
     console.error(`[WebSocket] ❌ Stack trace:`, error instanceof Error ? error.stack : 'N/A');
@@ -880,34 +884,17 @@ function startPeriodicCleanup(wss: WebSocketServer) {
       // (cette vérification est optionnelle car les timers se nettoient eux-mêmes)
     }
 
-    // ✅ CORRECTION : Le statut est géré UNIQUEMENT par :
+    // 🛡️ RÈGLE STRICTE : Le statut est géré UNIQUEMENT par :
     // - Le bouton ON/OFF dans l'app livreur (via /api/driver/toggle-status)
     // - L'admin depuis le panneau admin
     // 
-    // Timeout de sécurité à 10 heures (au lieu de 60 min) pour éviter les déconnexions
-    // prématurées pendant les rotations de travail. Seulement pour les cas extrêmes
-    // (oubli après très longue inactivité, crash, etc.)
-    try {
-      const result = await db
-        .update(drivers)
-        .set({ 
-          status: sql`'offline'`
-        })
-        .where(
-          sql`last_seen < NOW() - INTERVAL '10 hours' 
-              AND status = 'available'`
-        )
-        .returning({ id: drivers.id, name: drivers.name });
-      
-      if (result && result.length > 0) {
-        console.log(`[WebSocket] ⚠️ Timeout 10h: ${result.length} livreur(s) passé(s) offline automatiquement (inactivité > 10h)`);
-        result.forEach(driver => {
-          console.log(`[WebSocket]   - ${driver.name} (${driver.id})`);
-        });
-      }
-    } catch (error) {
-      console.error("[WebSocket] Erreur mise à jour statut livreurs:", error);
-    }
+    // ❌ SUPPRESSION : Plus de timeout automatique qui met en "offline"
+    // Le choix explicite du livreur est sacré. Si un livreur décide de se mettre
+    // "En pause" ou "Hors ligne", le système ne doit JAMAIS le forcer à repasser en ligne
+    // simplement à cause d'un bug de connexion ou d'une fin de commande.
+    // 
+    // Note: On garde juste la mise à jour de last_seen pour le suivi, mais on ne change
+    // jamais le statut automatiquement.
 
     const activeConnections = driverConnections.size;
     const activeTimers = orderAcceptanceTimers.size;

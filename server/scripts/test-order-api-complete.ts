@@ -144,8 +144,8 @@ async function testCreateOrder(restaurantId: string, menu: any[]) {
       phone: randomPhone,
       address: "123 Rue de Test, Tataouine",
       addressDetails: "Appartement 3, 2ème étage",
-      customerLat: 33.8869, // Coordonnées de Tunisie
-      customerLng: 10.1000,
+      customerLat: 32.9297, // Coordonnées de Tataouine, Tunisie
+      customerLng: 10.4518,
       items: [
         {
           pizzaId: selectedProduct.id,

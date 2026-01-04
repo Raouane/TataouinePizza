@@ -281,9 +281,12 @@ export function registerDriverOrdersRoutes(app: Express): void {
         }
         
         if (activeOrders.length === 0) {
-          // Aucune autre commande en cours, remettre en "available"
+          // 🛡️ RÈGLE : Aucune autre commande en cours, restaurer le statut intentionnel
+          // On suppose que le livreur était en "available" avant d'accepter la commande
+          // car un livreur "offline" ne peut pas accepter de commandes.
+          // Le statut "on_delivery" est transitoire, on revient au statut de travail par défaut.
           await storage.updateDriver(driverId, { status: "available" });
-          console.log(`[Driver] ✅ Livreur ${driverId} remis en statut "available" (aucune autre commande en cours)`);
+          console.log(`[Driver] ✅ Livreur ${driverId} remis en statut "available" (retour au statut de travail par défaut après livraison)`);
         } else {
           console.log(`[Driver] ⚠️ Livreur ${driverId} garde statut "on_delivery" (${activeOrders.length} autre(s) commande(s) en cours)`);
         }

@@ -1633,7 +1633,7 @@ export default function DriverDashboard() {
                           </Badge>
                         )}
                       </div>
-                      <div className="text-left">
+                      <div className="text-start">
                         <p className="font-medium">Historique</p>
                         <p className="text-xs text-muted-foreground">
                           {deliveredOrders.length} livraison{deliveredOrders.length > 1 ? 's' : ''} terminée{deliveredOrders.length > 1 ? 's' : ''}
@@ -1671,7 +1671,7 @@ export default function DriverDashboard() {
                       <div className="bg-red-100 p-2 rounded-lg">
                         <LogOut className="w-5 h-5 text-red-600" />
                       </div>
-                      <div className="text-left">
+                      <div className="text-start">
                         <p className="font-medium">Déconnexion</p>
                         <p className="text-xs text-muted-foreground">Quitter l'application</p>
                       </div>
@@ -1735,7 +1735,7 @@ export default function DriverDashboard() {
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] text-muted-foreground truncate">Total</p>
                 <p className="text-base font-bold text-emerald-600 truncate">
-                  {totalEarnings.toFixed(2)} TND
+                  <span className="format-technical">{totalEarnings.toFixed(2)} TND</span>
                 </p>
                 <p className="text-[10px] text-muted-foreground truncate">{totalDeliveries} liv.</p>
               </div>
@@ -2170,7 +2170,7 @@ export default function DriverDashboard() {
                       )}
                       <a href={`tel:${order.phone}`} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mt-1">
                         <Phone className="w-3 h-3" />
-                        {order.phone}
+                        <span className="format-technical">{order.phone}</span>
                       </a>
                     </div>
 
@@ -2178,7 +2178,7 @@ export default function DriverDashboard() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-xs text-muted-foreground">Total commande</p>
-                          <p className="font-bold text-lg">{Number(order.totalPrice).toFixed(2)} TND</p>
+                          <p className="font-bold text-lg"><span className="format-technical">{Number(order.totalPrice).toFixed(2)} TND</span></p>
                         </div>
                       </div>
                       
@@ -2278,7 +2278,7 @@ export default function DriverDashboard() {
                     className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
                   >
                     <Phone className="w-4 h-4" />
-                    {selectedOrder.phone}
+                    <span className="format-technical">{selectedOrder.phone}</span>
                   </a>
                 </div>
                 
@@ -2341,7 +2341,7 @@ export default function DriverDashboard() {
 
               <div className="pt-2 border-t">
                 <p className="text-xs text-muted-foreground mb-1">Total commande</p>
-                <p className="font-bold text-xl">{Number(selectedOrder.totalPrice).toFixed(2)} TND</p>
+                <p className="font-bold text-xl"><span className="format-technical">{Number(selectedOrder.totalPrice).toFixed(2)} TND</span></p>
               </div>
             </div>
           </Card>
@@ -2406,7 +2406,7 @@ export default function DriverDashboard() {
                 </div>
                 <div className="flex justify-between text-sm pt-2 border-t">
                   <span className="text-muted-foreground">Gain moyen</span>
-                  <span className="font-medium">
+                  <span className="font-medium format-technical">
                     {totalDeliveries > 0 ? (totalEarnings / totalDeliveries).toFixed(2) : "0.00"} TND
                   </span>
                 </div>
@@ -2468,7 +2468,7 @@ export default function DriverDashboard() {
                           <p className="font-medium">{order.customerName}</p>
                           <p className="text-sm text-muted-foreground">{order.address}</p>
                         </div>
-                        <p className="font-bold">{Number(order.totalPrice).toFixed(2)} TND</p>
+                        <p className="font-bold"><span className="format-technical">{Number(order.totalPrice).toFixed(2)} TND</span></p>
                       </div>
                     </div>
                   </Card>
