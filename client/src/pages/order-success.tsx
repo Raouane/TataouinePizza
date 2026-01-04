@@ -1,261 +1,83 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useSearchParams } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Check, Phone, MessageCircle, MapPin, Clock, ChefHat, Package, Bike, User, AlertCircle, X } from "lucide-react";
+import { Check, Phone, MessageCircle, MapPin, Clock, ChefHat, Bike, AlertCircle, X } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useLanguage } from "@/lib/i18n";
 import { useOrder } from "@/lib/order-context";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { createOrder } from "@/lib/api";
 import { useCart } from "@/lib/cart";
-import { isRestaurantOpen as checkNewOpeningHours, parseOpeningHoursSchedule, formatOpeningHours } from "@shared/openingHours";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
-
-type SearchPhase = 'searching' | 'found' | 'success';
+import { useOrderTracking } from "@/hooks/use-order-tracking";
+import { verifyFlouciPayment, isFlouciCallback, getFlouciPaymentId } from "@/features/order/services/flouci-verification";
 
 export default function OrderSuccess() {
   const { t, language } = useLanguage();
-  const { activeOrder, orderId, orderData, status, eta, refreshOrderData, startOrder } = useOrder();
+  const { orderId, orderData, status, eta, refreshOrderData, startOrder } = useOrder();
   const [, setLocation] = useLocation();
   const { clearCart } = useCart();
-  const [searchPhase, setSearchPhase] = useState<SearchPhase>('searching');
-  const [driverName, setDriverName] = useState<string>('');
-  const [hasShownSearch, setHasShownSearch] = useState(false);
-  const [isDelivered, setIsDelivered] = useState(false);
-  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const [showTimeoutAlert, setShowTimeoutAlert] = useState(false);
-  const [showTimeoutDialog, setShowTimeoutDialog] = useState(false);
-  const [orderCreatedAt, setOrderCreatedAt] = useState<Date | null>(null);
   const [isVerifyingFlouci, setIsVerifyingFlouci] = useState(false);
   const [flouciVerified, setFlouciVerified] = useState(false);
   const [showPwaBanner, setShowPwaBanner] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
-  // Mettre à jour le nom du livreur quand orderData change
-  useEffect(() => {
-    if (orderData?.driverName) {
-      setDriverName(orderData.driverName);
-    }
-  }, [orderData?.driverName]);
+  // Utiliser le hook de tracking amélioré
+  const {
+    phase: searchPhase,
+    isDelivered,
+    driverName,
+    orderCreatedAt,
+    showTimeoutAlert,
+    showTimeoutDialog,
+    dismissTimeoutAlert,
+    dismissTimeoutDialog,
+  } = useOrderTracking(orderId);
 
   // Vérifier le paiement Flouci si on arrive depuis Flouci
   useEffect(() => {
-    // Récupérer les paramètres de l'URL avec URLSearchParams
-    const searchParams = new URLSearchParams(window.location.search);
-    const paymentParam = searchParams.get('payment');
-    const paymentId = searchParams.get('id') || searchParams.get('payment_id');
-    
-    if (paymentParam === 'flouci' && !flouciVerified && !isVerifyingFlouci) {
-      const pendingOrder = sessionStorage.getItem('pendingFlouciOrder');
-      const storedPaymentId = sessionStorage.getItem('flouciPaymentId');
-      
-      // Essayer de récupérer le payment_id depuis différentes sources
-      const finalPaymentId = 
-        paymentId || 
-        storedPaymentId ||
-        null;
-      
-      if (pendingOrder && finalPaymentId) {
-        handleFlouciVerification(finalPaymentId);
-      } else if (pendingOrder && !finalPaymentId) {
-        // Pas de payment_id trouvé, afficher un message d'erreur
-        console.error('[OrderSuccess] ❌ Payment ID not found');
-        toast.error(
-          language === 'ar' 
-            ? 'معرف الدفع غير موجود' 
-            : language === 'en' 
-            ? 'Payment ID not found' 
-            : 'Identifiant de paiement introuvable'
-        );
-        setTimeout(() => {
-          setLocation('/cart?payment=error');
-        }, 2000);
-      }
+    if (!isFlouciCallback() || flouciVerified || isVerifyingFlouci) {
+      return;
+    }
+
+    const pendingOrder = sessionStorage.getItem('pendingFlouciOrder');
+    const paymentId = getFlouciPaymentId();
+
+    if (pendingOrder && paymentId) {
+      handleFlouciVerification(paymentId);
+    } else if (pendingOrder && !paymentId) {
+      // Pas de payment_id trouvé, afficher un message d'erreur
+      console.error('[OrderSuccess] ❌ Payment ID not found');
+      toast.error(
+        language === 'ar' 
+          ? 'معرف الدفع غير موجود' 
+          : language === 'en' 
+          ? 'Payment ID not found' 
+          : 'Identifiant de paiement introuvable'
+      );
+      setTimeout(() => {
+        setLocation('/cart?payment=error');
+      }, 2000);
     }
   }, [flouciVerified, isVerifyingFlouci, language, setLocation]);
 
-  // Fonction pour vérifier et créer la commande Flouci
+  // Fonction pour vérifier et créer la commande Flouci (utilise le service)
   const handleFlouciVerification = async (paymentId: string) => {
     setIsVerifyingFlouci(true);
     
-    try {
-      console.log('[OrderSuccess] 🔍 Vérification paiement Flouci:', paymentId);
-      
-      // Vérifier le statut du paiement
-      const response = await fetch(`/api/payments/flouci/verify/${paymentId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to verify Flouci payment');
-      }
-      
-      const data = await response.json();
-      
-      console.log('[OrderSuccess] 📊 Statut paiement Flouci:', data);
-      
-      // Vérifier si le paiement est réussi
-      if (data.success && data.status === 'SUCCESS') {
-        // Récupérer les données de commande depuis sessionStorage
-        const pendingOrderStr = sessionStorage.getItem('pendingFlouciOrder');
-        if (!pendingOrderStr) {
-          throw new Error('Order data not found');
-        }
-        
-        const pendingOrder = JSON.parse(pendingOrderStr);
-        
-        console.log('[OrderSuccess] ✅ Paiement Flouci confirmé, vérification des horaires avant création de la commande');
-        
-        // ✅ VÉRIFICATION DES HORAIRES : Vérifier si les restaurants sont toujours ouverts
-        try {
-          const response = await fetch("/api/restaurants");
-          if (response.ok) {
-            const allRestaurants = await response.json();
-            const restaurantMap = new Map(allRestaurants.map((r: any) => [r.id, r]));
-            
-            const closedRestaurants: Array<{ id: string; name: string; nextOpenTime?: string | null }> = [];
-            
-            for (const restaurantCart of pendingOrder.restaurants) {
-              const restaurant = restaurantMap.get(restaurantCart.restaurantId);
-              if (!restaurant) continue;
-              
-              // Vérifier le toggle manuel d'abord
-              if (restaurant.isOpen === false || restaurant.computedStatus?.isOpen === false) {
-                closedRestaurants.push({
-                  id: restaurant.id,
-                  name: restaurant.name || restaurantCart.restaurantName || "Restaurant inconnu",
-                });
-                continue;
-              }
-              
-              // Essayer le nouveau format JSON
-              const schedule = parseOpeningHoursSchedule(restaurant.openingHours || null);
-              if (schedule) {
-                const status = checkNewOpeningHours(schedule);
-                if (!status.isOpen) {
-                  closedRestaurants.push({
-                    id: restaurant.id,
-                    name: restaurant.name || restaurantCart.restaurantName || "Restaurant inconnu",
-                    nextOpenTime: status.nextOpenTime,
-                  });
-                }
-              } else {
-                // Fallback : utiliser computedStatus si disponible
-                if (restaurant.computedStatus && !restaurant.computedStatus.isOpen) {
-                  closedRestaurants.push({
-                    id: restaurant.id,
-                    name: restaurant.name || restaurantCart.restaurantName || "Restaurant inconnu",
-                  });
-                }
-              }
-            }
-            
-            // Si un restaurant est fermé, annuler et rembourser
-            if (closedRestaurants.length > 0) {
-              const closedNames = closedRestaurants.map(r => r.name).join(", ");
-              
-              // Récupérer les horaires formatés
-              let formattedHours = '';
-              for (const closedRestaurant of closedRestaurants) {
-                const restaurant = restaurantMap.get(closedRestaurant.id);
-                if (restaurant) {
-                  const schedule = parseOpeningHoursSchedule(restaurant.openingHours || null);
-                  if (schedule) {
-                    const hours = formatOpeningHours(schedule, language);
-                    if (hours) {
-                      formattedHours = hours;
-                      break; // Prendre le premier pour simplifier
-                    }
-                  }
-                }
-              }
-              
-              let message = '';
-              if (language === 'ar') {
-                message = formattedHours
-                  ? `عذراً، ${closedNames} ${closedRestaurants.length === 1 ? 'أغلق للتو' : 'أغلقوا للتو'} مطابخه أثناء الدفع. ${formattedHours} سيتم استرداد دفعتك.`
-                  : `عذراً، ${closedNames} ${closedRestaurants.length === 1 ? 'أغلق للتو' : 'أغلقوا للتو'} مطابخه أثناء الدفع. سيتم استرداد دفعتك.`;
-              } else if (language === 'en') {
-                message = formattedHours
-                  ? `Sorry, ${closedNames} ${closedRestaurants.length === 1 ? 'just closed' : 'just closed'} their kitchens while you were paying. ${formattedHours} Your payment will be refunded.`
-                  : `Sorry, ${closedNames} ${closedRestaurants.length === 1 ? 'just closed' : 'just closed'} their kitchens while you were paying. Your payment will be refunded.`;
-              } else {
-                message = formattedHours
-                  ? `Désolé, ${closedNames} ${closedRestaurants.length === 1 ? 'vient de fermer' : 'viennent de fermer'} ses cuisines pendant que vous payiez. ${formattedHours} Votre paiement sera remboursé.`
-                  : `Désolé, ${closedNames} ${closedRestaurants.length === 1 ? 'vient de fermer' : 'viennent de fermer'} ses cuisines pendant que vous payiez. Votre paiement sera remboursé.`;
-              }
-              
-              toast.error(
-                language === 'ar' 
-                  ? 'المطعم مغلق' 
-                  : language === 'en' 
-                  ? 'Restaurant Closed' 
-                  : 'Restaurant fermé',
-                {
-                  description: message,
-                  duration: 10000,
-                }
-              );
-              
-              // Nettoyer sessionStorage
-              sessionStorage.removeItem('pendingFlouciOrder');
-              sessionStorage.removeItem('flouciPaymentId');
-              
-              // Rediriger vers le panier
-              setTimeout(() => {
-                setLocation('/cart?payment=restaurant_closed');
-              }, 3000);
-              
-              return; // Bloquer la création de la commande
-            }
-          }
-        } catch (error) {
-          console.error('[OrderSuccess] Erreur lors de la vérification des horaires:', error);
-          // En cas d'erreur, on continue quand même (le serveur vérifiera aussi)
-        }
-        
-        console.log('[OrderSuccess] ✅ Tous les restaurants sont ouverts, création de la commande');
-        
-        // Créer les commandes
-        const orderPromises = pendingOrder.restaurants.map(async (restaurantCart: any) => {
-          return createOrder({
-            restaurantId: restaurantCart.restaurantId,
-            customerName: pendingOrder.customerName,
-            phone: pendingOrder.phone,
-            address: pendingOrder.address,
-            addressDetails: pendingOrder.addressDetails,
-            customerLat: pendingOrder.customerLat,
-            customerLng: pendingOrder.customerLng,
-            items: restaurantCart.items,
-          });
-        });
-        
-        const results = await Promise.all(orderPromises);
-        console.log(`[OrderSuccess] ✅ ${results.length} commande(s) créée(s) avec succès`);
-        
-        // Nettoyer sessionStorage
-        sessionStorage.removeItem('pendingFlouciOrder');
-        sessionStorage.removeItem('flouciPaymentId');
-        
-        // Sauvegarder les données client
-        if (pendingOrder.customerName && pendingOrder.phone) {
-          localStorage.setItem('customerName', pendingOrder.customerName);
-          localStorage.setItem('customerPhone', pendingOrder.phone);
-        }
-        
+    const result = await verifyFlouciPayment({
+      paymentId,
+      language,
+      onSuccess: (orderIds) => {
         // Vider le panier
         clearCart();
         
         // Démarrer le suivi de commande
-        if (results.length > 0 && results[0].orderId) {
-          startOrder(results[0].orderId);
+        if (orderIds.length > 0 && orderIds[0]) {
+          startOrder(orderIds[0]);
         } else {
           startOrder();
         }
@@ -269,39 +91,19 @@ export default function OrderSuccess() {
             ? 'Payment confirmed and order created successfully' 
             : 'Paiement confirmé et commande créée avec succès'
         );
-      } else {
-        // Paiement échoué ou en attente
-        console.warn('[OrderSuccess] ⚠️ Paiement Flouci non confirmé:', data.status);
-        
-        toast.error(
-          language === 'ar' 
-            ? 'لم يتم تأكيد الدفع. يرجى المحاولة مرة أخرى.' 
-            : language === 'en' 
-            ? 'Payment not confirmed. Please try again.' 
-            : 'Paiement non confirmé. Veuillez réessayer.'
-        );
-        
-        // Rediriger vers le panier
-        setTimeout(() => {
-          setLocation('/cart?payment=failed');
-        }, 2000);
-      }
-    } catch (error: any) {
-      console.error('[OrderSuccess] ❌ Erreur vérification Flouci:', error);
-      toast.error(
-        language === 'ar' 
-          ? 'خطأ في التحقق من الدفع' 
-          : language === 'en' 
-          ? 'Payment verification error' 
-          : 'Erreur de vérification du paiement'
-      );
-      
-      // Rediriger vers le panier en cas d'erreur
+      },
+      onError: (error) => {
+        toast.error(error);
+      },
+    });
+
+    setIsVerifyingFlouci(false);
+
+    // Rediriger si nécessaire
+    if (result.redirectTo) {
       setTimeout(() => {
-        setLocation('/cart?payment=error');
-      }, 2000);
-    } finally {
-      setIsVerifyingFlouci(false);
+        setLocation(result.redirectTo!);
+      }, result.error ? 3000 : 2000);
     }
   };
 
@@ -315,53 +117,11 @@ export default function OrderSuccess() {
 
   // Détecter quand la commande est livrée et afficher le message de succès
   useEffect(() => {
-    const realStatus = orderData?.status;
-    
-    if (realStatus === 'delivered' && !isDelivered) {
+    if (isDelivered && !showSuccessMessage) {
       console.log('[OrderSuccess] ✅ Commande livrée détectée, affichage message de succès');
-      setIsDelivered(true);
       setShowSuccessMessage(true);
     }
-  }, [orderData?.status, isDelivered]);
-
-  // Initialiser la date de création de la commande
-  useEffect(() => {
-    if (orderData?.createdAt && !orderCreatedAt) {
-      const createdAt = orderData.createdAt instanceof Date 
-        ? orderData.createdAt 
-        : new Date(orderData.createdAt);
-      setOrderCreatedAt(createdAt);
-      console.log('[OrderSuccess] 📅 Date de création de la commande:', createdAt);
-    }
-  }, [orderData?.createdAt, orderCreatedAt]);
-
-  // Système de timeout global : 5 min (alerte) et 10 min (annulation forcée)
-  useEffect(() => {
-    if (!orderId || !orderCreatedAt || orderData?.driverId) {
-      return; // Pas de timeout si livreur déjà assigné
-    }
-
-    const FIVE_MINUTES = 5 * 60 * 1000; // 5 minutes
-    const TEN_MINUTES = 10 * 60 * 1000; // 10 minutes
-
-    // Vérifier toutes les secondes
-    const interval = setInterval(() => {
-      const currentElapsed = Date.now() - orderCreatedAt.getTime();
-      
-      if (currentElapsed >= TEN_MINUTES) {
-        // 10 minutes : Forcer la proposition d'annulation
-        console.log('[OrderSuccess] ⏰ Timeout global atteint (10 min)');
-        setShowTimeoutDialog(true);
-        clearInterval(interval);
-      } else if (currentElapsed >= FIVE_MINUTES && !showTimeoutAlert) {
-        // 5 minutes : Afficher l'alerte
-        console.log('[OrderSuccess] ⚠️ Alerte timeout (5 min)');
-        setShowTimeoutAlert(true);
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [orderId, orderCreatedAt, orderData?.driverId, showTimeoutAlert]);
+  }, [isDelivered, showSuccessMessage]);
 
   // Fonction pour annuler la commande
   const handleCancelOrder = async () => {
@@ -400,40 +160,6 @@ export default function OrderSuccess() {
     // Rediriger vers l'accueil
     window.location.replace('/');
   };
-
-  // ✅ CORRECTION : Vérifier réellement si un livreur a accepté (driverId présent)
-  useEffect(() => {
-    if (!orderId) {
-      setSearchPhase('searching');
-      return;
-    }
-
-    // Vérifier si un livreur a vraiment accepté (driverId présent)
-    const hasDriver = orderData?.driverId && 
-                      orderData.driverId !== null && 
-                      orderData.driverId !== undefined && 
-                      String(orderData.driverId).trim() !== '';
-    
-    if (hasDriver) {
-      // Un livreur a vraiment accepté
-      const foundShown = sessionStorage.getItem(`orderFoundShown_${orderId}`);
-      if (foundShown !== 'true') {
-        // Première fois qu'on détecte l'acceptation
-        console.log('[OrderSuccess] ✅ Livreur accepté détecté (driverId présent):', orderData.driverId);
-        setSearchPhase('found');
-        sessionStorage.setItem(`orderFoundShown_${orderId}`, 'true');
-        setTimeout(() => {
-          setSearchPhase('success');
-        }, 2000);
-      } else {
-        // Déjà affiché, passer directement au succès
-        setSearchPhase('success');
-      }
-    } else {
-      // Pas encore de livreur, rester en "searching"
-      setSearchPhase('searching');
-    }
-  }, [orderId, orderData?.driverId]);
 
   // Confetti au chargement de la page de succès (seulement la première fois)
   useEffect(() => {
@@ -596,7 +322,7 @@ export default function OrderSuccess() {
           </motion.div>
         </div>
 
-        {/* Alerte à 5 minutes */}
+        {/* Alerte à 5 minutes - gérée par le hook */}
         {showTimeoutAlert && (
           <div className="fixed bottom-4 left-4 right-4 z-50 max-w-md mx-auto">
             <Card className="p-4 border-orange-500 bg-orange-50">
@@ -617,7 +343,7 @@ export default function OrderSuccess() {
                       Annuler la commande
                     </Button>
                     <Button
-                      onClick={() => setShowTimeoutAlert(false)}
+                      onClick={dismissTimeoutAlert}
                       variant="outline"
                       size="sm"
                       className="flex-1"
@@ -630,7 +356,7 @@ export default function OrderSuccess() {
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6"
-                  onClick={() => setShowTimeoutAlert(false)}
+                  onClick={dismissTimeoutAlert}
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -639,8 +365,8 @@ export default function OrderSuccess() {
           </div>
         )}
 
-        {/* Dialog d'annulation forcée à 10 minutes */}
-        <Dialog open={showTimeoutDialog} onOpenChange={setShowTimeoutDialog}>
+        {/* Dialog d'annulation forcée à 10 minutes - géré par le hook */}
+        <Dialog open={showTimeoutDialog} onOpenChange={dismissTimeoutDialog}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -654,7 +380,7 @@ export default function OrderSuccess() {
             </DialogHeader>
             <DialogFooter>
               <Button
-                onClick={() => setShowTimeoutDialog(false)}
+                onClick={dismissTimeoutDialog}
                 variant="outline"
               >
                 Continuer à attendre

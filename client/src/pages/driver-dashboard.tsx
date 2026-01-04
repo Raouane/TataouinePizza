@@ -9,7 +9,8 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { getStatusColor, getDriverStatusLabel } from "@/lib/order-status-helpers";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { OrderDetailsDialog } from "@/components/order-details-dialog";
 // ✅ DÉSACTIVÉ : Bannières de notifications
 // import { AudioPermissionBanner } from "@/components/audio-permission-banner";
@@ -204,6 +205,13 @@ export default function DriverDashboard() {
           console.log("[WebSocket] Connecté");
           setWsConnected(true);
           reconnectAttemptsRef.current = 0; // Réinitialiser les tentatives
+          
+          // ✅ NOUVEAU : Initialiser le temps de début de session si pas déjà fait
+          if (!sessionStartTimeRef.current) {
+            sessionStartTimeRef.current = Date.now();
+            console.log("[Driver Dashboard] 📅 Début de session enregistré");
+          }
+          
           toast.success("Connecté aux notifications en temps réel");
         };
 
@@ -390,6 +398,35 @@ export default function DriverDashboard() {
       clearInterval(keepAliveInterval);
     };
   }, [wsConnected, isOnline]);
+
+  // ✅ NOUVEAU : Vérifier l'alerte de fin de session à 9h30 de connexion
+  useEffect(() => {
+    if (!sessionStartTimeRef.current || showSessionWarning) return;
+
+    const NINE_HOURS_THIRTY = 9.5 * 60 * 60 * 1000; // 9h30 en millisecondes
+    const THIRTY_MINUTES = 30 * 60 * 1000; // 30 minutes en millisecondes
+
+    const checkSessionTime = () => {
+      if (!sessionStartTimeRef.current) return;
+
+      const elapsed = Date.now() - sessionStartTimeRef.current;
+      const timeUntilWarning = NINE_HOURS_THIRTY - elapsed;
+
+      // Si on a atteint 9h30, afficher l'alerte
+      if (elapsed >= NINE_HOURS_THIRTY && !showSessionWarning) {
+        console.log("[Driver Dashboard] ⚠️ Alerte de fin de session déclenchée (9h30 de connexion)");
+        setShowSessionWarning(true);
+      }
+    };
+
+    // Vérifier immédiatement
+    checkSessionTime();
+
+    // Vérifier toutes les minutes
+    const interval = setInterval(checkSessionTime, 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [showSessionWarning]);
 
   // Nettoyer les timers de visibilité et les intervalles de son au démontage
   useEffect(() => {
@@ -2441,6 +2478,26 @@ export default function DriverDashboard() {
       {/* ✅ DÉSACTIVÉ : Bannières de notifications */}
       {/* <AudioPermissionBanner /> */}
       {/* <PwaInstallPrompt /> */}
+
+      {/* ✅ NOUVEAU : Alerte de fin de session à 9h30 */}
+      <AlertDialog open={showSessionWarning} onOpenChange={setShowSessionWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-orange-600" />
+              Alerte de fin de session
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Vous allez être déconnecté pour sécurité dans 30 minutes. Veuillez vous reconnecter si vous continuez votre service.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowSessionWarning(false)}>
+              Compris
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

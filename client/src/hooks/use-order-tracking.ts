@@ -1,12 +1,17 @@
 /**
  * Hook pour gérer le tracking d'une commande
  * Extrait la logique complexe de order-success.tsx pour améliorer la maintenabilité
+ * 
+ * Gère :
+ * - Les phases de recherche (searching -> found -> success)
+ * - Les timeouts (5 min alerte, 10 min annulation forcée)
+ * - La détection de livraison
  */
 
 import { useState, useEffect } from 'react';
 import { useOrder } from '@/lib/order-context';
 
-type TrackingPhase = 'searching' | 'found' | 'tracking' | 'delivered' | 'timeout';
+type TrackingPhase = 'searching' | 'found' | 'success' | 'delivered';
 
 interface UseOrderTrackingResult {
   phase: TrackingPhase;
@@ -14,8 +19,11 @@ interface UseOrderTrackingResult {
   orderData: any | null;
   refreshOrderData: () => Promise<string | null>;
   driverName: string;
-  searchTimeElapsed: number; // Temps écoulé en secondes depuis le début de la recherche
-  isSearchTimeout: boolean; // True si 2 minutes se sont écoulées sans livreur
+  orderCreatedAt: Date | null;
+  showTimeoutAlert: boolean; // Alerte à 5 minutes
+  showTimeoutDialog: boolean; // Dialog d'annulation à 10 minutes
+  dismissTimeoutAlert: () => void; // Fermer l'alerte
+  dismissTimeoutDialog: () => void; // Fermer le dialog
 }
 
 /**
@@ -23,8 +31,8 @@ interface UseOrderTrackingResult {
  * 
  * Phases :
  * - 'searching' : Recherche de livreur (en attente d'acceptation par un livreur)
- * - 'found' : Livreur trouvé (quand un livreur a accepté - driverId présent)
- * - 'tracking' : Suivi en temps réel
+ * - 'found' : Livreur trouvé (transition de 2 secondes)
+ * - 'success' : Suivi en temps réel (livreur assigné)
  * - 'delivered' : Commande livrée
  */
 export function useOrderTracking(orderId: string | null): UseOrderTrackingResult {
@@ -32,53 +40,48 @@ export function useOrderTracking(orderId: string | null): UseOrderTrackingResult
   const [phase, setPhase] = useState<TrackingPhase>('searching');
   const [isDelivered, setIsDelivered] = useState(false);
   const [driverName, setDriverName] = useState<string>('');
-  const [searchStartTime, setSearchStartTime] = useState<number | null>(null);
-  const [searchTimeElapsed, setSearchTimeElapsed] = useState<number>(0);
-  const [isSearchTimeout, setIsSearchTimeout] = useState<boolean>(false);
+  const [orderCreatedAt, setOrderCreatedAt] = useState<Date | null>(null);
+  const [showTimeoutAlert, setShowTimeoutAlert] = useState(false);
+  const [showTimeoutDialog, setShowTimeoutDialog] = useState(false);
 
-  // Timer Round Robin : 2 minutes (120 secondes)
-  const SEARCH_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+  const FIVE_MINUTES = 5 * 60 * 1000; // 5 minutes
+  const TEN_MINUTES = 10 * 60 * 1000; // 10 minutes
 
-  // Initialiser le timer de recherche quand la commande est créée
+  // Initialiser la date de création de la commande
   useEffect(() => {
-    if (orderId && !orderData?.driverId) {
-      if (searchStartTime === null) {
-        const startTime = Date.now();
-        setSearchStartTime(startTime);
-        console.log('[useOrderTracking] ⏱️ Timer de recherche démarré pour commande', orderId);
-      }
-    } else if (orderData?.driverId) {
-      // Livreur trouvé, réinitialiser le timer
-      setSearchStartTime(null);
-      setSearchTimeElapsed(0);
-      setIsSearchTimeout(false);
-      if (phase === 'timeout') {
-        setPhase('found'); // Passer à 'found' puis 'tracking'
-      }
+    if (orderData?.createdAt && !orderCreatedAt) {
+      const createdAt = orderData.createdAt instanceof Date 
+        ? orderData.createdAt 
+        : new Date(orderData.createdAt);
+      setOrderCreatedAt(createdAt);
+      console.log('[useOrderTracking] 📅 Date de création de la commande:', createdAt);
     }
-  }, [orderId, orderData?.driverId, phase, searchStartTime]);
+  }, [orderData?.createdAt, orderCreatedAt]);
 
-  // Mettre à jour le temps écoulé et vérifier le timeout
+  // Système de timeout global : 5 min (alerte) et 10 min (annulation forcée)
   useEffect(() => {
-    if (searchStartTime === null || orderData?.driverId) {
-      return;
+    if (!orderId || !orderCreatedAt || orderData?.driverId) {
+      return; // Pas de timeout si livreur déjà assigné
     }
 
+    // Vérifier toutes les secondes
     const interval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - searchStartTime) / 1000);
-      setSearchTimeElapsed(elapsed);
-
-      if (Date.now() - searchStartTime >= SEARCH_TIMEOUT_MS) {
-        setIsSearchTimeout(true);
-        if (phase === 'searching') {
-          console.log('[useOrderTracking] ⏱️ Timeout de recherche (2 minutes) atteint');
-          setPhase('timeout');
-        }
+      const currentElapsed = Date.now() - orderCreatedAt.getTime();
+      
+      if (currentElapsed >= TEN_MINUTES) {
+        // 10 minutes : Forcer la proposition d'annulation
+        console.log('[useOrderTracking] ⏰ Timeout global atteint (10 min)');
+        setShowTimeoutDialog(true);
+        clearInterval(interval);
+      } else if (currentElapsed >= FIVE_MINUTES && !showTimeoutAlert) {
+        // 5 minutes : Afficher l'alerte
+        console.log('[useOrderTracking] ⚠️ Alerte timeout (5 min)');
+        setShowTimeoutAlert(true);
       }
-    }, 1000); // Mise à jour chaque seconde
+    }, 1000);
 
     return () => clearInterval(interval);
-  }, [searchStartTime, orderData?.driverId, phase, SEARCH_TIMEOUT_MS]);
+  }, [orderId, orderCreatedAt, orderData?.driverId, showTimeoutAlert, FIVE_MINUTES, TEN_MINUTES]);
 
   // Mettre à jour le nom du livreur quand orderData change
   useEffect(() => {
@@ -87,57 +90,39 @@ export function useOrderTracking(orderId: string | null): UseOrderTrackingResult
     }
   }, [orderData?.driverName]);
 
-  // Phase 1: Recherche de livreur - RESTER en "searching" jusqu'à ce qu'un livreur accepte
+  // ✅ CORRECTION : Vérifier réellement si un livreur a accepté (driverId présent)
   useEffect(() => {
     if (!orderId) {
       setPhase('searching');
       return;
     }
 
-    // Debug: Log pour comprendre pourquoi driverId est présent
-    if (orderData?.driverId) {
-      console.log(`[useOrderTracking] 🔍 DEBUG - driverId présent pour commande ${orderId}:`, {
-        orderId,
-        orderDataOrderId: orderData?.id,
-        driverId: orderData.driverId,
-        orderDataKeys: Object.keys(orderData || {}),
-        orderDataStatus: orderData?.status,
-      });
-    }
-
-    // Si un livreur a déjà accepté (driverId présent ET non vide)
-    // Vérifier que driverId est vraiment présent (pas null, pas undefined, pas chaîne vide)
+    // Vérifier si un livreur a vraiment accepté (driverId présent ET non vide)
     const hasDriver = orderData?.driverId && 
                       orderData.driverId !== null && 
                       orderData.driverId !== undefined && 
                       String(orderData.driverId).trim() !== '';
     
     if (hasDriver) {
-      // Vérifier si on a déjà affiché "found" pour cette commande
+      // Un livreur a vraiment accepté
       const foundShown = sessionStorage.getItem(`orderFoundShown_${orderId}`);
       if (foundShown !== 'true') {
-        // Première fois qu'on détecte l'acceptation - afficher "found" puis "tracking"
+        // Première fois qu'on détecte l'acceptation
         console.log('[useOrderTracking] ✅ Livreur accepté détecté (driverId présent):', orderData.driverId);
         setPhase('found');
         sessionStorage.setItem(`orderFoundShown_${orderId}`, 'true');
-        const timer = setTimeout(() => {
-          setPhase('tracking');
+        setTimeout(() => {
+          setPhase('success');
         }, 2000);
-        return () => clearTimeout(timer);
       } else {
-        // Déjà affiché, passer directement au tracking
-        setPhase('tracking');
+        // Déjà affiché, passer directement au succès
+        setPhase('success');
       }
-      return;
-    }
-
-    // Pas encore de livreur assigné
-    // Si on est déjà en timeout, rester en timeout
-    // Sinon, rester en searching
-    if (phase !== 'timeout') {
+    } else {
+      // Pas encore de livreur, rester en "searching"
       setPhase('searching');
     }
-  }, [orderId, orderData?.driverId, phase]);
+  }, [orderId, orderData?.driverId]);
 
   // Détecter quand la commande est livrée
   useEffect(() => {
@@ -156,7 +141,10 @@ export function useOrderTracking(orderId: string | null): UseOrderTrackingResult
     orderData,
     refreshOrderData,
     driverName,
-    searchTimeElapsed,
-    isSearchTimeout,
+    orderCreatedAt,
+    showTimeoutAlert,
+    showTimeoutDialog,
+    dismissTimeoutAlert: () => setShowTimeoutAlert(false),
+    dismissTimeoutDialog: () => setShowTimeoutDialog(false),
   };
 }

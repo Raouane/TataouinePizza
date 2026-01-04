@@ -504,7 +504,9 @@ function resetHeartbeat(driverId: string, ws: WebSocket) {
 
 /**
  * Nettoie les ressources d'une connexion livreur
- * Met automatiquement le statut à "offline" sauf si le livreur a des commandes actives
+ * ✅ CORRECTION : Ne met JAMAIS le statut à "offline" si le livreur est en "available"
+ * (choix explicite via bouton ON/OFF). La perte de connexion WebSocket ne doit pas
+ * déconnecter le livreur de l'application.
  */
 async function cleanupDriverConnection(driverId: string) {
   console.log(`[WebSocket] 🧹 Nettoyage connexion pour livreur ${driverId}`);
@@ -516,11 +518,11 @@ async function cleanupDriverConnection(driverId: string) {
     heartbeatTimers.delete(driverId);
   }
   
-  // Mettre le statut à "offline" lors de la déconnexion, SAUF :
-  // - Si le livreur est en "available" (choix explicite via bouton ON/OFF)
-  // - Si le livreur a des commandes actives (garder "on_delivery")
+  // ✅ CORRECTION : Ne JAMAIS changer le statut si le livreur est en "available"
+  // La déconnexion WebSocket (perte réseau, etc.) ne doit pas déconnecter le livreur
+  // de l'application. Seul le bouton ON/OFF ou 10h d'inactivité peuvent changer le statut.
   try {
-    console.log(`[WebSocket] 🔍 Vérification statut et commandes pour livreur ${driverId}...`);
+    console.log(`[WebSocket] 🔍 Vérification statut pour livreur ${driverId}...`);
     const { storage } = await import("./storage.js");
     const driver = await storage.getDriverById(driverId);
     
@@ -529,9 +531,15 @@ async function cleanupDriverConnection(driverId: string) {
       return;
     }
     
-    // Si le livreur est en "available", c'est un choix explicite → NE PAS changer
+    // ✅ RÈGLE CRITIQUE : Si le livreur est en "available", c'est un choix explicite
+    // → NE JAMAIS changer le statut, même en cas de déconnexion WebSocket
     if (driver.status === "available") {
-      console.log(`[WebSocket] ✅ Livreur ${driverId} en "available" (choix explicite via bouton ON/OFF), statut préservé`);
+      console.log(`[WebSocket] ✅ Livreur ${driverId} en "available" (choix explicite via bouton ON/OFF), statut préservé malgré déconnexion WebSocket`);
+      // Mettre à jour last_seen pour éviter le nettoyage automatique à 10h
+      await db
+        .update(drivers)
+        .set({ lastSeen: sql`NOW()` })
+        .where(eq(drivers.id, driverId));
       return;
     }
     
@@ -539,7 +547,7 @@ async function cleanupDriverConnection(driverId: string) {
     const driverOrders = await storage.getOrdersByDriver(driverId);
     console.log(`[WebSocket] 📋 Livreur ${driverId}: ${driverOrders.length} commande(s) totale(s) trouvée(s)`);
     
-    // ✅ CORRECTION : Inclure aussi les commandes "received" avec driverId (elles sont assignées au livreur)
+    // Inclure aussi les commandes "received" avec driverId (elles sont assignées au livreur)
     const activeOrders = driverOrders.filter(o => 
       o.status === "delivery" || o.status === "accepted" || o.status === "ready" || o.status === "received"
     );
@@ -551,16 +559,18 @@ async function cleanupDriverConnection(driverId: string) {
       activeOrders.forEach((order, index) => {
         console.log(`[WebSocket]   ${index + 1}. Commande ${order.id.slice(0, 8)} - Statut: ${order.status}`);
       });
-    }
-    
-    if (activeOrders.length === 0) {
-      // Aucune commande active, mettre à "offline" (sauf si déjà "available")
-      console.log(`[WebSocket] 🔄 Mise à jour statut livreur ${driverId} à "offline"...`);
-      await storage.updateDriver(driverId, { status: "offline" });
-      console.log(`[WebSocket] ✅ Livreur ${driverId} mis à "offline" (déconnexion sans commande active)`);
-    } else {
       // Le livreur a des commandes actives, garder "on_delivery"
       console.log(`[WebSocket] ⚠️ Livreur ${driverId} déconnecté mais garde statut "on_delivery" (${activeOrders.length} commande(s) active(s))`);
+      return;
+    }
+    
+    // Aucune commande active ET statut différent de "available"
+    // → Mettre à "offline" uniquement si le statut n'est pas "available"
+    // (par exemple, si le livreur était en "on_delivery" mais n'a plus de commandes)
+    if (driver.status !== "available") {
+      console.log(`[WebSocket] 🔄 Mise à jour statut livreur ${driverId} à "offline"...`);
+      await storage.updateDriver(driverId, { status: "offline" });
+      console.log(`[WebSocket] ✅ Livreur ${driverId} mis à "offline" (déconnexion sans commande active et statut non-available)`);
     }
   } catch (error) {
     console.error(`[WebSocket] ❌ Erreur lors de la mise à jour du statut du livreur ${driverId}:`, error);
@@ -870,11 +880,12 @@ function startPeriodicCleanup(wss: WebSocketServer) {
       // (cette vérification est optionnelle car les timers se nettoient eux-mêmes)
     }
 
-    // ✅ Le statut est géré UNIQUEMENT par :
+    // ✅ CORRECTION : Le statut est géré UNIQUEMENT par :
     // - Le bouton ON/OFF dans l'app livreur (via /api/driver/toggle-status)
     // - L'admin depuis le panneau admin
     // 
-    // Timeout long (60 min) en secours uniquement pour les cas extrêmes
+    // Timeout de sécurité à 10 heures (au lieu de 60 min) pour éviter les déconnexions
+    // prématurées pendant les rotations de travail. Seulement pour les cas extrêmes
     // (oubli après très longue inactivité, crash, etc.)
     try {
       const result = await db
@@ -883,13 +894,13 @@ function startPeriodicCleanup(wss: WebSocketServer) {
           status: sql`'offline'`
         })
         .where(
-          sql`last_seen < NOW() - INTERVAL '60 minutes' 
+          sql`last_seen < NOW() - INTERVAL '10 hours' 
               AND status = 'available'`
         )
         .returning({ id: drivers.id, name: drivers.name });
       
       if (result && result.length > 0) {
-        console.log(`[WebSocket] ⚠️ Timeout 60 min: ${result.length} livreur(s) passé(s) offline automatiquement (inactivité > 1h)`);
+        console.log(`[WebSocket] ⚠️ Timeout 10h: ${result.length} livreur(s) passé(s) offline automatiquement (inactivité > 10h)`);
         result.forEach(driver => {
           console.log(`[WebSocket]   - ${driver.name} (${driver.id})`);
         });

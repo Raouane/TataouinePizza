@@ -26,8 +26,9 @@ export function generateToken(adminId: string, email: string): string {
 }
 
 export function generateDriverToken(driverId: string, phone: string): string {
-  // ✅ NOUVEAU : Augmenter la durée de vie du token à 7 jours (comme les admins)
-  // pour éviter les expirations fréquentes pendant les journées de travail
+  // ✅ Durée de vie du token à 7 jours pour éviter les reconnexions fréquentes
+  // pendant les journées de travail. Le nettoyage automatique (10h d'inactivité)
+  // et l'alerte à 9h30 gèrent la sécurité sans nécessiter une expiration courte.
   return jwt.sign({ id: driverId, type: 'driver', phone }, JWT_SECRET, { expiresIn: "7d" });
 }
 
