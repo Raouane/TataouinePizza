@@ -226,6 +226,12 @@ const translations: Translations = {
   'menu.category.grill': { fr: "Grillades", en: "Grilled", ar: "مشويات" },
   'menu.category.drink': { fr: "Boisson", en: "Drink", ar: "مشروب" },
   'menu.category.dessert': { fr: "Dessert", en: "Dessert", ar: "حلوى" },
+  
+  // Opening Hours
+  'openingHours.title': { fr: "Horaires d'ouverture", en: "Opening hours", ar: "ساعات العمل" },
+  'openingHours.opensAt': { fr: "Ouvre à", en: "Opens at", ar: "يفتح في" },
+  'openingHours.closed': { fr: "Fermé", en: "Closed", ar: "مغلق" },
+  'openingHours.open': { fr: "Ouvert", en: "Open", ar: "مفتوح" },
 
   // Common
   'common.loading': { fr: "Chargement...", en: "Loading...", ar: "جاري التحميل..." },

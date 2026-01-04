@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "@/lib/i18n";
 import { getOnboarding } from "@/pages/onboarding";
-import { isRestaurantOpen as checkNewOpeningHours, parseOpeningHoursSchedule } from "@shared/openingHours";
+import { isRestaurantOpen as checkNewOpeningHours, parseOpeningHoursSchedule, formatOpeningHours } from "@shared/openingHours";
 import { getRestaurantCloseReason } from "@/lib/restaurant-status";
 import {
   AlertDialog,
@@ -630,14 +630,61 @@ export default function CartPage() {
     const { allOpen, closedRestaurants } = await checkRestaurantsOpenStatus();
     if (!allOpen) {
       const closedNames = closedRestaurants.map(r => r.name).join(", ");
+      
+      // Récupérer les horaires formatés pour chaque restaurant fermé
+      const response = await fetch("/api/restaurants");
+      let formattedHours = '';
+      if (response.ok) {
+        const allRestaurants = await response.json();
+        const restaurantMap = new Map(allRestaurants.map((r: any) => [r.id, r]));
+        const hoursList: string[] = [];
+        
+        for (const closedRestaurant of closedRestaurants) {
+          const restaurant = restaurantMap.get(closedRestaurant.id);
+          if (restaurant) {
+            const schedule = parseOpeningHoursSchedule(restaurant.openingHours || null);
+            if (schedule) {
+              const hours = formatOpeningHours(schedule, language);
+              if (hours) {
+                hoursList.push(`${closedRestaurant.name}: ${hours}`);
+              }
+            }
+          }
+        }
+        
+        if (hoursList.length > 0) {
+          formattedHours = hoursList.join(' | ');
+        }
+      }
+      
       const nextOpenMessages = closedRestaurants
         .filter(r => r.nextOpenTime)
-        .map(r => `${r.name} (Ouvre à ${r.nextOpenTime})`)
+        .map(r => {
+          const opensAt = language === 'ar' ? 'يفتح في' : language === 'en' ? 'Opens at' : 'Ouvre à';
+          return `${r.name} (${opensAt} ${r.nextOpenTime})`;
+        })
         .join(", ");
       
-      const message = nextOpenMessages 
-        ? `Désolé, ${closedNames} ${closedRestaurants.length === 1 ? 'vient de fermer' : 'viennent de fermer'} ses cuisines. ${nextOpenMessages}`
-        : `Désolé, ${closedNames} ${closedRestaurants.length === 1 ? 'est actuellement fermé' : 'sont actuellement fermés'}. Merci de commander pendant les horaires d'ouverture.`;
+      let message = '';
+      if (language === 'ar') {
+        message = nextOpenMessages 
+          ? `عذراً، ${closedNames} ${closedRestaurants.length === 1 ? 'أغلق للتو' : 'أغلقوا للتو'} مطابخه. ${nextOpenMessages}`
+          : formattedHours
+            ? `عذراً، ${closedNames} ${closedRestaurants.length === 1 ? 'مغلق حالياً' : 'مغلقة حالياً'}. ${formattedHours}`
+            : `عذراً، ${closedNames} ${closedRestaurants.length === 1 ? 'مغلق حالياً' : 'مغلقة حالياً'}. يرجى الطلب خلال ساعات العمل.`;
+      } else if (language === 'en') {
+        message = nextOpenMessages 
+          ? `Sorry, ${closedNames} ${closedRestaurants.length === 1 ? 'just closed' : 'just closed'} their kitchens. ${nextOpenMessages}`
+          : formattedHours
+            ? `Sorry, ${closedNames} ${closedRestaurants.length === 1 ? 'is currently closed' : 'are currently closed'}. ${formattedHours}`
+            : `Sorry, ${closedNames} ${closedRestaurants.length === 1 ? 'is currently closed' : 'are currently closed'}. Please order during opening hours.`;
+      } else {
+        message = nextOpenMessages 
+          ? `Désolé, ${closedNames} ${closedRestaurants.length === 1 ? 'vient de fermer' : 'viennent de fermer'} ses cuisines. ${nextOpenMessages}`
+          : formattedHours
+            ? `Désolé, ${closedNames} ${closedRestaurants.length === 1 ? 'est actuellement fermé' : 'sont actuellement fermés'}. ${formattedHours}`
+            : `Désolé, ${closedNames} ${closedRestaurants.length === 1 ? 'est actuellement fermé' : 'sont actuellement fermés'}. Merci de commander pendant les horaires d'ouverture.`;
+      }
       
       toast({
         title: language === 'ar' 

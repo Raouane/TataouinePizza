@@ -4,7 +4,7 @@ import { useLanguage } from "@/lib/i18n";
 import { ImageWithFallback } from "./image-with-fallback";
 import { parseRestaurantCategories } from "@/lib/restaurant-helpers";
 import { getRestaurantCloseReason, parseOpeningHours } from "@/lib/restaurant-status";
-import { isRestaurantOpen as checkNewOpeningHours, parseOpeningHoursSchedule } from "@shared/openingHours";
+import { isRestaurantOpen as checkNewOpeningHours, parseOpeningHoursSchedule, formatOpeningHours } from "@shared/openingHours";
 
 export interface Restaurant {
   id: string;
@@ -30,7 +30,7 @@ interface RestaurantCardProps {
 }
 
 export function RestaurantCard({ restaurant, getCategoryLabel }: RestaurantCardProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   
   // Essayer d'abord le nouveau format JSON, puis fallback sur l'ancien format
   const schedule = parseOpeningHoursSchedule(restaurant.openingHours || null);
@@ -118,12 +118,12 @@ export function RestaurantCard({ restaurant, getCategoryLabel }: RestaurantCardP
                     : "bg-red-500 text-white"
               }`}>
                 {isTemporarilyClosed 
-                  ? "🔒 Fermé temporairement" 
+                  ? "🔒 " + t('menu.status.temporarilyClosed')
                   : isActuallyOpen 
                     ? "✅ " + t('menu.status.open')
                     : nextOpenTime 
-                      ? `🔴 Fermé (Ouvre à ${nextOpenTime})`
-                      : "🔴 Fermé"}
+                      ? `🔴 ${t('openingHours.closed')} (${t('openingHours.opensAt')} ${nextOpenTime})`
+                      : "🔴 " + t('openingHours.closed')}
               </span>
             </div>
             
@@ -132,18 +132,23 @@ export function RestaurantCard({ restaurant, getCategoryLabel }: RestaurantCardP
               <div className="absolute bottom-3 left-3 right-3">
                 <div className="px-3 py-2 rounded-lg text-xs font-medium bg-gray-100 text-gray-700">
                   <div className="space-y-1">
-                    {hours && (
+                    {schedule && (
                       <div>
-                        <span className="font-semibold">Horaires :</span> {hours}
+                        <span className="font-semibold">{t('openingHours.title')} :</span> {formatOpeningHours(schedule, language)}
+                      </div>
+                    )}
+                    {!schedule && hours && (
+                      <div>
+                        <span className="font-semibold">{t('openingHours.title')} :</span> {hours}
                       </div>
                     )}
                     {closedDay && (
                       <div>
-                        <span className="font-semibold">Jour de repos :</span> {closedDay}
+                        <span className="font-semibold">{t('menu.status.closedDay')} :</span> {closedDay}
                       </div>
                     )}
-                    {!hours && !closedDay && (
-                      <div>Le restaurant est fermé selon les horaires d'ouverture.</div>
+                    {!schedule && !hours && !closedDay && (
+                      <div>{t('menu.status.closedBySchedule')}</div>
                     )}
                   </div>
                 </div>
@@ -178,12 +183,16 @@ export function RestaurantCard({ restaurant, getCategoryLabel }: RestaurantCardP
           {/* Message de fermeture si fermé selon les horaires */}
           {!isActuallyOpen && !isTemporarilyClosed && restaurant.openingHours && (
             <div className="mb-3 p-2 bg-gray-100 rounded-lg text-xs text-gray-700">
-              {closedDay && currentDay === closedDay ? (
-                `🔒 Fermé le ${closedDay}`
+              {schedule ? (
+                <div>
+                  <span className="font-semibold">{t('openingHours.title')} :</span> {formatOpeningHours(schedule, language)}
+                </div>
+              ) : closedDay && currentDay === closedDay ? (
+                `🔒 ${t('openingHours.closed')} ${t('menu.status.closedDay')} ${closedDay}`
               ) : hours ? (
-                `⏰ Ouvert ${hours}`
+                `⏰ ${t('openingHours.open')} ${hours}`
               ) : (
-                "Fermé"
+                t('openingHours.closed')
               )}
             </div>
           )}

@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from "sonner";
 import { createOrder } from "@/lib/api";
 import { useCart } from "@/lib/cart";
-import { isRestaurantOpen as checkNewOpeningHours, parseOpeningHoursSchedule } from "@shared/openingHours";
+import { isRestaurantOpen as checkNewOpeningHours, parseOpeningHoursSchedule, formatOpeningHours } from "@shared/openingHours";
 
 type SearchPhase = 'searching' | 'found' | 'success';
 
@@ -158,7 +158,37 @@ export default function OrderSuccess() {
             // Si un restaurant est fermé, annuler et rembourser
             if (closedRestaurants.length > 0) {
               const closedNames = closedRestaurants.map(r => r.name).join(", ");
-              const message = `Désolé, ${closedNames} ${closedRestaurants.length === 1 ? 'vient de fermer' : 'viennent de fermer'} ses cuisines pendant que vous payiez. Votre paiement sera remboursé.`;
+              
+              // Récupérer les horaires formatés
+              let formattedHours = '';
+              for (const closedRestaurant of closedRestaurants) {
+                const restaurant = restaurantMap.get(closedRestaurant.id);
+                if (restaurant) {
+                  const schedule = parseOpeningHoursSchedule(restaurant.openingHours || null);
+                  if (schedule) {
+                    const hours = formatOpeningHours(schedule, language);
+                    if (hours) {
+                      formattedHours = hours;
+                      break; // Prendre le premier pour simplifier
+                    }
+                  }
+                }
+              }
+              
+              let message = '';
+              if (language === 'ar') {
+                message = formattedHours
+                  ? `عذراً، ${closedNames} ${closedRestaurants.length === 1 ? 'أغلق للتو' : 'أغلقوا للتو'} مطابخه أثناء الدفع. ${formattedHours} سيتم استرداد دفعتك.`
+                  : `عذراً، ${closedNames} ${closedRestaurants.length === 1 ? 'أغلق للتو' : 'أغلقوا للتو'} مطابخه أثناء الدفع. سيتم استرداد دفعتك.`;
+              } else if (language === 'en') {
+                message = formattedHours
+                  ? `Sorry, ${closedNames} ${closedRestaurants.length === 1 ? 'just closed' : 'just closed'} their kitchens while you were paying. ${formattedHours} Your payment will be refunded.`
+                  : `Sorry, ${closedNames} ${closedRestaurants.length === 1 ? 'just closed' : 'just closed'} their kitchens while you were paying. Your payment will be refunded.`;
+              } else {
+                message = formattedHours
+                  ? `Désolé, ${closedNames} ${closedRestaurants.length === 1 ? 'vient de fermer' : 'viennent de fermer'} ses cuisines pendant que vous payiez. ${formattedHours} Votre paiement sera remboursé.`
+                  : `Désolé, ${closedNames} ${closedRestaurants.length === 1 ? 'vient de fermer' : 'viennent de fermer'} ses cuisines pendant que vous payiez. Votre paiement sera remboursé.`;
+              }
               
               toast.error(
                 language === 'ar' 

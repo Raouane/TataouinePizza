@@ -228,3 +228,125 @@ export function parseOpeningHoursSchedule(jsonString: string | null | undefined)
     return null;
   }
 }
+
+/**
+ * Traductions des jours de la semaine
+ */
+const dayTranslations = {
+  fr: {
+    monday: 'Lundi',
+    tuesday: 'Mardi',
+    wednesday: 'Mercredi',
+    thursday: 'Jeudi',
+    friday: 'Vendredi',
+    saturday: 'Samedi',
+    sunday: 'Dimanche',
+    weekdays: 'Lundi-Vendredi',
+    weekend: 'Samedi-Dimanche',
+  },
+  en: {
+    monday: 'Monday',
+    tuesday: 'Tuesday',
+    wednesday: 'Wednesday',
+    thursday: 'Thursday',
+    friday: 'Friday',
+    saturday: 'Saturday',
+    sunday: 'Sunday',
+    weekdays: 'Monday-Friday',
+    weekend: 'Saturday-Sunday',
+  },
+  ar: {
+    monday: 'الإثنين',
+    tuesday: 'الثلاثاء',
+    wednesday: 'الأربعاء',
+    thursday: 'الخميس',
+    friday: 'الجمعة',
+    saturday: 'السبت',
+    sunday: 'الأحد',
+    weekdays: 'الإثنين-الجمعة',
+    weekend: 'السبت-الأحد',
+  },
+};
+
+/**
+ * Formate un créneau horaire en texte lisible
+ */
+function formatTimeSlot(slot: TimeSlot): string {
+  return `${slot.start} - ${slot.end === "00:00" ? "24:00" : slot.end}`;
+}
+
+/**
+ * Formate plusieurs créneaux horaires en texte lisible
+ */
+function formatTimeSlots(slots: TimeSlot[]): string {
+  return slots.map(formatTimeSlot).join(', ');
+}
+
+/**
+ * Formate les horaires d'ouverture en texte lisible et traduit
+ * 
+ * @param schedule - Structure JSON des horaires
+ * @param language - Langue pour la traduction ('fr', 'en', 'ar')
+ * @returns Texte formaté des horaires (ex: "Lundi-Vendredi: 11:00-15:00, 18:00-23:00 | Samedi-Dimanche: 12:00-16:00, 19:00-24:00")
+ */
+export function formatOpeningHours(
+  schedule: OpeningHoursSchedule | null | undefined,
+  language: 'fr' | 'en' | 'ar' = 'fr'
+): string {
+  if (!schedule) {
+    return '';
+  }
+
+  const t = dayTranslations[language];
+  const parts: string[] = [];
+
+  // Horaires spécifiques par jour (priorité)
+  const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  const specificDays: Array<{ day: string; slots: TimeSlot[] }> = [];
+  
+  for (const day of dayOrder) {
+    const dayKey = day as keyof OpeningHoursSchedule;
+    if (schedule[dayKey] && Array.isArray(schedule[dayKey])) {
+      specificDays.push({
+        day: t[day as keyof typeof t],
+        slots: schedule[dayKey] as TimeSlot[],
+      });
+    }
+  }
+
+  // Si des jours spécifiques sont définis, les utiliser
+  if (specificDays.length > 0) {
+    // Grouper les jours consécutifs avec les mêmes horaires
+    const grouped: Array<{ days: string[]; slots: TimeSlot[] }> = [];
+    
+    for (const { day, slots } of specificDays) {
+      const slotsStr = JSON.stringify(slots);
+      const existing = grouped.find(g => JSON.stringify(g.slots) === slotsStr);
+      
+      if (existing) {
+        existing.days.push(day);
+      } else {
+        grouped.push({ days: [day], slots });
+      }
+    }
+
+    // Formater chaque groupe
+    for (const group of grouped) {
+      const daysStr = group.days.length > 1 
+        ? `${group.days[0]}-${group.days[group.days.length - 1]}`
+        : group.days[0];
+      parts.push(`${daysStr}: ${formatTimeSlots(group.slots)}`);
+    }
+  } else {
+    // Utiliser weekdays et weekend
+    if (schedule.weekdays && schedule.weekdays.length > 0) {
+      parts.push(`${t.weekdays}: ${formatTimeSlots(schedule.weekdays)}`);
+    }
+    
+    if (schedule.weekend && schedule.weekend.length > 0) {
+      parts.push(`${t.weekend}: ${formatTimeSlots(schedule.weekend)}`);
+    }
+  }
+
+  return parts.join(' | ');
+}
