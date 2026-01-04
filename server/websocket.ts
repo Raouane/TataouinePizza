@@ -278,38 +278,48 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
   // WHATSAPP DÉSACTIVÉ - On utilise uniquement Telegram
   console.log('[WebSocket] 📱 WhatsApp désactivé - Utilisation uniquement Telegram');
 
+  // ✅ TELEGRAM DÉSACTIVÉ - Notifications Telegram supprimées
   // Envoyer des notifications Telegram à tous les livreurs disponibles
-  try {
-    console.log("[WebSocket] 📞 Envoi notification Telegram pour commande:", orderData.orderId);
-    const { telegramService } = await import('./services/telegram-service.js');
-    const telegramCount = await telegramService.sendToAllAvailableDrivers(
-      orderData.orderId,
-      orderData.restaurantName,
-      orderData.customerName,
-      orderData.totalPrice,
-      orderData.address
-    );
-    console.log(`[WebSocket] 📱 ${telegramCount} notification(s) Telegram envoyée(s)`);
-    
-    // Démarrer le timer Round Robin si un livreur a été notifié
-    if (telegramCount > 0) {
-      startRoundRobinTimer(
-        orderData.orderId,
-        orderData.restaurantName,
-        orderData.customerName,
-        orderData.totalPrice,
-        orderData.address
-      );
-    } else {
-      // Aucun livreur disponible - alerter l'administration
-      await alertAdministrationNoDriversAvailable(orderData);
-    }
-  } catch (telegramError: any) {
-    console.error('[WebSocket] ❌ Erreur envoi Telegram:', telegramError);
-    console.error('[WebSocket] ❌ Stack:', telegramError.stack);
-    // Alerter l'administration même en cas d'erreur
-    await alertAdministrationNoDriversAvailable(orderData);
-  }
+  // try {
+  //   console.log("[WebSocket] 📞 Envoi notification Telegram pour commande:", orderData.orderId);
+  //   const { telegramService } = await import('./services/telegram-service.js');
+  //   const telegramCount = await telegramService.sendToAllAvailableDrivers(
+  //     orderData.orderId,
+  //     orderData.restaurantName,
+  //     orderData.customerName,
+  //     orderData.totalPrice,
+  //     orderData.address
+  //   );
+  //   console.log(`[WebSocket] 📱 ${telegramCount} notification(s) Telegram envoyée(s)`);
+  //   
+  //   // Démarrer le timer Round Robin si un livreur a été notifié
+  //   if (telegramCount > 0) {
+  //     startRoundRobinTimer(
+  //       orderData.orderId,
+  //       orderData.restaurantName,
+  //       orderData.customerName,
+  //       orderData.totalPrice,
+  //       orderData.address
+  //     );
+  //   } else {
+  //     // Aucun livreur disponible - alerter l'administration
+  //     await alertAdministrationNoDriversAvailable(orderData);
+  //   }
+  // } catch (telegramError: any) {
+  //   console.error('[WebSocket] ❌ Erreur envoi Telegram:', telegramError);
+  //   console.error('[WebSocket] ❌ Stack:', telegramError.stack);
+  //   // Alerter l'administration même en cas d'erreur
+  //   await alertAdministrationNoDriversAvailable(orderData);
+  // }
+  
+  // Démarrer le timer Round Robin directement (sans Telegram)
+  startRoundRobinTimer(
+    orderData.orderId,
+    orderData.restaurantName,
+    orderData.customerName,
+    orderData.totalPrice,
+    orderData.address
+  );
 
   // Réinitialiser le timer d'inactivité car il y a une nouvelle commande
   if (wssInstance) {
@@ -727,20 +737,21 @@ export async function checkAndNotifyPendingOrdersForDriver(driverId: string): Pr
     //   return; // Ne pas envoyer sur Telegram
     // }
     
+    // ✅ TELEGRAM DÉSACTIVÉ - Notifications Telegram supprimées
     // Canal 3 : Telegram (fallback)
-    if (driver.telegramId) {
-      const { telegramService } = await import("./services/telegram-service.js");
-      await telegramService.sendOrderNotification(
-        driver.telegramId,
-        orderToNotify.id,
-        orderToNotify.customerName,
-        orderToNotify.totalPrice,
-        orderToNotify.address,
-        enrichedOrder.restaurantName || "Restaurant",
-        driverId
-      );
-      console.log(`[Re-Notification] ✅ Notification Telegram envoyée`);
-    }
+    // if (driver.telegramId) {
+    //   const { telegramService } = await import("./services/telegram-service.js");
+    //   await telegramService.sendOrderNotification(
+    //     driver.telegramId,
+    //     orderToNotify.id,
+    //     orderToNotify.customerName,
+    //     orderToNotify.totalPrice,
+    //     orderToNotify.address,
+    //     enrichedOrder.restaurantName || "Restaurant",
+    //     driverId
+    //   );
+    //   console.log(`[Re-Notification] ✅ Notification Telegram envoyée`);
+    // }
     
     console.log(`[Re-Notification] ✅ Re-notification envoyée avec succès`);
     

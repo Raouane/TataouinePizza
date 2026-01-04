@@ -1,6 +1,7 @@
 import twilio from 'twilio';
 import { storage } from '../storage.js';
-import { telegramService } from './telegram-service.js';
+// ✅ TELEGRAM DÉSACTIVÉ - Import supprimé
+// import { telegramService } from './telegram-service.js';
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -648,21 +649,22 @@ export async function sendWhatsAppToDrivers(
       const { startRoundRobinTimer } = await import('../websocket.js');
       startRoundRobinTimer(orderId, restaurantName, customerName, totalPrice, address);
       
+      // ✅ TELEGRAM DÉSACTIVÉ - Notifications Telegram supprimées
       // ENVOI TELEGRAM (en parallèle avec WhatsApp)
-      try {
-        console.log("[Telegram] 📞 Envoi notification Telegram pour commande:", orderId);
-        const telegramCount = await telegramService.sendToAllAvailableDrivers(
-          orderId,
-          restaurantName,
-          customerName,
-          totalPrice,
-          address
-        );
-        console.log(`[Telegram] 📱 ${telegramCount} notification(s) Telegram envoyée(s)`);
-      } catch (telegramError: any) {
-        console.error('[Telegram] ❌ Erreur envoi Telegram:', telegramError);
-        // Ne pas bloquer si Telegram échoue
-      }
+      // try {
+      //   console.log("[Telegram] 📞 Envoi notification Telegram pour commande:", orderId);
+      //   const telegramCount = await telegramService.sendToAllAvailableDrivers(
+      //     orderId,
+      //     restaurantName,
+      //     customerName,
+      //     totalPrice,
+      //     address
+      //   );
+      //   console.log(`[Telegram] 📱 ${telegramCount} notification(s) Telegram envoyée(s)`);
+      // } catch (telegramError: any) {
+      //   console.error('[Telegram] ❌ Erreur envoi Telegram:', telegramError);
+      //   // Ne pas bloquer si Telegram échoue
+      // }
       
       return 1;
     } else {

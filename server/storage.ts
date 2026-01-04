@@ -601,14 +601,15 @@ export class DatabaseStorage implements IStorage {
         return null;
       }
       
+      // ✅ TELEGRAM DÉSACTIVÉ - Mises à jour Telegram supprimées
       // ✅ NOUVEAU : Mettre à jour le message Telegram pour afficher "EN COURS DE LIVRAISON"
-      import("./services/telegram-message-updater.js").then(({ updateTelegramMessageToDelivery }) => {
-        updateTelegramMessageToDelivery(orderId, driverId).catch((error) => {
-          console.error(`[Storage] ❌ Erreur mise à jour Telegram (accept, non-bloquant):`, error);
-        });
-      }).catch((error) => {
-        console.error(`[Storage] ⚠️ Erreur import telegram-message-updater (non-bloquant):`, error);
-      });
+      // import("./services/telegram-message-updater.js").then(({ updateTelegramMessageToDelivery }) => {
+      //   updateTelegramMessageToDelivery(orderId, driverId).catch((error) => {
+      //     console.error(`[Storage] ❌ Erreur mise à jour Telegram (accept, non-bloquant):`, error);
+      //   });
+      // }).catch((error) => {
+      //   console.error(`[Storage] ⚠️ Erreur import telegram-message-updater (non-bloquant):`, error);
+      // });
       
       // The UPDATE succeeded, return the updated order
       return result[0];
@@ -1408,37 +1409,50 @@ export class DatabaseStorage implements IStorage {
     
     const updatedOrder = result[0];
     
+    // ✅ TELEGRAM DÉSACTIVÉ - Mises à jour Telegram supprimées
     // ✅ NOUVEAU : Mettre à jour le message Telegram selon le statut
-    if (updatedOrder.driverId) {
+    // if (updatedOrder.driverId) {
+    //   const driverId = updatedOrder.driverId;
+    //   
+    //   // Mettre à jour le message Telegram de manière non-bloquante
+    //   if (status === 'delivery') {
+    //     import("./services/telegram-message-updater.js").then(({ updateTelegramMessageToDelivery }) => {
+    //       updateTelegramMessageToDelivery(id, driverId).catch((error) => {
+    //         console.error(`[Storage] ❌ Erreur mise à jour Telegram (delivery, non-bloquant):`, error);
+    //       });
+    //     }).catch((error) => {
+    //       console.error(`[Storage] ⚠️ Erreur import telegram-message-updater (non-bloquant):`, error);
+    //     });
+    //   } else if (status === 'delivered') {
+    //     import("./services/telegram-message-updater.js").then(({ updateTelegramMessageToDelivered }) => {
+    //       updateTelegramMessageToDelivered(id, driverId).catch((error) => {
+    //         console.error(`[Storage] ❌ Erreur mise à jour Telegram (delivered, non-bloquant):`, error);
+    //       });
+    //     }).catch((error) => {
+    //       console.error(`[Storage] ⚠️ Erreur import telegram-message-updater (non-bloquant):`, error);
+    //     });
+    //     
+    //     // Déclencher la re-notification si la commande est livrée
+    //     import("./websocket.js").then(({ checkAndNotifyPendingOrdersForDriver }) => {
+    //       checkAndNotifyPendingOrdersForDriver(driverId).catch((error) => {
+    //         console.error(`[Storage] ❌ Erreur re-notification (non-bloquant):`, error);
+    //       });
+    //     }).catch((error) => {
+    //       console.error(`[Storage] ⚠️ Erreur import websocket (non-bloquant):`, error);
+    //     });
+    //   }
+    // }
+    
+    // Déclencher la re-notification si la commande est livrée (sans Telegram)
+    if (status === 'delivered' && updatedOrder.driverId) {
       const driverId = updatedOrder.driverId;
-      
-      // Mettre à jour le message Telegram de manière non-bloquante
-      if (status === 'delivery') {
-        import("./services/telegram-message-updater.js").then(({ updateTelegramMessageToDelivery }) => {
-          updateTelegramMessageToDelivery(id, driverId).catch((error) => {
-            console.error(`[Storage] ❌ Erreur mise à jour Telegram (delivery, non-bloquant):`, error);
-          });
-        }).catch((error) => {
-          console.error(`[Storage] ⚠️ Erreur import telegram-message-updater (non-bloquant):`, error);
+      import("./websocket.js").then(({ checkAndNotifyPendingOrdersForDriver }) => {
+        checkAndNotifyPendingOrdersForDriver(driverId).catch((error) => {
+          console.error(`[Storage] ❌ Erreur re-notification (non-bloquant):`, error);
         });
-      } else if (status === 'delivered') {
-        import("./services/telegram-message-updater.js").then(({ updateTelegramMessageToDelivered }) => {
-          updateTelegramMessageToDelivered(id, driverId).catch((error) => {
-            console.error(`[Storage] ❌ Erreur mise à jour Telegram (delivered, non-bloquant):`, error);
-          });
-        }).catch((error) => {
-          console.error(`[Storage] ⚠️ Erreur import telegram-message-updater (non-bloquant):`, error);
-        });
-        
-        // Déclencher la re-notification si la commande est livrée
-        import("./websocket.js").then(({ checkAndNotifyPendingOrdersForDriver }) => {
-          checkAndNotifyPendingOrdersForDriver(driverId).catch((error) => {
-            console.error(`[Storage] ❌ Erreur re-notification (non-bloquant):`, error);
-          });
-        }).catch((error) => {
-          console.error(`[Storage] ⚠️ Erreur import websocket (non-bloquant):`, error);
-        });
-      }
+      }).catch((error) => {
+        console.error(`[Storage] ⚠️ Erreur import websocket (non-bloquant):`, error);
+      });
     }
     
     return updatedOrder;
