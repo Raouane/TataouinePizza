@@ -19,7 +19,6 @@ export default function OrderSuccess() {
   const { t, language } = useLanguage();
   const { activeOrder, orderId, orderData, status, eta, refreshOrderData, startOrder } = useOrder();
   const [, setLocation] = useLocation();
-  const [searchParams] = useSearchParams();
   const { clearCart } = useCart();
   const [searchPhase, setSearchPhase] = useState<SearchPhase>('searching');
   const [driverName, setDriverName] = useState<string>('');
@@ -41,44 +40,39 @@ export default function OrderSuccess() {
 
   // Vérifier le paiement Flouci si on arrive depuis Flouci
   useEffect(() => {
+    // Récupérer les paramètres de l'URL avec URLSearchParams
+    const searchParams = new URLSearchParams(window.location.search);
     const paymentParam = searchParams.get('payment');
-    const paymentId = searchParams.get('id') || searchParams.get('payment_id'); // Flouci peut passer l'ID dans l'URL
+    const paymentId = searchParams.get('id') || searchParams.get('payment_id');
     
     if (paymentParam === 'flouci' && !flouciVerified && !isVerifyingFlouci) {
       const pendingOrder = sessionStorage.getItem('pendingFlouciOrder');
+      const storedPaymentId = sessionStorage.getItem('flouciPaymentId');
       
-      // Si on a un payment_id dans l'URL, l'utiliser
-      // Sinon, on devra le récupérer depuis le developer_tracking_id stocké
-      if (pendingOrder) {
-        if (paymentId) {
-          // Payment ID fourni dans l'URL
-          handleFlouciVerification(paymentId);
-        } else {
-          // Pas de payment_id dans l'URL, vérifier si on peut le récupérer autrement
-          // Note: Flouci peut aussi passer le payment_id dans le hash de l'URL
-          const hashParams = new URLSearchParams(window.location.hash.substring(1));
-          const hashPaymentId = hashParams.get('id') || hashParams.get('payment_id');
-          
-          if (hashPaymentId) {
-            handleFlouciVerification(hashPaymentId);
-          } else {
-            // Si pas de payment_id, afficher un message d'erreur
-            console.error('[OrderSuccess] ❌ Payment ID not found in URL');
-            toast.error(
-              language === 'ar' 
-                ? 'معرف الدفع غير موجود' 
-                : language === 'en' 
-                ? 'Payment ID not found' 
-                : 'Identifiant de paiement introuvable'
-            );
-            setTimeout(() => {
-              setLocation('/cart?payment=error');
-            }, 2000);
-          }
-        }
+      // Essayer de récupérer le payment_id depuis différentes sources
+      const finalPaymentId = 
+        paymentId || 
+        storedPaymentId ||
+        null;
+      
+      if (pendingOrder && finalPaymentId) {
+        handleFlouciVerification(finalPaymentId);
+      } else if (pendingOrder && !finalPaymentId) {
+        // Pas de payment_id trouvé, afficher un message d'erreur
+        console.error('[OrderSuccess] ❌ Payment ID not found');
+        toast.error(
+          language === 'ar' 
+            ? 'معرف الدفع غير موجود' 
+            : language === 'en' 
+            ? 'Payment ID not found' 
+            : 'Identifiant de paiement introuvable'
+        );
+        setTimeout(() => {
+          setLocation('/cart?payment=error');
+        }, 2000);
       }
     }
-  }, [searchParams, flouciVerified, isVerifyingFlouci, language]);
+  }, [flouciVerified, isVerifyingFlouci, language, setLocation]);
 
   // Fonction pour vérifier et créer la commande Flouci
   const handleFlouciVerification = async (paymentId: string) => {
