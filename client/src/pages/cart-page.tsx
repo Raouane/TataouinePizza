@@ -40,7 +40,7 @@ const DELIVERY_FEE = 2.00; // Prix de livraison fixe en TND
 export default function CartPage() {
   // Feature flags pour les méthodes de paiement (synchronisés avec Profile.tsx)
   const stripeEnabled = true; // Paiement international (EUR/USD)
-  const flouciEnabled = false; // Paiement local tunisien (TND)
+  const flouciEnabled = true; // Paiement local tunisien (TND)
 
   const { restaurants, removeItem, updateQuantity, total, clearCart, clearRestaurant } = useCart();
   const { startOrder, activeOrder, orderId } = useOrder();

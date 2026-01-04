@@ -128,7 +128,7 @@ const getUserIdentity = (): UserIdentity => {
 export default function Profile() {
   // Feature flags pour les méthodes de paiement
   const stripeEnabled = true; // Paiement international (EUR/USD)
-  const flouciEnabled = false; // Paiement local tunisien (TND)
+  const flouciEnabled = true; // Paiement local tunisien (TND)
 
   const { t, language, setLanguage } = useLanguage();
   const { toast } = useToast();
