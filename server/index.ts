@@ -181,16 +181,9 @@ app.use((req, res, next) => {
   // Cela garantit que /accept/:orderId et /refuse/:orderId sont accessibles
   await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    if (process.env.NODE_ENV !== "production") {
-      console.error(err);
-    }
-
-    res.status(status).json({ message });
-  });
+  // ✅ Middleware global de gestion des erreurs (doit être APRÈS toutes les routes)
+  const { errorMiddleware } = await import("./middlewares/error-handler.js");
+  app.use(errorMiddleware);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route

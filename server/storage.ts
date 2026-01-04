@@ -21,7 +21,7 @@ import type {
   Customer, InsertCustomer,
   Restaurant, InsertRestaurant,
   Driver, InsertDriver,
-  Pizza, PizzaPrice, InsertPizzaPrice,
+  Pizza, PizzaPrice,
   Order, OrderItem,
   CashHandover
 } from "../shared/schema.js";

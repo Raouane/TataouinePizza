@@ -1,0 +1,16 @@
+/**
+ * ⚠️ FICHIER DÉPRÉCIÉ - NE PLUS UTILISER
+ * 
+ * Ce fichier a été refactorisé en modules séparés dans server/routes/public/
+ * 
+ * Structure modulaire :
+ * - public/index.ts - Orchestrateur
+ * - public/order-acceptance.routes.ts - Routes /accept/ et /refuse/
+ * - public/restaurants.routes.ts - Routes restaurants
+ * - public/pizzas.routes.ts - Routes pizzas
+ * - public/orders.routes.ts - Routes commandes
+ * - public/utils.ts - Helpers communs
+ * 
+ * Ce fichier est conservé temporairement comme backup.
+ * Il sera supprimé après vérification que tout fonctionne correctement.
+ */

@@ -1,0 +1,352 @@
+/**
+ * Service de création de commandes
+ * Centralise toute la logique métier de création de commande
+ * 
+ * Responsabilités :
+ * - Validation des données (restaurant, pizzas, prix)
+ * - Calcul du prix total
+ * - Détection de doublons (idempotence)
+ * - Création de la commande en base
+ * - Notification des livreurs
+ * - Envoi des webhooks
+ */
+
+import { storage } from "../storage";
+import { errorHandler } from "../errors";
+import { isRestaurantOpenNow } from "../utils/restaurant-status";
+import { notifyDriversOfNewOrder } from "../websocket";
+import { sendN8nWebhook } from "../webhooks/n8n-webhook";
+import { parseGpsCoordinates } from "../utils/gps-utils";
+import type { PizzaPrice } from "@shared/schema";
+import type { InsertOrder } from "@shared/schema";
+
+export interface CreateOrderInput {
+  restaurantId: string;
+  customerName: string;
+  phone: string;
+  address: string;
+  addressDetails?: string | null;
+  customerLat?: number | null;
+  customerLng?: number | null;
+  clientOrderId?: string | null;
+  items: Array<{
+    pizzaId: string;
+    size: string;
+    quantity: number;
+  }>;
+}
+
+export interface CreateOrderResult {
+  orderId: string;
+  totalPrice: number;
+  duplicate?: boolean;
+}
+
+export interface OrderItemDetail {
+  name: string;
+  size: string;
+  quantity: number;
+}
+
+export class OrderCreationService {
+  private static readonly DELIVERY_FEE = 2.0;
+  private static readonly DUPLICATE_WINDOW_SECONDS = 10;
+
+  /**
+   * Crée une nouvelle commande avec toute la logique métier
+   * @param input Données de la commande
+   * @returns Résultat de la création (orderId, totalPrice, duplicate)
+   */
+  static async createOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
+    console.log("========================================");
+    console.log("[OrderCreationService] ⚡⚡⚡ DÉBUT CRÉATION COMMANDE ⚡⚡⚡");
+    console.log("[OrderCreationService] Input:", JSON.stringify(input, null, 2));
+    console.log("========================================");
+
+    // 1. Vérifier que le restaurant existe
+    const restaurant = await storage.getRestaurantById(input.restaurantId);
+    if (!restaurant) {
+      throw errorHandler.notFound("Restaurant not found");
+    }
+
+    // 2. Vérifier que le restaurant est ouvert
+    if (!isRestaurantOpenNow(restaurant)) {
+      throw errorHandler.badRequest(
+        "Le restaurant est actuellement fermé. Merci de commander pendant les horaires d'ouverture."
+      );
+    }
+
+    // 3. Valider et calculer le prix total
+    const { totalPrice, orderItemsDetails, orderItemsData } = await this.validateAndCalculatePrice(
+      input.restaurantId,
+      input.items
+    );
+
+    // 4. Déterminer le statut initial
+    const initialStatus = this.getInitialStatus();
+
+    // 5. Convertir les coordonnées GPS
+    const gpsCoords = parseGpsCoordinates({
+      customerLat: input.customerLat,
+      customerLng: input.customerLng,
+    });
+
+    // 6. Créer la commande en base (avec détection de doublons)
+    const order = await storage.createOrderWithItems(
+      {
+        restaurantId: input.restaurantId,
+        customerName: input.customerName,
+        phone: input.phone,
+        address: input.address,
+        addressDetails: input.addressDetails || null,
+        customerLat: gpsCoords.lat?.toString() || null,
+        customerLng: gpsCoords.lng?.toString() || null,
+        clientOrderId: input.clientOrderId || null,
+        totalPrice: totalPrice.toString(),
+        status: initialStatus,
+      },
+      orderItemsData,
+      {
+        phone: input.phone,
+        restaurantId: input.restaurantId,
+        totalPrice: totalPrice.toString(),
+        withinSeconds: this.DUPLICATE_WINDOW_SECONDS,
+      }
+    );
+
+    // 7. Gérer les doublons (idempotence)
+    if (!order) {
+      const duplicateOrder = await this.findDuplicateOrder(input, totalPrice);
+      if (duplicateOrder) {
+        console.log(`[OrderCreationService] ✅ Doublon détecté, retour de la commande existante: ${duplicateOrder.id}`);
+        return {
+          orderId: duplicateOrder.id,
+          totalPrice: Number(duplicateOrder.totalPrice),
+          duplicate: true,
+        };
+      } else {
+        throw errorHandler.conflict(
+          "A duplicate order was detected but could not be retrieved. Please try again."
+        );
+      }
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[OrderCreationService] ✅ Commande créée:", {
+        id: order.id,
+        customerLat: order.customerLat,
+        customerLng: order.customerLng,
+        status: order.status,
+      });
+    }
+
+    // 8. Notifier les livreurs (non-bloquant)
+    this.notifyDrivers(order, restaurant, input, orderItemsDetails, totalPrice).catch((error) => {
+      console.error("[OrderCreationService] ❌ Erreur notification WebSocket (non-bloquant):", error);
+    });
+
+    // 9. Envoyer le webhook n8n (non-bloquant)
+    this.sendWebhook(order, restaurant, input, orderItemsDetails, totalPrice).catch((error) => {
+      console.error("[OrderCreationService] ❌ Erreur webhook n8n (non-bloquant):", error);
+    });
+
+    return {
+      orderId: order.id,
+      totalPrice,
+      duplicate: false,
+    };
+  }
+
+  /**
+   * Valide les pizzas et calcule le prix total
+   * @private
+   */
+  private static async validateAndCalculatePrice(
+    restaurantId: string,
+    items: CreateOrderInput["items"]
+  ): Promise<{
+    totalPrice: number;
+    orderItemsDetails: OrderItemDetail[];
+    orderItemsData: Array<{
+      pizzaId: string;
+      size: string;
+      quantity: number;
+      pricePerUnit: string;
+    }>;
+  }> {
+    // Récupérer toutes les pizzas uniques
+    const pizzaIds = Array.from(new Set(items.map((item) => item.pizzaId)));
+    const pizzas = await storage.getPizzasByIds(pizzaIds);
+    const pizzaMap = new Map(pizzas.map((p) => [p.id, p]));
+
+    // Récupérer tous les prix
+    const prices = await storage.getPizzaPricesByPizzaIds(pizzaIds);
+    const priceMap = new Map<string, PizzaPrice[]>();
+    for (const price of prices) {
+      if (!priceMap.has(price.pizzaId)) {
+        priceMap.set(price.pizzaId, []);
+      }
+      priceMap.get(price.pizzaId)!.push(price);
+    }
+
+    // Valider et calculer
+    let totalPrice = 0;
+    const orderItemsDetails: OrderItemDetail[] = [];
+    const orderItemsData: Array<{
+      pizzaId: string;
+      size: string;
+      quantity: number;
+      pricePerUnit: string;
+    }> = [];
+
+    for (const item of items) {
+      const pizza = pizzaMap.get(item.pizzaId);
+      if (!pizza) {
+        throw errorHandler.notFound(`Pizza ${item.pizzaId} not found`);
+      }
+
+      // Vérifier que la pizza appartient au restaurant
+      if (pizza.restaurantId !== restaurantId) {
+        throw errorHandler.badRequest("All pizzas must be from the same restaurant");
+      }
+
+      // Trouver le prix pour la taille demandée
+      const pizzaPrices = priceMap.get(item.pizzaId) || [];
+      const sizePrice = pizzaPrices.find((p) => p.size === item.size);
+      if (!sizePrice) {
+        throw errorHandler.badRequest(`Invalid size for pizza ${pizza.name}`);
+      }
+
+      // Calculer le sous-total
+      const itemTotal = Number(sizePrice.price) * item.quantity;
+      totalPrice += itemTotal;
+
+      // Préparer les données pour la base
+      orderItemsDetails.push({
+        name: pizza.name,
+        size: item.size,
+        quantity: item.quantity,
+      });
+
+      orderItemsData.push({
+        pizzaId: item.pizzaId,
+        size: item.size,
+        quantity: item.quantity,
+        pricePerUnit: sizePrice.price,
+      });
+    }
+
+    // Ajouter les frais de livraison
+    totalPrice += this.DELIVERY_FEE;
+
+    return {
+      totalPrice: Number(totalPrice.toFixed(2)),
+      orderItemsDetails,
+      orderItemsData,
+    };
+  }
+
+  /**
+   * Détermine le statut initial de la commande
+   * @private
+   */
+  private static getInitialStatus(): "accepted" | "ready" {
+    let FORCE_RESTAURANT_READY = process.env.FORCE_RESTAURANT_READY === "true";
+    const isProduction = process.env.NODE_ENV === "production";
+
+    if (isProduction && FORCE_RESTAURANT_READY) {
+      console.error("[OrderCreationService] ⚠️ FORCE_RESTAURANT_READY désactivé automatiquement en production");
+      FORCE_RESTAURANT_READY = false;
+    }
+
+    if (FORCE_RESTAURANT_READY && process.env.NODE_ENV !== "production") {
+      console.log("[OrderCreationService] ⚠️ FORCE_RESTAURANT_READY activé - Commande forcée à READY");
+    }
+
+    return FORCE_RESTAURANT_READY ? "ready" : "accepted";
+  }
+
+  /**
+   * Recherche une commande dupliquée
+   * @private
+   */
+  private static async findDuplicateOrder(
+    input: CreateOrderInput,
+    totalPrice: number
+  ): Promise<any | null> {
+    // D'abord par clientOrderId (idempotence explicite)
+    if (input.clientOrderId) {
+      const duplicate = await storage.getOrderByClientOrderId(input.clientOrderId);
+      if (duplicate) {
+        return duplicate;
+      }
+    }
+
+    // Sinon, recherche par téléphone + restaurant + prix (dans les 10 dernières secondes)
+    return await storage.getRecentDuplicateOrder(
+      input.phone,
+      input.restaurantId,
+      totalPrice.toString(),
+      this.DUPLICATE_WINDOW_SECONDS
+    );
+  }
+
+  /**
+   * Notifie les livreurs d'une nouvelle commande (non-bloquant)
+   * @private
+   */
+  private static async notifyDrivers(
+    order: any,
+    restaurant: any,
+    input: CreateOrderInput,
+    orderItemsDetails: OrderItemDetail[],
+    totalPrice: number
+  ): Promise<void> {
+    console.log("[OrderCreationService] 📞 Notification des livreurs pour commande:", order.id);
+    
+    await notifyDriversOfNewOrder({
+      type: "new_order",
+      orderId: order.id,
+      restaurantName: restaurant.name,
+      customerName: input.customerName,
+      address: input.address,
+      customerLat: input.customerLat || undefined,
+      customerLng: input.customerLng || undefined,
+      totalPrice: totalPrice.toString(),
+      items: orderItemsDetails,
+    });
+    
+    console.log("[OrderCreationService] ✅ Notification des livreurs terminée");
+  }
+
+  /**
+   * Envoie le webhook n8n (non-bloquant)
+   * @private
+   */
+  private static async sendWebhook(
+    order: any,
+    restaurant: any,
+    input: CreateOrderInput,
+    orderItemsDetails: OrderItemDetail[],
+    totalPrice: number
+  ): Promise<void> {
+    await sendN8nWebhook("order-created", {
+      orderId: order.id,
+      restaurantId: restaurant.id,
+      restaurantName: restaurant.name,
+      restaurantPhone: restaurant.phone,
+      customerName: input.customerName,
+      customerPhone: input.phone,
+      address: input.address,
+      addressDetails: input.addressDetails || undefined,
+      totalPrice: totalPrice.toString(),
+      items: orderItemsDetails,
+      status: order.status,
+      createdAt: order.createdAt,
+    });
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[OrderCreationService] ✅ Webhook n8n envoyé pour commande ${order.id}`);
+    }
+  }
+}

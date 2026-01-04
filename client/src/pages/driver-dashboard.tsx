@@ -105,6 +105,10 @@ export default function DriverDashboard() {
   const availableOrdersRef = useRef<Order[]>([]); // Ref pour éviter les boucles infinies
   const soundIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map()); // Intervalles de son par commande
   
+  // ✅ NOUVEAU : État pour l'alerte de fin de session (9h30)
+  const [showSessionWarning, setShowSessionWarning] = useState(false);
+  const sessionStartTimeRef = useRef<number | null>(null);
+  
   // Durées configurables
   const ORDER_VISIBLE_DURATION = 30000; // 30 secondes - temps d'affichage
   const ORDER_HIDDEN_DURATION = 10000; // 10 secondes - temps de masquage

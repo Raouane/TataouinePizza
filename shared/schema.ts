@@ -2,6 +2,8 @@ import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, integer, boolean, timestamp, numeric, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+// Import des schémas de validation spécialisés
+import { phoneSchema, nameSchema, addressSchema } from "./validation-schemas";
 
 // Enums
 export const orderStatusEnum = pgEnum("order_status", [
@@ -179,9 +181,9 @@ export const insertAdminUserSchema = createInsertSchema(adminUsers)
 export const insertRestaurantSchema = createInsertSchema(restaurants)
   .pick({ name: true, phone: true, address: true, description: true, imageUrl: true, categories: true, openingHours: true, deliveryTime: true, minOrder: true, rating: true, orderType: true })
   .extend({
-    name: z.string().min(2, "Nom min 2 caractères"),
-    phone: z.string().min(8, "Téléphone invalide"),
-    address: z.string().min(5, "Adresse invalide"),
+    name: nameSchema,
+    phone: phoneSchema,
+    address: addressSchema,
     categories: z.array(z.string()).optional().default([]),
     openingHours: z.string().optional(),
     deliveryTime: z.number().int().min(10).max(120).optional(),
@@ -206,21 +208,21 @@ export const insertPizzaPriceSchema = createInsertSchema(pizzaPrices)
   });
 
 export const insertOrderSchema = z.object({
-  restaurantId: z.string(),
-  customerName: z.string().min(2, "Nom min 2 caractères"),
-  phone: z.string().min(8, "Téléphone invalide"),
-  address: z.string().min(5, "Adresse invalide"),
-  addressDetails: z.string().optional(),
-  customerLat: z.number().optional(),
-  customerLng: z.number().optional(),
+  restaurantId: z.string().uuid("L'ID du restaurant doit être un UUID valide"),
+  customerName: nameSchema,
+  phone: phoneSchema,
+  address: addressSchema,
+  addressDetails: z.string().max(200, "Les détails d'adresse ne peuvent pas dépasser 200 caractères").optional(),
+  customerLat: z.number().optional().nullable(),
+  customerLng: z.number().optional().nullable(),
   clientOrderId: z.string().uuid().optional(), // ID unique généré côté client pour idempotence
   items: z.array(z.object({
-    pizzaId: z.string(),
+    pizzaId: z.string().uuid("L'ID de la pizza doit être un UUID valide"),
     size: z.enum(["small", "medium", "large"]),
-    quantity: z.number().min(1),
-  })),
+    quantity: z.number().int().min(1, "La quantité doit être au moins 1").max(50, "La quantité ne peut pas dépasser 50"),
+  })).min(1, "La commande doit contenir au moins un article"),
   paymentMethod: z.enum(["cash", "card", "online"]).optional(),
-  notes: z.string().optional(),
+  notes: z.string().max(500, "Les notes ne peuvent pas dépasser 500 caractères").optional(),
 }).superRefine((data, ctx) => {
   // Validation personnalisée : soit items, soit notes pour commande spéciale
   if (data.items.length === 0) {
@@ -233,21 +235,60 @@ export const insertOrderSchema = z.object({
       });
     }
   }
+  
+  // Validation des coordonnées GPS (si fournies, les deux doivent l'être)
+  const hasLat = data.customerLat !== null && data.customerLat !== undefined;
+  const hasLng = data.customerLng !== null && data.customerLng !== undefined;
+  
+  if (hasLat && !hasLng) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Si la latitude est fournie, la longitude doit l'être aussi",
+      path: ["customerLng"],
+    });
+  }
+  
+  if (hasLng && !hasLat) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Si la longitude est fournie, la latitude doit l'être aussi",
+      path: ["customerLat"],
+    });
+  }
+  
+  // Validation de la zone géographique (Tunisie)
+  if (hasLat && hasLng) {
+    if (data.customerLat! < 30.0 || data.customerLat! > 37.5) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "La latitude doit être entre 30° et 37.5° (zone Tunisie)",
+        path: ["customerLat"],
+      });
+    }
+    
+    if (data.customerLng! < 7.0 || data.customerLng! > 12.0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "La longitude doit être entre 7°E et 12°E (zone Tunisie)",
+        path: ["customerLng"],
+      });
+    }
+  }
 });
 
 export const verifyOtpSchema = z.object({
-  phone: z.string(),
-  code: z.string().length(4, "Code 4 chiffres"),
+  phone: phoneSchema,
+  code: z.string().length(4, "Code 4 chiffres").regex(/^\d{4}$/, "Le code OTP doit contenir uniquement des chiffres"),
 });
 
 export const sendOtpSchema = z.object({
-  phone: z.string().min(8, "Téléphone invalide"),
+  phone: phoneSchema,
 });
 
 // Customer authentication schemas (simple login without OTP)
 export const customerLoginSchema = z.object({
-  firstName: z.string().min(2, "Prénom min 2 caractères"),
-  phone: z.string().min(8, "Téléphone invalide"),
+  firstName: nameSchema,
+  phone: phoneSchema,
 });
 
 export const updateOrderStatusSchema = z.object({
@@ -256,24 +297,28 @@ export const updateOrderStatusSchema = z.object({
 
 // Driver Schemas
 export const insertDriverSchema = z.object({
-  name: z.string().min(2, "Nom min 2 caractères"),
-  phone: z.string().min(8, "Téléphone invalide"),
-  password: z.string().min(6, "Mot de passe min 6 caractères"),
+  name: nameSchema,
+  phone: phoneSchema,
+  password: z.string().min(6, "Mot de passe min 6 caractères").max(100, "Le mot de passe est trop long"),
 });
 
+// Driver login schema
 export const driverLoginSchema = z.object({
-  phone: z.string().min(8, "Téléphone invalide"),
-  password: z.string().min(6, "Mot de passe min 6 caractères"),
+  phone: phoneSchema,
+  password: z.string().min(6, "Mot de passe min 6 caractères").max(100, "Le mot de passe est trop long"),
+});
+
+// Restaurant login schema (identique au driver login)
+export const restaurantLoginSchema = z.object({
+  phone: phoneSchema,
+  password: z.string().min(6, "Mot de passe min 6 caractères").max(100, "Le mot de passe est trop long"),
 });
 
 // Update Schemas (PATCH) - tous les champs optionnels
 export const updateRestaurantSchema = z.object({
-  name: z.string().min(2, "Nom min 2 caractères").optional(),
-  phone: z.string().min(8, "Téléphone invalide").optional(),
-  address: z.string().min(5, "Adresse invalide").optional(),
-  description: z.string().nullable().optional(),
-  imageUrl: z.string().url().nullable().optional(),
-  categories: z.array(z.string()).min(1, "Au moins une catégorie requise").optional(),
+  name: nameSchema.optional(),
+  phone: phoneSchema.optional(),
+  address: addressSchema.optional(),
   isOpen: z.coerce.boolean().optional(),
   openingHours: z.string().nullable().optional(),
   deliveryTime: z.coerce.number().int().min(10).max(120).optional(),
@@ -282,10 +327,9 @@ export const updateRestaurantSchema = z.object({
 });
 
 export const updateDriverSchema = z.object({
-  name: z.string().min(2, "Nom min 2 caractères").optional(),
-  phone: z.string().min(8, "Téléphone invalide").optional(),
+  name: nameSchema.optional(),
+  phone: phoneSchema.optional(),
   password: z.string().min(6, "Mot de passe min 6 caractères").optional(),
-  status: z.enum(["available", "offline", "on_delivery"]).optional(),
 });
 
 export const updatePizzaSchema = z.object({

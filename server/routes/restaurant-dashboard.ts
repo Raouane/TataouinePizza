@@ -1,10 +1,13 @@
-import type { Express, Response } from "express";
+import type { Express, Request, Response } from "express";
 import { storage } from "../storage";
 import { authenticateAdmin, type AuthRequest } from "../auth";
 import { errorHandler } from "../errors";
 import { getAuthenticatedRestaurantId } from "../middleware/auth-helpers";
 import { OrderService } from "../services/order-service";
 import { comparePassword, generateToken } from "../auth";
+import { restaurantLoginSchema } from "@shared/schema";
+import { validate } from "../middlewares/validate";
+import { asyncHandler } from "../middlewares/error-handler";
 
 export function registerRestaurantDashboardRoutes(app: Express): void {
   // ============ RESTAURANT AUTH (TÉLÉPHONE + MOT DE PASSE) ============
@@ -12,39 +15,42 @@ export function registerRestaurantDashboardRoutes(app: Express): void {
   /**
    * POST /api/restaurant/login
    * Connexion avec téléphone + mot de passe (sans SMS)
+   * 
+   * ✅ Validation automatique via middleware Zod (phone normalisé)
+   * ✅ Gestion d'erreur automatique via asyncHandler
    */
-  app.post("/api/restaurant/login", async (req, res) => {
-    console.log("[RESTAURANT LOGIN] Requête de connexion reçue");
-    try {
-      const { phone, password } = req.body as { phone?: string; password?: string };
+  app.post(
+    "/api/restaurant/login",
+    validate(restaurantLoginSchema),
+    asyncHandler(async (req: Request, res: Response) => {
+      console.log("[RESTAURANT LOGIN] Requête de connexion reçue");
       
-      if (!phone || !password) {
-        return res.status(400).json({ error: "Téléphone et mot de passe requis" });
-      }
+      // req.body.phone est maintenant normalisé (8 chiffres) par phoneSchema
+      const normalizedPhone = req.body.phone;
       
       // Trouver le restaurant par téléphone
-      const restaurant = await storage.getRestaurantByPhone(phone);
+      const restaurant = await storage.getRestaurantByPhone(normalizedPhone);
       if (!restaurant) {
-        console.log(`[RESTAURANT LOGIN] ❌ Restaurant non trouvé: ${phone}`);
-        return res.status(401).json({ error: "Téléphone ou mot de passe incorrect" });
+        console.log(`[RESTAURANT LOGIN] ❌ Restaurant non trouvé: ${normalizedPhone}`);
+        throw errorHandler.unauthorized("Téléphone ou mot de passe incorrect");
       }
       
       // Vérifier le mot de passe
       if (!restaurant.password) {
         console.log(`[RESTAURANT LOGIN] ❌ Restaurant ${restaurant.id} n'a pas de mot de passe défini`);
-        return res.status(401).json({ error: "Mot de passe non configuré. Contactez l'administrateur." });
+        throw errorHandler.unauthorized("Mot de passe non configuré. Contactez l'administrateur.");
       }
       
-      const isPasswordValid = await comparePassword(password, restaurant.password);
+      const isPasswordValid = await comparePassword(req.body.password, restaurant.password);
       if (!isPasswordValid) {
-        console.log(`[RESTAURANT LOGIN] ❌ Mot de passe incorrect pour restaurant: ${phone}`);
-        return res.status(401).json({ error: "Téléphone ou mot de passe incorrect" });
+        console.log(`[RESTAURANT LOGIN] ❌ Mot de passe incorrect pour restaurant: ${normalizedPhone}`);
+        throw errorHandler.unauthorized("Téléphone ou mot de passe incorrect");
       }
       
-      // Générer le token JWT (utilise generateToken comme pour les admins)
+      // Générer le token JWT
       const token = generateToken(restaurant.id, restaurant.phone);
       
-      console.log(`[RESTAURANT LOGIN] ✅ Connexion réussie pour ${restaurant.name} (${phone})`);
+      console.log(`[RESTAURANT LOGIN] ✅ Connexion réussie pour ${restaurant.name} (${normalizedPhone})`);
       
       res.json({
         token,
@@ -54,11 +60,8 @@ export function registerRestaurantDashboardRoutes(app: Express): void {
           phone: restaurant.phone,
         },
       });
-    } catch (error: any) {
-      console.error("[RESTAURANT LOGIN] Erreur lors de la connexion:", error);
-      res.status(500).json({ error: "Erreur serveur lors de la connexion" });
-    }
-  });
+    })
+  );
   
   // ============ OTP SUPPRIMÉ POUR LES RESTAURANTS ============
   // Les routes /api/restaurant/otp/send et /api/restaurant/login-otp ont été supprimées

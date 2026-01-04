@@ -52,6 +52,7 @@
     "test:refuse": "tsx server/scripts/create-test-order-for-refuse.ts",
     "test:telegram:updates": "tsx server/scripts/test-telegram-message-updates.ts",
     "test": "vitest",
+    "test:unit": "vitest --config vitest.unit.config.ts",
     "test:ui": "vitest --ui",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage"
