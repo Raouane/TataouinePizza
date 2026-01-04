@@ -779,12 +779,18 @@ export default function CartPage() {
         }),
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to initialize Flouci payment');
-      }
-      
       const data = await response.json();
+      
+      // Vérifier si le paiement n'est pas disponible
+      if (!response.ok || data.code === 'PAYMENT_NOT_AVAILABLE' || data.code === 'SERVICE_UNAVAILABLE') {
+        const errorMessage = data.message || data.error || 
+          (language === 'ar' 
+            ? 'طريقة الدفع غير متاحة حالياً'
+            : language === 'en' 
+            ? 'Payment method is not available'
+            : 'Le paiement par carte n\'est pas encore disponible');
+        throw new Error(errorMessage);
+      }
       
       if (!data.success || !data.link) {
         throw new Error('Invalid response from Flouci API');
@@ -803,17 +809,22 @@ export default function CartPage() {
       
     } catch (error: any) {
       console.error('[Cart] ❌ Erreur paiement Flouci:', error);
+      
+      // Message d'erreur personnalisé selon le type d'erreur
+      const errorMessage = error.message || 
+        (language === 'ar' 
+          ? 'فشل في تهيئة الدفع عبر Flouci'
+          : language === 'en' 
+          ? 'Failed to initialize Flouci payment'
+          : 'Échec de l\'initialisation du paiement Flouci');
+      
       toast({
         title: language === 'ar' 
-          ? 'خطأ في الدفع' 
+          ? 'طريقة الدفع غير متاحة' 
           : language === 'en' 
-          ? 'Payment Error' 
-          : 'Erreur de paiement',
-        description: error.message || (language === 'ar' 
-          ? 'فشل في تهيئة الدفع عبر Flouci' 
-          : language === 'en' 
-          ? 'Failed to initialize Flouci payment' 
-          : 'Échec de l\'initialisation du paiement Flouci'),
+          ? 'Payment Not Available' 
+          : 'Paiement non disponible',
+        description: errorMessage,
         variant: 'destructive',
       });
       setIsProcessingPayment(false);

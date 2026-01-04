@@ -135,6 +135,20 @@ export function registerFlouciRoutes(app: Express): void {
    */
   app.post("/api/payments/flouci/init", async (req: Request, res: Response) => {
     try {
+      // Vérifier la configuration Flouci d'abord
+      let config;
+      try {
+        config = getFlouciConfig();
+      } catch (configError: any) {
+        console.error("[FLOUCI] ❌ Configuration manquante:", configError.message);
+        return res.status(503).json({
+          success: false,
+          error: "Paiement par carte non disponible",
+          message: "Le paiement par carte n'est pas encore disponible. Veuillez utiliser une autre méthode de paiement.",
+          code: "PAYMENT_NOT_AVAILABLE",
+        });
+      }
+
       // Valider les données d'entrée
       const validation = initFlouciPaymentSchema.safeParse(req.body);
       if (!validation.success) {
@@ -180,7 +194,7 @@ export function registerFlouciRoutes(app: Express): void {
       });
     } catch (error: any) {
       console.error("[FLOUCI] ❌ Erreur initialisation paiement:", error);
-      errorHandler(error, req, res);
+      errorHandler.sendError(res, error);
     }
   });
 
@@ -206,7 +220,18 @@ export function registerFlouciRoutes(app: Express): void {
         });
       }
 
-      const config = getFlouciConfig();
+      // Vérifier la configuration Flouci d'abord
+      let config;
+      try {
+        config = getFlouciConfig();
+      } catch (configError: any) {
+        console.error("[FLOUCI] ❌ Configuration manquante:", configError.message);
+        return res.status(503).json({
+          error: "Flouci payment service is not configured",
+          message: "FLOUCI_APP_TOKEN and FLOUCI_APP_SECRET must be set in environment variables",
+          code: "SERVICE_UNAVAILABLE",
+        });
+      }
 
       console.log("[FLOUCI] 🔍 Vérification paiement:", { payment_id });
 
@@ -259,7 +284,7 @@ export function registerFlouciRoutes(app: Express): void {
       });
     } catch (error: any) {
       console.error("[FLOUCI] ❌ Erreur vérification paiement:", error);
-      errorHandler(error, req, res);
+      errorHandler.sendError(res, error);
     }
   });
 

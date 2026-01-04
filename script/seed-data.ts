@@ -172,7 +172,7 @@ async function seedData() {
     } else {
       const pizzaDelSolProducts = [
         {
-          id: "pizza-001",
+          // id sera généré automatiquement par la DB (UUID)
           restaurantId: pizzaDelSolId,
         name: "Pizza Margherita",
         description: "Tomate, mozzarella, basilic frais",
@@ -187,7 +187,7 @@ async function seedData() {
         ],
       },
       {
-        id: "pizza-002",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: pizzaDelSolId,
         name: "Pizza 4 Fromages",
         description: "Mozzarella, gorgonzola, parmesan, chèvre",
@@ -202,7 +202,7 @@ async function seedData() {
         ],
       },
       {
-        id: "pizza-003",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: pizzaDelSolId,
         name: "Pizza Végétarienne",
         description: "Légumes frais, olives, champignons, poivrons",
@@ -217,7 +217,7 @@ async function seedData() {
         ],
       },
       {
-        id: "pizza-004",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: pizzaDelSolId,
         name: "Coca Cola",
         description: "Boisson gazeuse 33cl",
@@ -230,7 +230,7 @@ async function seedData() {
         ],
       },
       {
-        id: "pizza-005",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: pizzaDelSolId,
         name: "Tiramisu",
         description: "Dessert italien au café et mascarpone",
@@ -246,11 +246,25 @@ async function seedData() {
 
     for (const product of pizzaDelSolProducts) {
       const { prices, ...productData } = product;
+      let pizzaId: string;
       try {
-        await db.insert(pizzas).values(productData);
+        const result = await db.insert(pizzas).values(productData).returning({ id: pizzas.id });
+        pizzaId = result[0]?.id;
+        if (!pizzaId) {
+          throw new Error("Failed to get pizza ID after insertion");
+        }
       } catch (error: any) {
         if (error.code !== '23505') {
           throw error;
+        }
+        // Pizza existe déjà, récupérer son ID
+        const existing = await db.select().from(pizzas)
+          .where(sql`name = ${productData.name} AND restaurant_id = ${productData.restaurantId}`)
+          .limit(1);
+        if (existing[0]) {
+          pizzaId = existing[0].id;
+        } else {
+          throw new Error(`Pizza ${productData.name} existe mais ID non trouvé`);
         }
       }
       
@@ -258,7 +272,7 @@ async function seedData() {
       for (const price of prices) {
         try {
           await db.insert(pizzaPrices).values({
-            pizzaId: product.id,
+            pizzaId: pizzaId,
             size: price.size,
             price: price.price,
           });
@@ -277,7 +291,7 @@ async function seedData() {
     
     const saharaGrillProducts = [
       {
-        id: "grill-001",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: saharaGrillId,
         name: "Kebab Mixte",
         description: "Viande hachée et poulet grillé",
@@ -292,7 +306,7 @@ async function seedData() {
         ],
       },
       {
-        id: "grill-002",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: saharaGrillId,
         name: "Burger Classique",
         description: "Steak haché, salade, tomate, oignons, sauce",
@@ -306,7 +320,7 @@ async function seedData() {
         ],
       },
       {
-        id: "grill-003",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: saharaGrillId,
         name: "Salade César",
         description: "Salade verte, poulet grillé, parmesan, croûtons",
@@ -320,7 +334,7 @@ async function seedData() {
         ],
       },
       {
-        id: "grill-004",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: saharaGrillId,
         name: "Jus d'Orange",
         description: "Jus d'orange frais pressé",
@@ -336,18 +350,32 @@ async function seedData() {
 
     for (const product of saharaGrillProducts) {
       const { prices, ...productData } = product;
+      let pizzaId: string;
       try {
-        await db.insert(pizzas).values(productData);
+        const result = await db.insert(pizzas).values(productData).returning({ id: pizzas.id });
+        pizzaId = result[0]?.id;
+        if (!pizzaId) {
+          throw new Error("Failed to get pizza ID after insertion");
+        }
       } catch (error: any) {
         if (error.code !== '23505') {
           throw error;
+        }
+        // Pizza existe déjà, récupérer son ID
+        const existing = await db.select().from(pizzas)
+          .where(sql`name = ${productData.name} AND restaurant_id = ${productData.restaurantId}`)
+          .limit(1);
+        if (existing[0]) {
+          pizzaId = existing[0].id;
+        } else {
+          throw new Error(`Pizza ${productData.name} existe mais ID non trouvé`);
         }
       }
       
       for (const price of prices) {
         try {
           await db.insert(pizzaPrices).values({
-            pizzaId: product.id,
+            pizzaId: pizzaId,
             size: price.size,
             price: price.price,
           });
@@ -369,7 +397,7 @@ async function seedData() {
     } else {
       const tataouinePizzaProducts = [
         {
-          id: "pizza-006",
+          // id sera généré automatiquement par la DB (UUID)
           restaurantId: tataouinePizzaId,
         name: "Pizza Reine",
         description: "Tomate, jambon, champignons, fromage",
@@ -384,7 +412,7 @@ async function seedData() {
         ],
       },
       {
-        id: "pizza-007",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: tataouinePizzaId,
         name: "Pizza Thon",
         description: "Tomate, thon, oignons, olives, câpres",
@@ -399,7 +427,7 @@ async function seedData() {
         ],
       },
       {
-        id: "burger-001",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: tataouinePizzaId,
         name: "Burger Double Cheese",
         description: "Double steak, double fromage, bacon",
@@ -413,7 +441,7 @@ async function seedData() {
         ],
       },
       {
-        id: "drink-001",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: tataouinePizzaId,
         name: "Pepsi",
         description: "Boisson gazeuse 33cl",
@@ -426,7 +454,7 @@ async function seedData() {
         ],
       },
       {
-        id: "dessert-001",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: tataouinePizzaId,
         name: "Glace Vanille",
         description: "Glace à la vanille avec coulis de chocolat",
@@ -442,18 +470,32 @@ async function seedData() {
 
     for (const product of tataouinePizzaProducts) {
       const { prices, ...productData } = product;
+      let pizzaId: string;
       try {
-        await db.insert(pizzas).values(productData);
+        const result = await db.insert(pizzas).values(productData).returning({ id: pizzas.id });
+        pizzaId = result[0]?.id;
+        if (!pizzaId) {
+          throw new Error("Failed to get pizza ID after insertion");
+        }
       } catch (error: any) {
         if (error.code !== '23505') {
           throw error;
+        }
+        // Pizza existe déjà, récupérer son ID
+        const existing = await db.select().from(pizzas)
+          .where(sql`name = ${productData.name} AND restaurant_id = ${productData.restaurantId}`)
+          .limit(1);
+        if (existing[0]) {
+          pizzaId = existing[0].id;
+        } else {
+          throw new Error(`Pizza ${productData.name} existe mais ID non trouvé`);
         }
       }
       
       for (const price of prices) {
         try {
           await db.insert(pizzaPrices).values({
-            pizzaId: product.id,
+            pizzaId: pizzaId,
             size: price.size,
             price: price.price,
           });
@@ -472,7 +514,7 @@ async function seedData() {
     
     const jardinSaladesProducts = [
       {
-        id: "salade-001",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: jardinSaladesId,
         name: "Salade Niçoise",
         description: "Salade verte, thon, œufs, olives, tomates",
@@ -486,7 +528,7 @@ async function seedData() {
         ],
       },
       {
-        id: "salade-002",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: jardinSaladesId,
         name: "Salade Grecque",
         description: "Salade, feta, olives, tomates, concombres",
@@ -500,7 +542,7 @@ async function seedData() {
         ],
       },
       {
-        id: "salade-003",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: jardinSaladesId,
         name: "Eau Minérale",
         description: "Eau minérale naturelle 50cl",
@@ -513,7 +555,7 @@ async function seedData() {
         ],
       },
       {
-        id: "dessert-002",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: jardinSaladesId,
         name: "Fruit de Saison",
         description: "Assortiment de fruits frais",
@@ -529,11 +571,25 @@ async function seedData() {
 
     for (const product of jardinSaladesProducts) {
       const { prices, ...productData } = product;
+      let pizzaId: string;
       try {
-        await db.insert(pizzas).values(productData);
+        const result = await db.insert(pizzas).values(productData).returning({ id: pizzas.id });
+        pizzaId = result[0]?.id;
+        if (!pizzaId) {
+          throw new Error("Failed to get pizza ID after insertion");
+        }
       } catch (error: any) {
         if (error.code !== '23505') {
           throw error;
+        }
+        // Pizza existe déjà, récupérer son ID
+        const existing = await db.select().from(pizzas)
+          .where(sql`name = ${productData.name} AND restaurant_id = ${productData.restaurantId}`)
+          .limit(1);
+        if (existing[0]) {
+          pizzaId = existing[0].id;
+        } else {
+          throw new Error(`Pizza ${productData.name} existe mais ID non trouvé`);
         }
       }
       
@@ -562,7 +618,7 @@ async function seedData() {
     } else {
       const burgerHouseProducts = [
         {
-          id: "burger-002",
+          // id sera généré automatiquement par la DB (UUID)
         restaurantId: burgerHouseId,
         name: "Burger Chicken",
         description: "Filet de poulet pané, salade, tomate, sauce",
@@ -576,7 +632,7 @@ async function seedData() {
         ],
       },
       {
-        id: "burger-003",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: burgerHouseId,
         name: "Burger Végétarien",
         description: "Steak végétal, avocat, salade, tomate",
@@ -590,7 +646,7 @@ async function seedData() {
         ],
       },
       {
-        id: "burger-004",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: burgerHouseId,
         name: "Burger BBQ",
         description: "Steak haché, bacon, oignons frits, sauce BBQ",
@@ -604,7 +660,7 @@ async function seedData() {
         ],
       },
       {
-        id: "drink-002",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: burgerHouseId,
         name: "Milkshake Vanille",
         description: "Milkshake à la vanille",
@@ -617,7 +673,7 @@ async function seedData() {
         ],
       },
       {
-        id: "dessert-003",
+        // id sera généré automatiquement par la DB (UUID)
         restaurantId: burgerHouseId,
         name: "Brownie Chocolat",
         description: "Brownie au chocolat avec glace vanille",
@@ -633,18 +689,32 @@ async function seedData() {
 
     for (const product of burgerHouseProducts) {
       const { prices, ...productData } = product;
+      let pizzaId: string;
       try {
-        await db.insert(pizzas).values(productData);
+        const result = await db.insert(pizzas).values(productData).returning({ id: pizzas.id });
+        pizzaId = result[0]?.id;
+        if (!pizzaId) {
+          throw new Error("Failed to get pizza ID after insertion");
+        }
       } catch (error: any) {
         if (error.code !== '23505') {
           throw error;
+        }
+        // Pizza existe déjà, récupérer son ID
+        const existing = await db.select().from(pizzas)
+          .where(sql`name = ${productData.name} AND restaurant_id = ${productData.restaurantId}`)
+          .limit(1);
+        if (existing[0]) {
+          pizzaId = existing[0].id;
+        } else {
+          throw new Error(`Pizza ${productData.name} existe mais ID non trouvé`);
         }
       }
       
       for (const price of prices) {
         try {
           await db.insert(pizzaPrices).values({
-            pizzaId: product.id,
+            pizzaId: pizzaId,
             size: price.size,
             price: price.price,
           });
