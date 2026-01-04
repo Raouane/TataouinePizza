@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Trash2, Plus, Minus, ArrowRight, MapPin, Phone, CheckCircle2, ChevronLeft, User, Store, AlertTriangle, Star } from "lucide-react";
+import { Trash2, Plus, Minus, ArrowRight, MapPin, Phone, CheckCircle2, ChevronLeft, User, Store, AlertTriangle, Star, CreditCard, Banknote } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1236,6 +1236,103 @@ export default function CartPage() {
                             </div>
                           </div>
                         ))}
+                    </div>
+
+                    {/* Sélecteur de méthode de paiement */}
+                    <div className="bg-muted/50 rounded-xl p-3 md:p-4 space-y-3 md:space-y-4">
+                        <h4 className="font-semibold text-xs md:text-sm text-muted-foreground uppercase">
+                            {language === 'ar' ? "طريقة الدفع" : language === 'en' ? "Payment Method" : "Méthode de paiement"}
+                        </h4>
+                        <RadioGroup 
+                            value={paymentMethod} 
+                            onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
+                            className="space-y-3"
+                        >
+                            {/* Option 1: Espèces à la livraison */}
+                            <div className="flex items-center space-x-3">
+                                <RadioGroupItem value="cash" id="cash" className="mt-0.5" />
+                                <Label 
+                                    htmlFor="cash" 
+                                    className="flex-1 cursor-pointer p-3 rounded-lg border-2 transition-all hover:bg-background"
+                                    style={{
+                                        borderColor: paymentMethod === "cash" ? "hsl(var(--primary))" : "hsl(var(--border))",
+                                        backgroundColor: paymentMethod === "cash" ? "hsl(var(--primary) / 0.05)" : "transparent"
+                                    }}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                                            <Banknote className="h-5 w-5 text-primary" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-semibold text-sm md:text-base">
+                                                {language === 'ar' ? "نقداً عند التسليم" : language === 'en' ? "Cash on Delivery" : "Espèces à la livraison"}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {language === 'ar' ? "ادفع عند استلام الطلب" : language === 'en' ? "Pay when you receive your order" : "Payez à la réception de votre commande"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </Label>
+                            </div>
+
+                            {/* Option 2: Carte bancaire internationale (Stripe) */}
+                            {stripeEnabled && (
+                                <div className="flex items-center space-x-3">
+                                    <RadioGroupItem value="stripe" id="stripe" className="mt-0.5" />
+                                    <Label 
+                                        htmlFor="stripe" 
+                                        className="flex-1 cursor-pointer p-3 rounded-lg border-2 transition-all hover:bg-background"
+                                        style={{
+                                            borderColor: paymentMethod === "stripe" ? "hsl(var(--primary))" : "hsl(var(--border))",
+                                            backgroundColor: paymentMethod === "stripe" ? "hsl(var(--primary) / 0.05)" : "transparent"
+                                        }}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                <CreditCard className="h-5 w-5 text-primary" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="font-semibold text-sm md:text-base">
+                                                    {language === 'ar' ? "بطاقة بنكية دولية" : language === 'en' ? "International Card" : "Carte bancaire internationale"}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {language === 'ar' ? "Visa, Mastercard, Amex" : language === 'en' ? "Visa, Mastercard, Amex" : "Visa, Mastercard, Amex"}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </Label>
+                                </div>
+                            )}
+
+                            {/* Option 3: Flouci / Carte tunisienne */}
+                            {flouciEnabled && (
+                                <div className="flex items-center space-x-3">
+                                    <RadioGroupItem value="flouci" id="flouci" className="mt-0.5" />
+                                    <Label 
+                                        htmlFor="flouci" 
+                                        className="flex-1 cursor-pointer p-3 rounded-lg border-2 transition-all hover:bg-background"
+                                        style={{
+                                            borderColor: paymentMethod === "flouci" ? "hsl(var(--primary))" : "hsl(var(--border))",
+                                            backgroundColor: paymentMethod === "flouci" ? "hsl(var(--primary) / 0.05)" : "transparent"
+                                        }}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                <CreditCard className="h-5 w-5 text-primary" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="font-semibold text-sm md:text-base">
+                                                    {language === 'ar' ? "Flouci / بطاقة تونسية" : language === 'en' ? "Flouci / Tunisian Card" : "Flouci / Carte tunisienne"}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {language === 'ar' ? "بطاقات بنكية تونسية" : language === 'en' ? "Tunisian bank cards" : "Cartes bancaires tunisiennes"}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </Label>
+                                </div>
+                            )}
+                        </RadioGroup>
                     </div>
 
                     {/* Total global */}
