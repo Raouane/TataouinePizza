@@ -97,6 +97,7 @@ export abstract class BaseStorage {
       id: row.id,
       name: row.name,
       phone: row.phone,
+      password: row.password || null,
       address: row.address,
       description: row.description || null,
       imageUrl: row.image_url || null,

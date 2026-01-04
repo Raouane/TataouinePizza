@@ -50,7 +50,7 @@ export class RestaurantStorage extends BaseStorage {
     try {
       this.log('debug', 'getRestaurantById - ID', id);
       const rawResult = await db.execute(sql`
-        SELECT id, name, phone, address, description, image_url, categories, 
+        SELECT id, name, phone, password, address, description, image_url, categories, 
                is_open::text as is_open_text, opening_hours, delivery_time, 
                min_order, rating, order_type, created_at, updated_at 
         FROM restaurants WHERE id = ${id}
@@ -75,7 +75,7 @@ export class RestaurantStorage extends BaseStorage {
     try {
       // Essayer d'abord avec le téléphone tel quel
       let rawResult = await db.execute(sql`
-        SELECT id, name, phone, address, description, image_url, categories, 
+        SELECT id, name, phone, password, address, description, image_url, categories, 
                is_open::text as is_open_text, opening_hours, delivery_time, 
                min_order, rating, order_type, created_at, updated_at 
         FROM restaurants WHERE phone = ${phone}
@@ -85,7 +85,7 @@ export class RestaurantStorage extends BaseStorage {
       if ((!rawResult.rows || rawResult.rows.length === 0) && phone.startsWith('216')) {
         const phoneWithoutPrefix = phone.substring(3);
         rawResult = await db.execute(sql`
-          SELECT id, name, phone, address, description, image_url, categories, 
+          SELECT id, name, phone, password, address, description, image_url, categories, 
                  is_open::text as is_open_text, opening_hours, delivery_time, 
                  min_order, rating, order_type, created_at, updated_at 
           FROM restaurants WHERE phone = ${phoneWithoutPrefix}
@@ -96,7 +96,7 @@ export class RestaurantStorage extends BaseStorage {
       if ((!rawResult.rows || rawResult.rows.length === 0) && !phone.startsWith('216')) {
         const phoneWithPrefix = `216${phone}`;
         rawResult = await db.execute(sql`
-          SELECT id, name, phone, address, description, image_url, categories, 
+          SELECT id, name, phone, password, address, description, image_url, categories, 
                  is_open::text as is_open_text, opening_hours, delivery_time, 
                  min_order, rating, order_type, created_at, updated_at 
           FROM restaurants WHERE phone = ${phoneWithPrefix}
