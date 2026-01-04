@@ -41,8 +41,9 @@ const DELIVERY_FEE = 2.00; // Prix de livraison fixe en TND
 
 export default function CartPage() {
   // Feature flags pour les méthodes de paiement (synchronisés avec Profile.tsx)
-  const stripeEnabled = true; // Paiement international (EUR/USD)
-  const flouciEnabled = true; // Paiement local tunisien (TND)
+  // TEMPORAIREMENT DÉSACTIVÉ : Seul le paiement en espèces est disponible
+  const stripeEnabled = false; // Paiement international (EUR/USD) - DÉSACTIVÉ
+  const flouciEnabled = false; // Paiement local tunisien (TND) - DÉSACTIVÉ
 
   const { restaurants, removeItem, updateQuantity, total, clearCart, clearRestaurant } = useCart();
   const { startOrder, activeOrder, orderId } = useOrder();
@@ -1425,6 +1426,37 @@ export default function CartPage() {
                                 </div>
                             )}
                         </RadioGroup>
+
+                        {/* Message d'information : Paiement par carte temporairement indisponible */}
+                        {(!stripeEnabled || !flouciEnabled) && (
+                            <div className="mt-4 p-4 bg-muted/50 border border-muted-foreground/20 rounded-lg">
+                                <div className="flex items-start gap-3">
+                                    <div className="w-5 h-5 text-muted-foreground mt-0.5 flex-shrink-0">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                                        </svg>
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-medium text-foreground mb-1">
+                                            {language === 'ar' 
+                                                ? "معلومة مهمة" 
+                                                : language === 'en' 
+                                                ? "Important Information" 
+                                                : "Information importante"}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground leading-relaxed">
+                                            {language === 'ar' 
+                                                ? "الدفع بالبطاقة غير متاح حالياً. يرجى اختيار الدفع نقداً عند الاستلام." 
+                                                : language === 'en' 
+                                                ? "Card payment is currently unavailable. Please choose cash on delivery." 
+                                                : "Le paiement par carte n'est pas disponible pour le moment. Veuillez choisir le paiement en espèces à la livraison."}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Total global */}
