@@ -28,6 +28,9 @@ Les restaurants suivants sont créés automatiquement :
 | **Sahara Grill** | `21633333333` | `1234` | Boulevard de l'Environnement, Tataouine |
 | **Le Jardin Salades** | `21644444444` | `1234` | Rue Ibn Khaldoun, Tataouine |
 | **Burger House** | `21655555555` | `1234` | Avenue de la République, Tataouine |
+| **Carrefour** | `21698765432` | `1234` | Centre Commercial, Avenue Habib Bourguiba, Tataouine |
+| **Aziza** | `21698765433` | `1234` | Rue de la République, Tataouine |
+| **BAB EL HARA** | `21699999999` | `1234` | 6 Place De L'Abbaye, Tataouine |
 
 ### Connexion restaurant
 
