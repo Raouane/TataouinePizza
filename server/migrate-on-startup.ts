@@ -315,6 +315,54 @@ export async function runMigrationsOnStartup() {
     `);
     console.log("[DB] ✅ Index telegram_messages créés/vérifiés");
 
+    // Créer la table cash_handovers si elle n'existe pas (pour suivre les remises de caisse)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS cash_handovers (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        driver_id VARCHAR NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,
+        amount NUMERIC(10, 2) NOT NULL,
+        delivery_count INTEGER NOT NULL,
+        handover_date TIMESTAMP NOT NULL,
+        handover_at TIMESTAMP DEFAULT NOW(),
+        validated_by VARCHAR REFERENCES admin_users(id) ON DELETE SET NULL,
+        validated_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    console.log("[DB] ✅ Table cash_handovers créée/vérifiée");
+    
+    // Ajouter les colonnes validated_by et validated_at si elles n'existent pas (migration)
+    await db.execute(sql`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'cash_handovers' AND column_name = 'validated_by'
+        ) THEN
+          ALTER TABLE cash_handovers ADD COLUMN validated_by VARCHAR REFERENCES admin_users(id) ON DELETE SET NULL;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'cash_handovers' AND column_name = 'validated_at'
+        ) THEN
+          ALTER TABLE cash_handovers ADD COLUMN validated_at TIMESTAMP;
+        END IF;
+      END $$;
+    `);
+    console.log("[DB] ✅ Colonnes validated_by et validated_at ajoutées/vérifiées");
+    
+    // Créer les index pour améliorer les performances
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_cash_handovers_driver_id ON cash_handovers(driver_id);
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_cash_handovers_handover_date ON cash_handovers(handover_date);
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_cash_handovers_driver_date ON cash_handovers(driver_id, handover_date);
+    `);
+    console.log("[DB] ✅ Index cash_handovers créés/vérifiés");
+
     console.log("[DB] 🎉 Toutes les migrations sont terminées avec succès!");
   } catch (error: any) {
     console.error("[DB] ❌ Erreur lors des migrations:", error.message);

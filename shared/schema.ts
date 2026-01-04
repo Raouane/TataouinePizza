@@ -155,6 +155,19 @@ export const telegramMessages = pgTable("telegram_messages", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Cash Handovers (pour suivre les remises de caisse des livreurs)
+export const cashHandovers = pgTable("cash_handovers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  driverId: varchar("driver_id").notNull().references(() => drivers.id, { onDelete: "cascade" }),
+  amount: numeric("amount", { precision: 10, scale: 2 }).notNull(), // Montant remis
+  deliveryCount: integer("delivery_count").notNull(), // Nombre de livraisons couvertes
+  handoverDate: timestamp("handover_date").notNull(), // Date de la remise (pour filtrer par jour)
+  handoverAt: timestamp("handover_at").defaultNow(), // Timestamp exact de la remise
+  validatedBy: varchar("validated_by").references(() => adminUsers.id, { onDelete: "set null" }), // Admin qui a validé
+  validatedAt: timestamp("validated_at"), // Timestamp de validation par le gérant
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Zod Schemas for validation
 export const insertAdminUserSchema = createInsertSchema(adminUsers)
   .pick({ email: true, password: true })
@@ -312,3 +325,4 @@ export type UpdateDriver = z.infer<typeof updateDriverSchema>;
 export type UpdatePizza = z.infer<typeof updatePizzaSchema>;
 export type AssignDriver = z.infer<typeof assignDriverSchema>;
 export type CustomerLogin = z.infer<typeof customerLoginSchema>;
+export type CashHandover = typeof cashHandovers.$inferSelect;

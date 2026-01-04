@@ -3,7 +3,7 @@ import { useLocation, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Bike, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock, Store, Banknote, Navigation, Power, ExternalLink, User, Menu, BarChart3, Bell, Settings, Eye, History } from "lucide-react";
+import { Bike, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock, Store, Banknote, Navigation, Power, ExternalLink, User, Menu, BarChart3, Bell, Settings, Eye, History, CheckCircle, XCircle, Calculator } from "lucide-react";
 import { SwipeButton } from "@/components/swipe-button";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
@@ -61,6 +61,42 @@ export default function DriverDashboard() {
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0); // Utiliser une ref pour éviter les re-renders
+  
+  // États pour les statistiques de caisse (espèces)
+  const [cashStats, setCashStats] = useState<{
+    cashInHand: number;
+    myCommission: number;
+    deliveryCount: number;
+    amountToReturn: number;
+  } | null>(null);
+  const [loadingCashStats, setLoadingCashStats] = useState(false);
+  const [handingOverCash, setHandingOverCash] = useState(false);
+  
+  // ✅ NOUVEAU : États pour l'historique des encaissements
+  const [cashHistory, setCashHistory] = useState<Array<{
+    orderId: string;
+    orderNumber: string;
+    customerName: string;
+    totalAmount: number;
+    driverCommission: number;
+    amountToReturn: number;
+    deliveredAt: string;
+    isHandedOver: boolean;
+  }>>([]);
+  const [loadingCashHistory, setLoadingCashHistory] = useState(false);
+  const [showCashHistory, setShowCashHistory] = useState(false);
+  
+  // ✅ NOUVEAU : États pour le résumé de fin de journée
+  const [cashSummary, setCashSummary] = useState<{
+    totalCashCollected: number;
+    totalCommission: number;
+    amountToReturn: number;
+    deliveryCount: number;
+    isClosed: boolean;
+    summary: { message: string };
+  } | null>(null);
+  const [loadingCashSummary, setLoadingCashSummary] = useState(false);
+  const [showCashSummary, setShowCashSummary] = useState(false);
   
   // États pour la visibilité cyclique des commandes
   const [visibleOrderIds, setVisibleOrderIds] = useState<Set<string>>(new Set());
@@ -403,6 +439,9 @@ export default function DriverDashboard() {
       
       fetchOrders();
       fetchStatus();
+      // ✅ NOUVEAU : Récupérer les stats de caisse (si activé, sinon ignoré silencieusement)
+      fetchCashStats().catch(() => {}); 
+      fetchCashHistory().catch(() => {});
       // Augmenter l'intervalle pour éviter de perturber les timers de visibilité
       // Les timers durent 30 secondes, donc on vérifie toutes les 30 secondes
       fetchOrdersIntervalRef.current = setInterval(() => {
@@ -541,6 +580,155 @@ export default function DriverDashboard() {
       }
     } catch (err) {
       console.error("Failed to fetch status:", err);
+    }
+  };
+
+  // ✅ NOUVEAU : Fonction pour récupérer les statistiques de caisse
+  const fetchCashStats = async () => {
+    if (!token) return;
+    
+    setLoadingCashStats(true);
+    try {
+      const res = await fetch("/api/driver/cash-stats", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (res.status === 401) {
+        const errorData = await res.json().catch(() => ({}));
+        if (errorData.error === "TOKEN_EXPIRED") {
+          await handleAuthError(true);
+        } else {
+          await handleAuthError(false);
+        }
+        return;
+      }
+      
+      // Vérifier si la fonctionnalité est désactivée
+      if (res.status === 403) {
+        const errorData = await res.json().catch(() => ({}));
+        console.log("[Cash Management] Fonctionnalité désactivée:", errorData.message);
+        setCashStats(null); // Réinitialiser les stats
+        return;
+      }
+      
+      if (res.ok) {
+        const data = await res.json();
+        setCashStats({
+          cashInHand: data.cashInHand || 0,
+          myCommission: data.myCommission || 0,
+          deliveryCount: data.deliveryCount || 0,
+          amountToReturn: data.amountToReturn || 0,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch cash stats:", err);
+    } finally {
+      setLoadingCashStats(false);
+    }
+  };
+
+  // ✅ NOUVEAU : Fonction pour récupérer l'historique des encaissements
+  const fetchCashHistory = async () => {
+    if (!token) return;
+    
+    setLoadingCashHistory(true);
+    try {
+      const res = await fetch("/api/driver/cash-history", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (res.status === 401) {
+        const errorData = await res.json().catch(() => ({}));
+        if (errorData.error === "TOKEN_EXPIRED") {
+          await handleAuthError(true);
+        } else {
+          await handleAuthError(false);
+        }
+        return;
+      }
+      
+      // Vérifier si la fonctionnalité est désactivée
+      if (res.status === 403) {
+        const errorData = await res.json().catch(() => ({}));
+        console.log("[Cash Management] Fonctionnalité désactivée:", errorData.message);
+        setCashHistory([]); // Réinitialiser l'historique
+        return;
+      }
+      
+      if (res.ok) {
+        const data = await res.json();
+        setCashHistory(data.history || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch cash history:", err);
+      // Ne pas afficher d'erreur toast si c'est juste la fonctionnalité désactivée
+      const error = err as any;
+      if (error?.status !== 403) {
+        toast.error("Erreur lors du chargement de l'historique");
+      }
+    } finally {
+      setLoadingCashHistory(false);
+    }
+  };
+
+  // ✅ NOUVEAU : Fonction pour remettre la caisse
+  const handleCashHandover = async () => {
+    if (!token || !cashStats || cashStats.deliveryCount === 0) {
+      toast.error("Aucune livraison en espèces aujourd'hui");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Confirmer la remise de caisse ?\n\n` +
+      `Espèces collectées: ${cashStats.cashInHand.toFixed(2)} DT\n` +
+      `Votre commission: ${cashStats.myCommission.toFixed(2)} DT\n` +
+      `Montant à remettre: ${cashStats.amountToReturn.toFixed(2)} DT\n\n` +
+      `Nombre de livraisons: ${cashStats.deliveryCount}`
+    );
+
+    if (!confirmed) return;
+
+    setHandingOverCash(true);
+    try {
+      const res = await fetch("/api/driver/cash-handover", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          amount: cashStats.amountToReturn,
+        }),
+      });
+
+      if (res.status === 401) {
+        const errorData = await res.json().catch(() => ({}));
+        if (errorData.error === "TOKEN_EXPIRED") {
+          await handleAuthError(true);
+        } else {
+          await handleAuthError(false);
+        }
+        return;
+      }
+
+      if (res.ok) {
+        const data = await res.json();
+        toast.success("Remise de caisse enregistrée avec succès !");
+        // Rafraîchir les stats, l'historique et le résumé (si activé)
+        fetchCashStats().catch(() => {}); // Ignorer les erreurs si désactivé
+        fetchCashHistory().catch(() => {}); // Ignorer les erreurs si désactivé
+        if (showCashSummary) {
+          fetchCashSummary().catch(() => {}); // Ignorer les erreurs si désactivé
+        }
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        toast.error(errorData.error || "Erreur lors de la remise de caisse");
+      }
+    } catch (err) {
+      console.error("Failed to handover cash:", err);
+      toast.error("Erreur lors de la remise de caisse");
+    } finally {
+      setHandingOverCash(false);
     }
   };
 
@@ -1133,6 +1321,7 @@ export default function DriverDashboard() {
   };
 
   const handleDelivered = async (orderId: string) => {
+    // ✅ NOUVEAU : Rafraîchir les stats de caisse après livraison
     setUpdating(orderId);
     try {
       // Trouver la commande pour calculer le gain
@@ -1163,6 +1352,11 @@ export default function DriverDashboard() {
       
       // Rafraîchir les commandes et récupérer les nouvelles données
       await fetchOrders();
+      
+      // ✅ NOUVEAU : Rafraîchir les stats de caisse après livraison (si activé)
+      // Ne pas bloquer si la fonctionnalité est désactivée
+      fetchCashStats().catch(() => {}); // Ignorer les erreurs si désactivé
+      fetchCashHistory().catch(() => {}); // Ignorer les erreurs si désactivé
       
       // Récupérer directement les nouvelles commandes depuis l'API pour vérifier s'il y en a d'autres
       const myRes = await fetch("/api/driver/orders", {
@@ -1521,6 +1715,281 @@ export default function DriverDashboard() {
             </div>
           </Card>
         </div>
+
+        {/* ✅ NOUVEAU : Section "Mes Gains" - Statistiques de caisse (espèces) */}
+        {/* Afficher uniquement si la fonctionnalité est activée et qu'il y a des données */}
+        {cashStats && cashStats.deliveryCount > 0 && (
+          <Card className="mb-4 border-2 border-emerald-500 bg-gradient-to-br from-emerald-50 to-green-50">
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="bg-emerald-500 p-2 rounded-lg">
+                    <Banknote className="w-5 h-5 text-white" />
+                  </div>
+                  <h3 className="text-lg font-bold text-emerald-900">Mes Gains (Espèces)</h3>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchCashStats}
+                  disabled={loadingCashStats}
+                  className="border-emerald-500 text-emerald-700 hover:bg-emerald-100"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-1 ${loadingCashStats ? 'animate-spin' : ''}`} />
+                  Actualiser
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* Espèces en main */}
+                <div className="bg-white rounded-lg p-3 border border-emerald-200">
+                  <p className="text-xs text-muted-foreground mb-1">Espèces en main</p>
+                  <p className="text-2xl font-bold text-emerald-700">
+                    {cashStats.cashInHand.toFixed(2)} DT
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Total encaissé auprès des clients
+                  </p>
+                </div>
+
+                {/* Ma Commission */}
+                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                  <p className="text-xs text-muted-foreground mb-1">Ma Commission</p>
+                  <p className="text-2xl font-bold text-blue-700">
+                    {cashStats.myCommission.toFixed(2)} DT
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Montant que vous gardez
+                  </p>
+                </div>
+
+                {/* Nombre de livraisons */}
+                <div className="bg-white rounded-lg p-3 border border-purple-200">
+                  <p className="text-xs text-muted-foreground mb-1">Livraisons du jour</p>
+                  <p className="text-2xl font-bold text-purple-700">
+                    {cashStats.deliveryCount}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Commande{cashStats.deliveryCount > 1 ? 's' : ''} livrée{cashStats.deliveryCount > 1 ? 's' : ''}
+                  </p>
+                </div>
+
+                {/* Montant à rendre */}
+                <div className="bg-white rounded-lg p-3 border border-orange-200">
+                  <p className="text-xs text-muted-foreground mb-1">À rendre au restaurant</p>
+                  <p className="text-2xl font-bold text-orange-700">
+                    {cashStats.amountToReturn.toFixed(2)} DT
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Espèces - Commission
+                  </p>
+                </div>
+              </div>
+
+              {/* Bouton Remettre la caisse */}
+              <Button
+                onClick={handleCashHandover}
+                disabled={handingOverCash || cashStats.deliveryCount === 0}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-6 text-lg"
+                size="lg"
+              >
+                {handingOverCash ? (
+                  <>
+                    <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
+                    Enregistrement...
+                  </>
+                ) : (
+                  <>
+                    <Banknote className="w-5 h-5 mr-2" />
+                    Remettre la caisse au restaurant
+                  </>
+                )}
+              </Button>
+
+              <p className="text-xs text-center text-muted-foreground">
+                Cliquez sur "Remettre la caisse" une fois que vous avez rendu l'argent au gérant
+              </p>
+
+              {/* ✅ NOUVEAU : Bouton pour afficher/masquer l'historique */}
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowCashHistory(!showCashHistory);
+                  if (!showCashHistory && cashHistory.length === 0) {
+                    fetchCashHistory();
+                  }
+                }}
+                className="w-full mt-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                size="sm"
+              >
+                <History className="w-4 h-4 mr-2" />
+                {showCashHistory ? "Masquer" : "Voir"} l'historique des encaissements
+              </Button>
+
+              {/* ✅ NOUVEAU : Historique des encaissements */}
+              {showCashHistory && (
+                <div className="mt-4 space-y-2 max-h-96 overflow-y-auto">
+                  {loadingCashHistory ? (
+                    <div className="text-center py-4 text-muted-foreground">
+                      <RefreshCw className="w-5 h-5 mx-auto animate-spin mb-2" />
+                      Chargement de l'historique...
+                    </div>
+                  ) : cashHistory.length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground">
+                      Aucune livraison en espèces aujourd'hui
+                    </div>
+                  ) : (
+                    cashHistory.map((item) => (
+                      <div
+                        key={item.orderId}
+                        className={`p-3 rounded-lg border-2 ${
+                          item.isHandedOver
+                            ? "bg-green-50 border-green-300"
+                            : "bg-red-50 border-red-300"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-mono text-xs text-muted-foreground">
+                                #{item.orderNumber}
+                              </span>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  item.isHandedOver
+                                    ? "bg-green-200 text-green-800"
+                                    : "bg-red-200 text-red-800"
+                                }`}
+                              >
+                                {item.isHandedOver ? "✓ Remis" : "⏳ En attente"}
+                              </span>
+                            </div>
+                            <p className="font-semibold text-sm">{item.customerName}</p>
+                            <div className="mt-2 space-y-1 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Total encaissé:</span>
+                                <span className="font-semibold">{item.totalAmount.toFixed(2)} DT</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Votre commission:</span>
+                                <span className="font-semibold text-blue-600">
+                                  +{item.driverCommission.toFixed(2)} DT
+                                </span>
+                              </div>
+                              <div className="flex justify-between pt-1 border-t">
+                                <span className="text-muted-foreground">À rendre au resto:</span>
+                                <span className="font-semibold text-orange-600">
+                                  {item.amountToReturn.toFixed(2)} DT
+                                </span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Livré le {new Date(item.deliveredAt).toLocaleString("fr-FR", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* ✅ NOUVEAU : Résumé de fin de journée (Clôture de caisse) */}
+              {showCashSummary && (
+                <div className="mt-4">
+                  {loadingCashSummary ? (
+                    <div className="text-center py-4 text-muted-foreground">
+                      <RefreshCw className="w-5 h-5 mx-auto animate-spin mb-2" />
+                      Chargement du résumé...
+                    </div>
+                  ) : cashSummary ? (
+                    <Card className={`border-2 ${
+                      cashSummary.isClosed 
+                        ? "bg-green-50 border-green-400" 
+                        : "bg-orange-50 border-orange-400"
+                    }`}>
+                      <div className="p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {cashSummary.isClosed ? (
+                              <CheckCircle className="w-6 h-6 text-green-600" />
+                            ) : (
+                              <XCircle className="w-6 h-6 text-orange-600" />
+                            )}
+                            <h4 className="font-bold text-lg">
+                              {cashSummary.isClosed ? "Caisse Clôturée" : "Résumé de Fin de Journée"}
+                            </h4>
+                          </div>
+                          {cashSummary.isClosed && (
+                            <Badge className="bg-green-600 text-white">
+                              Validée par le gérant
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Message de résumé */}
+                        <div className={`p-3 rounded-lg ${
+                          cashSummary.isClosed ? "bg-green-100" : "bg-orange-100"
+                        }`}>
+                          <p className="font-semibold text-sm">
+                            {cashSummary.summary.message}
+                          </p>
+                        </div>
+
+                        {/* Détails du calcul */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center p-2 bg-white rounded">
+                            <span className="text-sm text-muted-foreground">Argent total collecté:</span>
+                            <span className="font-bold text-emerald-700">
+                              {cashSummary.totalCashCollected.toFixed(2)} DT
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center p-2 bg-white rounded">
+                            <span className="text-sm text-muted-foreground">Vos gains (commission):</span>
+                            <span className="font-bold text-blue-700">
+                              {cashSummary.totalCommission.toFixed(2)} DT
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center p-2 bg-white rounded border-2 border-orange-300">
+                            <span className="text-sm font-semibold">Montant à déposer à la caisse:</span>
+                            <span className="font-bold text-lg text-orange-700">
+                              {cashSummary.amountToReturn.toFixed(2)} DT
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center p-2 bg-white rounded">
+                            <span className="text-sm text-muted-foreground">Nombre de livraisons:</span>
+                            <span className="font-semibold">
+                              {cashSummary.deliveryCount}
+                            </span>
+                          </div>
+                        </div>
+
+                        {!cashSummary.isClosed && (
+                          <div className="pt-2 border-t">
+                            <p className="text-xs text-center text-muted-foreground">
+                              ⚠️ Une fois que vous avez remis la caisse, le gérant doit valider la clôture.
+                              <br />
+                              Votre compteur sera réinitialisé après validation.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+                  ) : (
+                    <div className="text-center py-4 text-muted-foreground">
+                      Aucune livraison en espèces aujourd'hui
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
 
         {/* Vue unifiée - Toutes les commandes (disponibles + en cours) */}
         {(() => {

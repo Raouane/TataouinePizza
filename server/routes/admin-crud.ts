@@ -624,6 +624,69 @@ export function registerAdminCrudRoutes(app: Express): void {
       errorHandler.sendError(res, error);
     }
   });
+
+  // ============ CASH HANDOVER VALIDATION ============
+  // CASH MANAGEMENT DISABLED BY DEFAULT – ENABLE VIA ENABLE_CASH_MANAGEMENT ENV FLAG
+  
+  /**
+   * Vérifie si la gestion de caisse est activée
+   */
+  const isCashManagementEnabled = (): boolean => {
+    return process.env.ENABLE_CASH_MANAGEMENT === "true";
+  };
+  
+  /**
+   * POST /api/admin/drivers/:driverId/cash-close
+   * Valide la clôture de caisse d'un livreur par le gérant
+   */
+  app.post("/api/admin/drivers/:driverId/cash-close", authenticateAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      // Vérifier si la fonctionnalité est activée
+      if (!isCashManagementEnabled()) {
+        return res.status(403).json({ 
+          error: "Gestion de caisse désactivée",
+          message: "Cette fonctionnalité n'est pas disponible. Contactez l'administrateur."
+        });
+      }
+      
+      const adminId = getAuthenticatedAdminId(req);
+      const driverId = req.params.driverId;
+      
+      // Récupérer la dernière remise de caisse du livreur pour aujourd'hui
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const lastHandover = await storage.getLastCashHandover(driverId, today);
+      
+      if (!lastHandover) {
+        throw errorHandler.badRequest("Aucune remise de caisse trouvée pour ce livreur aujourd'hui");
+      }
+      
+      // Vérifier si déjà validée
+      const isAlreadyValidated = await storage.isCashHandoverValidated(lastHandover.id);
+      if (isAlreadyValidated) {
+        throw errorHandler.badRequest("Cette remise de caisse a déjà été validée");
+      }
+      
+      // Valider la remise de caisse
+      const validatedHandover = await storage.validateCashHandover(lastHandover.id, adminId);
+      
+      console.log(`[Admin] ✅ Clôture de caisse validée: driverId=${driverId}, handoverId=${lastHandover.id}, adminId=${adminId}`);
+      
+      res.json({
+        success: true,
+        message: "Clôture de caisse validée avec succès",
+        handover: {
+          id: validatedHandover.id,
+          amount: Number(validatedHandover.amount),
+          deliveryCount: validatedHandover.deliveryCount,
+          validatedAt: validatedHandover.validatedAt?.toISOString(),
+        },
+      });
+    } catch (error) {
+      errorHandler.sendError(res, error);
+    }
+  });
   
   // Note: Les routes seed-test-data et enrich-all sont très longues et spécifiques
   // Elles restent dans routes.ts pour l'instant car elles sont moins critiques
