@@ -13,6 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "@/lib/i18n";
 import { getOnboarding } from "@/pages/onboarding";
+import { isRestaurantOpen as checkNewOpeningHours, parseOpeningHoursSchedule } from "@shared/openingHours";
+import { getRestaurantCloseReason } from "@/lib/restaurant-status";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -523,6 +525,69 @@ export default function CartPage() {
     });
   };
 
+  // Fonction pour vérifier si les restaurants du panier sont ouverts
+  const checkRestaurantsOpenStatus = async (): Promise<{ allOpen: boolean; closedRestaurants: Array<{ id: string; name: string; nextOpenTime?: string | null }> }> => {
+    const closedRestaurants: Array<{ id: string; name: string; nextOpenTime?: string | null }> = [];
+    
+    try {
+      // Récupérer tous les restaurants depuis l'API pour avoir leurs horaires
+      const response = await fetch("/api/restaurants");
+      if (!response.ok) {
+        console.error("[Cart] Erreur lors de la récupération des restaurants");
+        // En cas d'erreur, on laisse passer (le serveur vérifiera aussi)
+        return { allOpen: true, closedRestaurants: [] };
+      }
+      
+      const allRestaurants = await response.json();
+      const restaurantMap = new Map(allRestaurants.map((r: any) => [r.id, r]));
+      
+      // Vérifier chaque restaurant du panier
+      for (const restaurantCart of restaurants) {
+        const restaurant = restaurantMap.get(restaurantCart.restaurantId);
+        if (!restaurant) continue;
+        
+        // Vérifier le toggle manuel d'abord
+        if (restaurant.isOpen === false || restaurant.computedStatus?.isOpen === false) {
+          closedRestaurants.push({
+            id: restaurant.id,
+            name: restaurant.name || restaurantCart.restaurantName || "Restaurant inconnu",
+          });
+          continue;
+        }
+        
+        // Essayer le nouveau format JSON
+        const schedule = parseOpeningHoursSchedule(restaurant.openingHours || null);
+        if (schedule) {
+          const status = checkNewOpeningHours(schedule);
+          if (!status.isOpen) {
+            closedRestaurants.push({
+              id: restaurant.id,
+              name: restaurant.name || restaurantCart.restaurantName || "Restaurant inconnu",
+              nextOpenTime: status.nextOpenTime,
+            });
+          }
+        } else {
+          // Fallback : utiliser computedStatus si disponible
+          if (restaurant.computedStatus && !restaurant.computedStatus.isOpen) {
+            closedRestaurants.push({
+              id: restaurant.id,
+              name: restaurant.name || restaurantCart.restaurantName || "Restaurant inconnu",
+            });
+          }
+        }
+      }
+      
+      return {
+        allOpen: closedRestaurants.length === 0,
+        closedRestaurants,
+      };
+    } catch (error) {
+      console.error("[Cart] Erreur lors de la vérification des horaires:", error);
+      // En cas d'erreur, on laisse passer (le serveur vérifiera aussi)
+      return { allOpen: true, closedRestaurants: [] };
+    }
+  };
+
   const handleConfirmOrder = async () => {
     // Validation des champs requis
     if (!name || name.trim().length < 2) {
@@ -559,6 +624,31 @@ export default function CartPage() {
         variant: "destructive" 
       });
       return;
+    }
+    
+    // ✅ NOUVELLE VÉRIFICATION : Vérifier si les restaurants sont ouverts
+    const { allOpen, closedRestaurants } = await checkRestaurantsOpenStatus();
+    if (!allOpen) {
+      const closedNames = closedRestaurants.map(r => r.name).join(", ");
+      const nextOpenMessages = closedRestaurants
+        .filter(r => r.nextOpenTime)
+        .map(r => `${r.name} (Ouvre à ${r.nextOpenTime})`)
+        .join(", ");
+      
+      const message = nextOpenMessages 
+        ? `Désolé, ${closedNames} ${closedRestaurants.length === 1 ? 'vient de fermer' : 'viennent de fermer'} ses cuisines. ${nextOpenMessages}`
+        : `Désolé, ${closedNames} ${closedRestaurants.length === 1 ? 'est actuellement fermé' : 'sont actuellement fermés'}. Merci de commander pendant les horaires d'ouverture.`;
+      
+      toast({
+        title: language === 'ar' 
+          ? 'المطعم مغلق' 
+          : language === 'en' 
+          ? 'Restaurant Closed' 
+          : 'Restaurant fermé',
+        description: message,
+        variant: "destructive",
+      });
+      return; // Bloquer le paiement
     }
     
     // Vérifier si le client a une commande active

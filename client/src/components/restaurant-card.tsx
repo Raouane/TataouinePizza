@@ -3,7 +3,8 @@ import { Star, Bike } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { ImageWithFallback } from "./image-with-fallback";
 import { parseRestaurantCategories } from "@/lib/restaurant-helpers";
-import { isRestaurantOpen, getRestaurantCloseReason, parseOpeningHours } from "@/lib/restaurant-status";
+import { getRestaurantCloseReason, parseOpeningHours } from "@/lib/restaurant-status";
+import { isRestaurantOpen as checkNewOpeningHours, parseOpeningHoursSchedule } from "@shared/openingHours";
 
 export interface Restaurant {
   id: string;
@@ -17,6 +18,10 @@ export interface Restaurant {
   deliveryTime?: number;
   rating?: string;
   reviewCount?: number;
+  computedStatus?: {
+    isOpen: boolean;
+    reason?: 'toggle' | 'hours' | 'closedDay';
+  };
 }
 
 interface RestaurantCardProps {
@@ -26,7 +31,35 @@ interface RestaurantCardProps {
 
 export function RestaurantCard({ restaurant, getCategoryLabel }: RestaurantCardProps) {
   const { t } = useLanguage();
-  const isActuallyOpen = isRestaurantOpen(restaurant);
+  
+  // Essayer d'abord le nouveau format JSON, puis fallback sur l'ancien format
+  const schedule = parseOpeningHoursSchedule(restaurant.openingHours || null);
+  let openStatus: { isOpen: boolean; nextOpenTime?: string | null } | null = null;
+  
+  if (schedule) {
+    // Nouveau format JSON
+    openStatus = checkNewOpeningHours(schedule);
+  } else {
+    // Fallback : utiliser l'ancien système pour compatibilité
+    // Utiliser computedStatus si disponible (calculé côté serveur)
+    if (restaurant.computedStatus !== undefined) {
+      openStatus = { isOpen: restaurant.computedStatus.isOpen };
+    } else {
+      // Fallback : utiliser la logique de l'ancien système
+      const closeReason = getRestaurantCloseReason(restaurant);
+      const isTemporarilyClosed = closeReason === 'toggle';
+      // Si fermé via toggle, considérer fermé
+      if (isTemporarilyClosed || restaurant.isOpen === false) {
+        openStatus = { isOpen: false };
+      } else {
+        // Considérer ouvert si pas d'horaires et toggle = true
+        openStatus = { isOpen: restaurant.isOpen === true };
+      }
+    }
+  }
+  
+  const isActuallyOpen = openStatus?.isOpen ?? false;
+  const nextOpenTime = openStatus?.nextOpenTime;
   const closeReason = getRestaurantCloseReason(restaurant);
   const isTemporarilyClosed = closeReason === 'toggle';
   const { hours, closedDay } = parseOpeningHours(restaurant.openingHours || "");
@@ -35,14 +68,29 @@ export function RestaurantCard({ restaurant, getCategoryLabel }: RestaurantCardP
   const now = new Date();
   const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const currentDay = dayNames[now.getDay()];
+  
+  // Fonction pour gérer le clic - empêcher si fermé
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (!isActuallyOpen || isTemporarilyClosed) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
 
   return (
-    <Link href={`/menu/${restaurant.id}`} className="block">
-      <div className={`bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border ${
-        isActuallyOpen 
-          ? 'border-gray-100 hover:border-orange-200' 
-          : 'opacity-75 border-gray-200'
-      }`}>
+    <div 
+      onClick={handleCardClick}
+      className={isActuallyOpen && !isTemporarilyClosed ? '' : 'cursor-not-allowed'}
+    >
+      <Link 
+        href={isActuallyOpen && !isTemporarilyClosed ? `/menu/${restaurant.id}` : '#'} 
+        className="block"
+      >
+        <div className={`bg-white rounded-2xl overflow-hidden shadow-md transition-all duration-300 border ${
+          isActuallyOpen && !isTemporarilyClosed
+            ? 'border-gray-100 hover:border-orange-200 hover:shadow-xl' 
+            : 'opacity-60 border-gray-200 grayscale'
+        }`}>
         <div className="relative">
           <div className={`w-full h-48 bg-gradient-to-br relative overflow-hidden ${
             isActuallyOpen 
@@ -52,10 +100,10 @@ export function RestaurantCard({ restaurant, getCategoryLabel }: RestaurantCardP
             <ImageWithFallback
               src={restaurant.imageUrl}
               alt={restaurant.name}
-              className={`w-full h-full object-cover ${!isActuallyOpen ? 'grayscale' : ''}`}
+              className="w-full h-full object-cover"
               fallback={
                 <div className="w-full h-full flex items-center justify-center">
-                  <span className={`text-6xl ${!isActuallyOpen ? 'opacity-50' : ''}`}>🍕</span>
+                  <span className="text-6xl">🍕</span>
                 </div>
               }
             />
@@ -67,13 +115,15 @@ export function RestaurantCard({ restaurant, getCategoryLabel }: RestaurantCardP
                   ? "bg-orange-500 text-white"
                   : isActuallyOpen 
                     ? "bg-green-500 text-white"
-                    : "bg-gray-500 text-white"
+                    : "bg-red-500 text-white"
               }`}>
                 {isTemporarilyClosed 
                   ? "🔒 Fermé temporairement" 
                   : isActuallyOpen 
-                    ? t('menu.status.open') 
-                    : "Fermé"}
+                    ? "✅ " + t('menu.status.open')
+                    : nextOpenTime 
+                      ? `🔴 Fermé (Ouvre à ${nextOpenTime})`
+                      : "🔴 Fermé"}
               </span>
             </div>
             
@@ -159,7 +209,8 @@ export function RestaurantCard({ restaurant, getCategoryLabel }: RestaurantCardP
           </div>
         </div>
       </div>
-    </Link>
+      </Link>
+    </div>
   );
 }
 

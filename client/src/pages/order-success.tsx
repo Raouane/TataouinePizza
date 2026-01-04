@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from "sonner";
 import { createOrder } from "@/lib/api";
 import { useCart } from "@/lib/cart";
+import { isRestaurantOpen as checkNewOpeningHours, parseOpeningHoursSchedule } from "@shared/openingHours";
 
 type SearchPhase = 'searching' | 'found' | 'success';
 
@@ -108,7 +109,87 @@ export default function OrderSuccess() {
         
         const pendingOrder = JSON.parse(pendingOrderStr);
         
-        console.log('[OrderSuccess] ✅ Paiement Flouci confirmé, création de la commande');
+        console.log('[OrderSuccess] ✅ Paiement Flouci confirmé, vérification des horaires avant création de la commande');
+        
+        // ✅ VÉRIFICATION DES HORAIRES : Vérifier si les restaurants sont toujours ouverts
+        try {
+          const response = await fetch("/api/restaurants");
+          if (response.ok) {
+            const allRestaurants = await response.json();
+            const restaurantMap = new Map(allRestaurants.map((r: any) => [r.id, r]));
+            
+            const closedRestaurants: Array<{ id: string; name: string; nextOpenTime?: string | null }> = [];
+            
+            for (const restaurantCart of pendingOrder.restaurants) {
+              const restaurant = restaurantMap.get(restaurantCart.restaurantId);
+              if (!restaurant) continue;
+              
+              // Vérifier le toggle manuel d'abord
+              if (restaurant.isOpen === false || restaurant.computedStatus?.isOpen === false) {
+                closedRestaurants.push({
+                  id: restaurant.id,
+                  name: restaurant.name || restaurantCart.restaurantName || "Restaurant inconnu",
+                });
+                continue;
+              }
+              
+              // Essayer le nouveau format JSON
+              const schedule = parseOpeningHoursSchedule(restaurant.openingHours || null);
+              if (schedule) {
+                const status = checkNewOpeningHours(schedule);
+                if (!status.isOpen) {
+                  closedRestaurants.push({
+                    id: restaurant.id,
+                    name: restaurant.name || restaurantCart.restaurantName || "Restaurant inconnu",
+                    nextOpenTime: status.nextOpenTime,
+                  });
+                }
+              } else {
+                // Fallback : utiliser computedStatus si disponible
+                if (restaurant.computedStatus && !restaurant.computedStatus.isOpen) {
+                  closedRestaurants.push({
+                    id: restaurant.id,
+                    name: restaurant.name || restaurantCart.restaurantName || "Restaurant inconnu",
+                  });
+                }
+              }
+            }
+            
+            // Si un restaurant est fermé, annuler et rembourser
+            if (closedRestaurants.length > 0) {
+              const closedNames = closedRestaurants.map(r => r.name).join(", ");
+              const message = `Désolé, ${closedNames} ${closedRestaurants.length === 1 ? 'vient de fermer' : 'viennent de fermer'} ses cuisines pendant que vous payiez. Votre paiement sera remboursé.`;
+              
+              toast.error(
+                language === 'ar' 
+                  ? 'المطعم مغلق' 
+                  : language === 'en' 
+                  ? 'Restaurant Closed' 
+                  : 'Restaurant fermé',
+                {
+                  description: message,
+                  duration: 10000,
+                }
+              );
+              
+              // Nettoyer sessionStorage
+              sessionStorage.removeItem('pendingFlouciOrder');
+              sessionStorage.removeItem('flouciPaymentId');
+              
+              // Rediriger vers le panier
+              setTimeout(() => {
+                setLocation('/cart?payment=restaurant_closed');
+              }, 3000);
+              
+              return; // Bloquer la création de la commande
+            }
+          }
+        } catch (error) {
+          console.error('[OrderSuccess] Erreur lors de la vérification des horaires:', error);
+          // En cas d'erreur, on continue quand même (le serveur vérifiera aussi)
+        }
+        
+        console.log('[OrderSuccess] ✅ Tous les restaurants sont ouverts, création de la commande');
         
         // Créer les commandes
         const orderPromises = pendingOrder.restaurants.map(async (restaurantCart: any) => {
