@@ -13,7 +13,7 @@ async function seedData() {
     
     const restaurantData = [
       {
-        id: "resto-001",
+        // id sera généré automatiquement par la DB (UUID)
         name: "Pizza del Sol",
         phone: "21622222222",
         address: "Rue de la Liberté, Tataouine",
@@ -27,7 +27,7 @@ async function seedData() {
         rating: "4.5",
       },
       {
-        id: "resto-002",
+        // id sera généré automatiquement par la DB (UUID)
         name: "Sahara Grill",
         phone: "21633333333",
         address: "Boulevard de l'Environnement, Tataouine",
@@ -41,7 +41,7 @@ async function seedData() {
         rating: "4.7",
       },
       {
-        id: "resto-003",
+        // id sera généré automatiquement par la DB (UUID)
         name: "Tataouine Pizza",
         phone: "21611111111",
         address: "Avenue Habib Bourguiba, Tataouine",
@@ -69,7 +69,7 @@ async function seedData() {
         rating: "4.4",
       },
       {
-        id: "resto-005",
+        // id sera généré automatiquement par la DB (UUID)
         name: "Burger House",
         phone: "21655555555",
         address: "Avenue de la République, Tataouine",
@@ -84,16 +84,32 @@ async function seedData() {
       },
     ];
 
+    // Map pour stocker les IDs des restaurants créés (nom → UUID)
+    const restaurantIds: Record<string, string> = {};
+    
     for (const resto of restaurantData) {
       try {
-        await db.insert(restaurants).values(resto);
+        // Ne pas spécifier l'ID - laisser la DB générer un UUID
+        const { id, ...restoWithoutId } = resto as any;
+        const result = await db.insert(restaurants).values(restoWithoutId).returning({ id: restaurants.id });
+        if (result && result[0]) {
+          restaurantIds[resto.name] = result[0].id;
+          console.log(`✅ Restaurant créé: ${resto.name} (UUID: ${result[0].id})`);
+        }
       } catch (error: any) {
-        if (error.code !== '23505') { // Ignorer les erreurs de doublon (unique constraint)
+        if (error.code === '23505') {
+          // Restaurant existe déjà - récupérer son ID
+          const existing = await db.select().from(restaurants).where(sql`name = ${resto.name}`).limit(1);
+          if (existing[0]) {
+            restaurantIds[resto.name] = existing[0].id;
+            console.log(`⚠️  Restaurant "${resto.name}" existe déjà (UUID: ${existing[0].id})`);
+          }
+        } else {
           throw error;
         }
       }
     }
-    console.log(`✅ ${restaurantData.length} restaurants insérés\n`);
+    console.log(`✅ ${Object.keys(restaurantIds).length} restaurants traités\n`);
 
     // ============ LIVREURS ============
     console.log("🚗 Insertion des livreurs...");
@@ -150,10 +166,14 @@ async function seedData() {
     // ============ PRODUITS - PIZZA DEL SOL ============
     console.log("🍕 Insertion des produits pour Pizza del Sol...");
     
-    const pizzaDelSolProducts = [
-      {
-        id: "pizza-001",
-        restaurantId: "resto-001",
+    const pizzaDelSolId = restaurantIds["Pizza del Sol"];
+    if (!pizzaDelSolId) {
+      console.log("⚠️  Restaurant 'Pizza del Sol' non trouvé, skip produits");
+    } else {
+      const pizzaDelSolProducts = [
+        {
+          id: "pizza-001",
+          restaurantId: pizzaDelSolId,
         name: "Pizza Margherita",
         description: "Tomate, mozzarella, basilic frais",
         productType: "pizza",
@@ -168,7 +188,7 @@ async function seedData() {
       },
       {
         id: "pizza-002",
-        restaurantId: "resto-001",
+        restaurantId: pizzaDelSolId,
         name: "Pizza 4 Fromages",
         description: "Mozzarella, gorgonzola, parmesan, chèvre",
         productType: "pizza",
@@ -183,7 +203,7 @@ async function seedData() {
       },
       {
         id: "pizza-003",
-        restaurantId: "resto-001",
+        restaurantId: pizzaDelSolId,
         name: "Pizza Végétarienne",
         description: "Légumes frais, olives, champignons, poivrons",
         productType: "pizza",
@@ -198,7 +218,7 @@ async function seedData() {
       },
       {
         id: "pizza-004",
-        restaurantId: "resto-001",
+        restaurantId: pizzaDelSolId,
         name: "Coca Cola",
         description: "Boisson gazeuse 33cl",
         productType: "drink",
@@ -211,7 +231,7 @@ async function seedData() {
       },
       {
         id: "pizza-005",
-        restaurantId: "resto-001",
+        restaurantId: pizzaDelSolId,
         name: "Tiramisu",
         description: "Dessert italien au café et mascarpone",
         productType: "dessert",
@@ -250,6 +270,7 @@ async function seedData() {
       }
     }
     console.log(`✅ ${pizzaDelSolProducts.length} produits insérés pour Pizza del Sol\n`);
+    }
 
     // ============ PRODUITS - SAHARA GRILL ============
     console.log("🍖 Insertion des produits pour Sahara Grill...");
@@ -257,7 +278,7 @@ async function seedData() {
     const saharaGrillProducts = [
       {
         id: "grill-001",
-        restaurantId: "resto-002",
+        restaurantId: saharaGrillId,
         name: "Kebab Mixte",
         description: "Viande hachée et poulet grillé",
         productType: "grill",
@@ -272,7 +293,7 @@ async function seedData() {
       },
       {
         id: "grill-002",
-        restaurantId: "resto-002",
+        restaurantId: saharaGrillId,
         name: "Burger Classique",
         description: "Steak haché, salade, tomate, oignons, sauce",
         productType: "burger",
@@ -286,7 +307,7 @@ async function seedData() {
       },
       {
         id: "grill-003",
-        restaurantId: "resto-002",
+        restaurantId: saharaGrillId,
         name: "Salade César",
         description: "Salade verte, poulet grillé, parmesan, croûtons",
         productType: "salade",
@@ -300,7 +321,7 @@ async function seedData() {
       },
       {
         id: "grill-004",
-        restaurantId: "resto-002",
+        restaurantId: saharaGrillId,
         name: "Jus d'Orange",
         description: "Jus d'orange frais pressé",
         productType: "drink",
@@ -342,10 +363,14 @@ async function seedData() {
     // ============ PRODUITS - TATAOUINE PIZZA ============
     console.log("🍕 Insertion des produits pour Tataouine Pizza...");
     
-    const tataouinePizzaProducts = [
-      {
-        id: "pizza-006",
-        restaurantId: "resto-003",
+    const tataouinePizzaId = restaurantIds["Tataouine Pizza"];
+    if (!tataouinePizzaId) {
+      console.log("⚠️  Restaurant 'Tataouine Pizza' non trouvé, skip produits");
+    } else {
+      const tataouinePizzaProducts = [
+        {
+          id: "pizza-006",
+          restaurantId: tataouinePizzaId,
         name: "Pizza Reine",
         description: "Tomate, jambon, champignons, fromage",
         productType: "pizza",
@@ -360,7 +385,7 @@ async function seedData() {
       },
       {
         id: "pizza-007",
-        restaurantId: "resto-003",
+        restaurantId: tataouinePizzaId,
         name: "Pizza Thon",
         description: "Tomate, thon, oignons, olives, câpres",
         productType: "pizza",
@@ -375,7 +400,7 @@ async function seedData() {
       },
       {
         id: "burger-001",
-        restaurantId: "resto-003",
+        restaurantId: tataouinePizzaId,
         name: "Burger Double Cheese",
         description: "Double steak, double fromage, bacon",
         productType: "burger",
@@ -389,7 +414,7 @@ async function seedData() {
       },
       {
         id: "drink-001",
-        restaurantId: "resto-003",
+        restaurantId: tataouinePizzaId,
         name: "Pepsi",
         description: "Boisson gazeuse 33cl",
         productType: "drink",
@@ -402,7 +427,7 @@ async function seedData() {
       },
       {
         id: "dessert-001",
-        restaurantId: "resto-003",
+        restaurantId: tataouinePizzaId,
         name: "Glace Vanille",
         description: "Glace à la vanille avec coulis de chocolat",
         productType: "dessert",
@@ -440,6 +465,7 @@ async function seedData() {
       }
     }
     console.log(`✅ ${tataouinePizzaProducts.length} produits insérés pour Tataouine Pizza\n`);
+    }
 
     // ============ PRODUITS - LE JARDIN SALADES ============
     console.log("🥗 Insertion des produits pour Le Jardin Salades...");
@@ -447,7 +473,7 @@ async function seedData() {
     const jardinSaladesProducts = [
       {
         id: "salade-001",
-        restaurantId: "resto-004",
+        restaurantId: jardinSaladesId,
         name: "Salade Niçoise",
         description: "Salade verte, thon, œufs, olives, tomates",
         productType: "salade",
@@ -461,7 +487,7 @@ async function seedData() {
       },
       {
         id: "salade-002",
-        restaurantId: "resto-004",
+        restaurantId: jardinSaladesId,
         name: "Salade Grecque",
         description: "Salade, feta, olives, tomates, concombres",
         productType: "salade",
@@ -475,7 +501,7 @@ async function seedData() {
       },
       {
         id: "salade-003",
-        restaurantId: "resto-004",
+        restaurantId: jardinSaladesId,
         name: "Eau Minérale",
         description: "Eau minérale naturelle 50cl",
         productType: "drink",
@@ -488,7 +514,7 @@ async function seedData() {
       },
       {
         id: "dessert-002",
-        restaurantId: "resto-004",
+        restaurantId: jardinSaladesId,
         name: "Fruit de Saison",
         description: "Assortiment de fruits frais",
         productType: "dessert",
@@ -530,10 +556,14 @@ async function seedData() {
     // ============ PRODUITS - BURGER HOUSE ============
     console.log("🍔 Insertion des produits pour Burger House...");
     
-    const burgerHouseProducts = [
-      {
-        id: "burger-002",
-        restaurantId: "resto-005",
+    const burgerHouseId = restaurantIds["Burger House"];
+    if (!burgerHouseId) {
+      console.log("⚠️  Restaurant 'Burger House' non trouvé, skip produits");
+    } else {
+      const burgerHouseProducts = [
+        {
+          id: "burger-002",
+        restaurantId: burgerHouseId,
         name: "Burger Chicken",
         description: "Filet de poulet pané, salade, tomate, sauce",
         productType: "burger",
@@ -547,7 +577,7 @@ async function seedData() {
       },
       {
         id: "burger-003",
-        restaurantId: "resto-005",
+        restaurantId: burgerHouseId,
         name: "Burger Végétarien",
         description: "Steak végétal, avocat, salade, tomate",
         productType: "burger",
@@ -561,7 +591,7 @@ async function seedData() {
       },
       {
         id: "burger-004",
-        restaurantId: "resto-005",
+        restaurantId: burgerHouseId,
         name: "Burger BBQ",
         description: "Steak haché, bacon, oignons frits, sauce BBQ",
         productType: "burger",
@@ -575,7 +605,7 @@ async function seedData() {
       },
       {
         id: "drink-002",
-        restaurantId: "resto-005",
+        restaurantId: burgerHouseId,
         name: "Milkshake Vanille",
         description: "Milkshake à la vanille",
         productType: "drink",
@@ -588,7 +618,7 @@ async function seedData() {
       },
       {
         id: "dessert-003",
-        restaurantId: "resto-005",
+        restaurantId: burgerHouseId,
         name: "Brownie Chocolat",
         description: "Brownie au chocolat avec glace vanille",
         productType: "dessert",
@@ -626,6 +656,7 @@ async function seedData() {
       }
     }
     console.log(`✅ ${burgerHouseProducts.length} produits insérés pour Burger House\n`);
+    }
 
     console.log("✨ Données de test insérées avec succès !");
     console.log("\n📊 Résumé :");
