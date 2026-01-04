@@ -27,6 +27,19 @@ export function isRestaurantOpen(restaurant: Restaurant): boolean {
   return isRestaurantOpenClient(restaurant);
 }
 
+/**
+ * Obtient l'heure actuelle en Tunisie (UTC+1)
+ * La Tunisie n'utilise pas l'heure d'été, donc toujours UTC+1
+ */
+function getTunisiaTime(): Date {
+  const now = new Date();
+  // Obtenir l'heure UTC
+  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
+  // Ajouter le décalage de la Tunisie (UTC+1 = +1 heure = 3600000 ms)
+  const tunisiaTime = new Date(utcTime + (1 * 60 * 60 * 1000));
+  return tunisiaTime;
+}
+
 function isRestaurantOpenClient(restaurant: Restaurant): boolean {
   if (restaurant.isOpen === false || restaurant.isOpen === null) {
     return false;
@@ -41,7 +54,8 @@ function isRestaurantOpenClient(restaurant: Restaurant): boolean {
   const closedDay = parts[1]?.trim();
   
   if (closedDay) {
-    const now = new Date();
+    // Utiliser l'heure de Tunisie (UTC+1) au lieu de l'heure locale du navigateur
+    const now = getTunisiaTime();
     const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
     const currentDay = dayNames[now.getDay()];
     if (currentDay === closedDay) {
@@ -54,7 +68,8 @@ function isRestaurantOpenClient(restaurant: Restaurant): boolean {
   const [openTime, closeTime] = hoursPart.split("-");
   if (!openTime || !closeTime) return true;
   
-  const now = new Date();
+  // Utiliser l'heure de Tunisie (UTC+1) au lieu de l'heure locale du navigateur
+  const now = getTunisiaTime();
   const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
   
   const [openHour, openMin] = openTime.split(":").map(Number);

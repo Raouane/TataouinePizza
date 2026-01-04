@@ -1,10 +1,8 @@
 /**
  * Service d'authentification centralisé pour les clients
  * 
- * MVP: Authentification simple basée sur prénom + téléphone (sans OTP)
- * OTP peut être réactivé via la variable d'environnement ENABLE_SMS_OTP
- * 
- * @see ENABLE_SMS_OTP dans .env pour activer/désactiver l'OTP
+ * Authentification simple basée sur prénom + téléphone (sans OTP)
+ * L'OTP a été complètement supprimé pour tous les utilisateurs
  */
 
 import { storage } from "../storage";
@@ -21,15 +19,7 @@ export interface AuthResult {
 }
 
 /**
- * Vérifie si l'OTP SMS est activé
- * @returns true si ENABLE_SMS_OTP=true, false sinon
- */
-export function isOtpEnabled(): boolean {
-  return process.env.ENABLE_SMS_OTP === "true";
-}
-
-/**
- * Authentifie un client avec prénom + téléphone (mode simple - MVP)
+ * Authentifie un client avec prénom + téléphone (authentification simple)
  * 
  * - Si le client existe → connexion automatique
  * - Si le client n'existe pas → création automatique puis connexion

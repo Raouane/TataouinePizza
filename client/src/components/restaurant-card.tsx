@@ -4,7 +4,8 @@ import { useLanguage } from "@/lib/i18n";
 import { ImageWithFallback } from "./image-with-fallback";
 import { parseRestaurantCategories } from "@/lib/restaurant-helpers";
 import { getRestaurantCloseReason, parseOpeningHours } from "@/lib/restaurant-status";
-import { isRestaurantOpen as checkNewOpeningHours, parseOpeningHoursSchedule, formatOpeningHours } from "@shared/openingHours";
+import { isRestaurantOpen as checkNewOpeningHours, parseOpeningHoursSchedule, formatOpeningHours, getMinutesUntilOpening, getMinutesUntilClosing } from "@shared/openingHours";
+import { useMemo } from "react";
 
 export interface Restaurant {
   id: string;
@@ -69,6 +70,70 @@ export function RestaurantCard({ restaurant, getCategoryLabel }: RestaurantCardP
   const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const currentDay = dayNames[now.getDay()];
   
+  // Calculer le compte à rebours pour ouverture/fermeture
+  const minutesUntilOpening = useMemo(() => {
+    if (isActuallyOpen || isTemporarilyClosed || !schedule) return null;
+    return getMinutesUntilOpening(schedule);
+  }, [schedule, isActuallyOpen, isTemporarilyClosed]);
+  
+  const minutesUntilClosing = useMemo(() => {
+    if (!isActuallyOpen || isTemporarilyClosed || !schedule) return null;
+    return getMinutesUntilClosing(schedule);
+  }, [schedule, isActuallyOpen, isTemporarilyClosed]);
+  
+  // Déterminer le badge et sa couleur
+  const badgeConfig = useMemo(() => {
+    if (isTemporarilyClosed) {
+      return {
+        color: "bg-orange-500 text-white",
+        text: "🔒 " + t('menu.status.temporarilyClosed'),
+        isUrgent: false
+      };
+    }
+    
+    if (isActuallyOpen) {
+      if (minutesUntilClosing !== null) {
+        // Ferme bientôt (< 30 min)
+        return {
+          color: "bg-orange-500 text-white",
+          text: t('openingHours.closesSoon', { minutes: minutesUntilClosing }),
+          isUrgent: true
+        };
+      }
+      // Ouvert normalement
+      return {
+        color: "bg-green-500 text-white",
+        text: t('menu.status.open'),
+        isUrgent: false
+      };
+    }
+    
+    // Fermé
+    if (minutesUntilOpening !== null) {
+      // Ouvre bientôt (< 60 min)
+      return {
+        color: "bg-orange-500 text-white",
+        text: t('openingHours.opensIn', { minutes: minutesUntilOpening }),
+        isUrgent: true
+      };
+    }
+    
+    // Fermé sans ouverture imminente
+    if (nextOpenTime) {
+      return {
+        color: "bg-red-500 text-white",
+        text: `${t('openingHours.closed')} (${t('openingHours.opensAt')} ${nextOpenTime})`,
+        isUrgent: false
+      };
+    }
+    
+    return {
+      color: "bg-red-500 text-white",
+      text: t('openingHours.closed'),
+      isUrgent: false
+    };
+  }, [isActuallyOpen, isTemporarilyClosed, minutesUntilOpening, minutesUntilClosing, nextOpenTime, t]);
+  
   // Fonction pour gérer le clic - empêcher si fermé
   const handleCardClick = (e: React.MouseEvent) => {
     if (!isActuallyOpen || isTemporarilyClosed) {
@@ -110,20 +175,8 @@ export function RestaurantCard({ restaurant, getCategoryLabel }: RestaurantCardP
             
             {/* Status Badge */}
             <div className="absolute top-3 left-3">
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                isTemporarilyClosed 
-                  ? "bg-orange-500 text-white"
-                  : isActuallyOpen 
-                    ? "bg-green-500 text-white"
-                    : "bg-red-500 text-white"
-              }`}>
-                {isTemporarilyClosed 
-                  ? "🔒 " + t('menu.status.temporarilyClosed')
-                  : isActuallyOpen 
-                    ? "✅ " + t('menu.status.open')
-                    : nextOpenTime 
-                      ? `🔴 ${t('openingHours.closed')} (${t('openingHours.opensAt')} ${nextOpenTime})`
-                      : "🔴 " + t('openingHours.closed')}
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${badgeConfig.color}`}>
+                {badgeConfig.text}
               </span>
             </div>
             
@@ -188,11 +241,15 @@ export function RestaurantCard({ restaurant, getCategoryLabel }: RestaurantCardP
                   <span className="font-semibold">{t('openingHours.title')} :</span> {formatOpeningHours(schedule, language)}
                 </div>
               ) : closedDay && currentDay === closedDay ? (
-                `🔒 ${t('openingHours.closed')} ${t('menu.status.closedDay')} ${closedDay}`
+                <div>
+                  🔒 {t('openingHours.closed')} - {t('menu.status.closedDay')} {closedDay}
+                </div>
               ) : hours ? (
-                `⏰ ${t('openingHours.open')} ${hours}`
+                <div>
+                  ⏰ {t('openingHours.opensAt')} {hours.split('-')[0] || hours}
+                </div>
               ) : (
-                t('openingHours.closed')
+                <div>{t('openingHours.closed')}</div>
               )}
             </div>
           )}

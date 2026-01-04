@@ -24,14 +24,37 @@ const getUserPhone = (): string => {
   return customerPhone || "";
 };
 
+/**
+ * Helper pour sauvegarder le téléphone (sans OTP)
+ */
+const savePhone = (phone: string): void => {
+  localStorage.setItem('customerPhone', phone);
+  // Optionnel : sauvegarder aussi dans onboarding si pas déjà présent
+  const onboarding = getOnboarding();
+  if (!onboarding?.phone) {
+    const updatedOnboarding = { ...onboarding, phone } as any;
+    localStorage.setItem('tp_onboarding', JSON.stringify(updatedOnboarding));
+  }
+};
+
 export default function OrderHistory() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [phoneInput, setPhoneInput] = useState("");
+  const [showPhoneInput, setShowPhoneInput] = useState(false);
   const { t, language } = useLanguage();
   
   // Récupérer le téléphone (onboarding ou customerPhone)
   const phone = getUserPhone();
+  
+  // Si pas de téléphone au montage, afficher le champ de saisie
+  useEffect(() => {
+    if (!phone || phone.length < 8) {
+      setShowPhoneInput(true);
+      setLoading(false);
+    }
+  }, [phone]);
 
   // Charger automatiquement les commandes au montage du composant
   useEffect(() => {
@@ -86,9 +109,35 @@ export default function OrderHistory() {
     window.open(invoiceUrl, '_blank');
   };
 
-  // Si pas de téléphone valide, afficher un message
-  // Permet l'accès même sans onboarding complet (utilise customerPhone)
-  if (!phone || phone.length < 8) {
+  // Fonction pour charger les commandes avec un téléphone
+  const handleLoadOrders = async (phoneToUse: string) => {
+    if (!phoneToUse || phoneToUse.length < 8) {
+      return;
+    }
+    
+    // Normaliser le téléphone (supprimer espaces, ajouter + si nécessaire)
+    const normalizedPhone = phoneToUse.replace(/\s+/g, "").replace(/^\+/, "");
+    if (normalizedPhone.length < 8) {
+      return;
+    }
+    
+    // Sauvegarder le téléphone
+    savePhone(normalizedPhone);
+    setShowPhoneInput(false);
+    setLoading(true);
+    
+    try {
+      const result = await getOrdersByPhone(normalizedPhone);
+      setOrders(result);
+    } catch (error) {
+      console.error("Erreur lors de la récupération des commandes:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Si pas de téléphone valide, afficher un formulaire de saisie simple
+  if (showPhoneInput || !phone || phone.length < 8) {
     return (
       <div className="max-w-2xl mx-auto space-y-6 pb-20">
         <div className="flex items-center gap-4 mb-6">
@@ -107,17 +156,55 @@ export default function OrderHistory() {
           </div>
         </div>
 
-        <Card className="p-6 text-center">
-          <p className="text-muted-foreground mb-4">
-            {t('history.noOnboarding') || "Vous devez compléter l'onboarding ou passer une commande pour voir vos commandes."}
-          </p>
-          <div className="flex gap-2 justify-center">
-            <Link href="/onboarding">
-              <Button>{t('history.completeOnboarding') || "Compléter l'onboarding"}</Button>
-            </Link>
-            <Link href="/cart">
-              <Button variant="outline">Passer une commande</Button>
-            </Link>
+        <Card className="p-6">
+          <div className="space-y-4">
+            <div className="text-center mb-4">
+              <Phone className="w-12 h-12 mx-auto mb-2 text-primary opacity-50" />
+              <p className="text-muted-foreground mb-2">
+                {language === 'ar' 
+                  ? "أدخل رقم هاتفك لعرض طلباتك" 
+                  : language === 'en' 
+                  ? "Enter your phone number to view your orders"
+                  : "Entrez votre numéro de téléphone pour voir vos commandes"}
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="phone-input">
+                {language === 'ar' ? "رقم الهاتف" : language === 'en' ? "Phone Number" : "Numéro de téléphone"}
+              </Label>
+              <Input
+                id="phone-input"
+                type="tel"
+                placeholder={language === 'ar' ? "+216 XX XXX XXX" : language === 'en' ? "+216 XX XXX XXX" : "+216 XX XXX XXX"}
+                value={phoneInput || phone || ""}
+                onChange={(e) => setPhoneInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleLoadOrders(phoneInput || phone || "");
+                  }
+                }}
+                className="text-lg"
+                autoFocus
+              />
+            </div>
+            
+            <Button 
+              onClick={() => handleLoadOrders(phoneInput || phone || "")}
+              className="w-full"
+              disabled={!phoneInput && (!phone || phone.length < 8)}
+            >
+              <Search className="w-4 h-4 mr-2" />
+              {language === 'ar' ? "عرض الطلبات" : language === 'en' ? "View Orders" : "Voir mes commandes"}
+            </Button>
+            
+            <div className="text-center pt-4 border-t">
+              <Link href="/cart">
+                <Button variant="outline" size="sm">
+                  {language === 'ar' ? "إجراء طلب جديد" : language === 'en' ? "Place a new order" : "Passer une commande"}
+                </Button>
+              </Link>
+            </div>
           </div>
         </Card>
       </div>

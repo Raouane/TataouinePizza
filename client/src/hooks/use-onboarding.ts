@@ -5,29 +5,20 @@ import { useLanguage } from "@/lib/i18n";
 import { getOnboarding, saveOnboarding } from "@/pages/onboarding";
 import type { OnboardingData } from "@/pages/onboarding";
 
-const MAX_OTP_ATTEMPTS = 3;
-const OTP_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-
 interface UseOnboardingState {
   name: string;
   phone: string;
-  otp: string;
   address: string;
   addressDetails: string;
   coords: { lat: number; lng: number } | null;
-  otpAttempts: number;
-  otpSentAt: number | null;
 }
 
 const initialState: UseOnboardingState = {
   name: "",
   phone: "",
-  otp: "",
   address: "",
   addressDetails: "",
   coords: null,
-  otpAttempts: 0,
-  otpSentAt: null,
 };
 
 export function useOnboarding() {
@@ -69,14 +60,8 @@ export function useOnboarding() {
     return name.trim().length >= 2;
   }, []);
 
-  // Vérifier si l'OTP a expiré
-  const isOtpExpired = useCallback((): boolean => {
-    if (!state.otpSentAt) return false;
-    return Date.now() - state.otpSentAt > OTP_TIMEOUT_MS;
-  }, [state.otpSentAt]);
-
   // Authentification simple (sans OTP) - MVP
-  // OTP désactivé pour économiser sur les coûts SMS
+  // OTP supprimé pour les clients - utilise customerLogin directement
   const sendOtpCode = useCallback(async (): Promise<boolean> => {
     setError(null);
 
@@ -120,8 +105,8 @@ export function useOnboarding() {
     }
   }, [state.name, state.phone, validateName, validatePhone, t]);
 
-  // Vérifier l'OTP - Désactivé (MVP sans OTP)
-  // Cette fonction n'est plus utilisée mais conservée pour compatibilité
+  // Vérifier l'OTP - Supprimé (MVP sans OTP)
+  // Cette fonction n'est plus utilisée mais conservée pour compatibilité avec onboarding.tsx
   const verifyOtpCode = useCallback(async (): Promise<boolean> => {
     // L'authentification se fait directement dans sendOtpCode
     // Cette fonction retourne toujours true pour permettre le passage à l'étape suivante

@@ -1,0 +1,164 @@
+📁 VUE D'ENSEMBLE DE L'ARBORESCENCE - TATAOUINE PIZZA
+═══════════════════════════════════════════════════════════════════════════
+
+🎯 BACKEND (server/)
+───────────────────────────────────────────────────────────────────────────
+
+server/
+├── storage.ts                    ✅ SIMPLIFIÉ (342 lignes - orchestrateur)
+│   └── Orchestration de 9 modules de storage
+│
+├── storage/                      ✅ STRUCTURE MODULAIRE (10 modules)
+│   ├── base-storage.ts          (Classe de base + helpers)
+│   ├── admin-storage.ts         (Admins)
+│   ├── customer-storage.ts      (Clients)
+│   ├── restaurant-storage.ts    (Restaurants)
+│   ├── driver-storage.ts        (Livreurs)
+│   ├── pizza-storage.ts         (Pizzas)
+│   ├── order-storage.ts         (Commandes)
+│   ├── idempotency-storage.ts   (Idempotence)
+│   ├── telegram-storage.ts      (Telegram)
+│   └── cash-storage.ts          (Caisse)
+│   └── ❌ otp-storage.ts         SUPPRIMÉ
+│
+├── routes/
+│   ├── driver/                  ✅ STRUCTURE MODULAIRE (5 fichiers)
+│   │   ├── driver-auth.routes.ts      (Login, refresh)
+│   │   ├── driver-cash.routes.ts      (Caisse)
+│   │   ├── driver-orders.routes.ts    (Commandes)
+│   │   ├── driver-push.routes.ts      (Push notifications)
+│   │   └── driver-status.routes.ts    (Statut)
+│   │
+│   ├── driver-dashboard.ts      ✅ SIMPLIFIÉ (27 lignes - orchestrateur)
+│   ├── auth.ts                  ✅ Nettoyé (OTP supprimé)
+│   ├── restaurant-dashboard.ts  ✅ Nettoyé (OTP supprimé)
+│   ├── admin-crud.ts
+│   ├── public.ts
+│   └── ...
+│
+├── services/
+│   ├── customer-auth-service.ts ✅ Nettoyé (isOtpEnabled supprimé)
+│   └── sms-service.ts           ✅ Nettoyé (sendOtpSms supprimé)
+│
+├── middleware/
+│   └── auth-helpers.ts
+│   └── ❌ otp-login-helper.ts   SUPPRIMÉ
+│
+└── scripts/
+    └── test-complete-order-flow.ts ✅ Mis à jour
+
+
+🎨 FRONTEND (client/src/)
+───────────────────────────────────────────────────────────────────────────
+
+client/src/
+├── components/
+│   ├── admin/                   ✅ Organisé
+│   ├── menu/                    ✅ Organisé
+│   ├── onboarding/              ✅ Organisé
+│   ├── ui/                      ✅ shadcn/ui
+│   │   └── input-otp.tsx       ⚠️ UI générique (OK à garder)
+│   │
+│   ├── restaurant-card.tsx      ✅ Badges dynamiques + compte à rebours
+│   └── pwa-install-prompt.tsx   ✅ Bannière PWA
+│
+├── pages/
+│   ├── home.tsx                 ✅ Filtrage strict + fuseau Tunisie
+│   ├── cart-page.tsx            ✅ OTP supprimé
+│   ├── onboarding.tsx           ✅ OTP supprimé
+│   ├── order-history.tsx        ✅ OTP supprimé
+│   └── order-success.tsx        ✅ Bannière PWA (5s après succès)
+│
+├── hooks/
+│   └── use-onboarding.ts        ✅ OTP supprimé
+│
+├── lib/
+│   ├── api.ts                   ✅ OTP supprimé
+│   ├── i18n.tsx                 ✅ Traductions PWA + compte à rebours
+│   └── restaurant-status.ts     ✅ Fuseau Tunisie (UTC+1)
+│
+└── features/
+    └── order/                   ✅ Exemple modulaire
+        ├── hooks/
+        ├── components/
+        └── order.api.ts
+
+
+🗑️ CODE MORT / FICHIERS ORPHELINS
+───────────────────────────────────────────────────────────────────────────
+
+❌ FICHIERS SUPPRIMÉS
+  • server/storage/otp-storage.ts
+  • server/middleware/otp-login-helper.ts
+
+⚠️ RÉFÉRENCES RESTANTES (commentaires uniquement)
+  • server/routes/auth.ts : Commentaire documentant suppression OTP
+  • server/routes/driver/driver-auth.routes.ts : Commentaire documentant suppression OTP
+  • server/routes/restaurant-dashboard.ts : Commentaire documentant suppression OTP
+  • server/scripts/test-complete-order-flow.ts : Commentaire documentant suppression OTP
+
+✅ FICHIERS NETTOYÉS (OTP retiré)
+  • server/routes/auth.ts
+  • server/routes/driver/driver-auth.routes.ts
+  • server/routes/restaurant-dashboard.ts
+  • server/services/customer-auth-service.ts
+  • server/services/sms-service.ts (sendOtpSms supprimé)
+  • server/storage.ts (commentaire nettoyé)
+  • client/src/lib/api.ts
+  • client/src/pages/cart-page.tsx
+  • client/src/pages/onboarding.tsx
+  • client/src/pages/order-history.tsx
+  • client/src/hooks/use-onboarding.ts
+  • client/src/components/onboarding/step-progress.tsx
+
+
+📊 STATISTIQUES DE REFACTORING
+───────────────────────────────────────────────────────────────────────────
+
+BACKEND
+  ✅ server/storage.ts          : 342 lignes (orchestrateur léger)
+  ✅ server/storage/            : 9 modules actifs (1 supprimé)
+  ✅ server/routes/driver/      : 5 fichiers modulaires
+  ✅ server/routes/driver-dashboard.ts : 27 lignes (orchestrateur)
+
+FRONTEND
+  ⚠️ Structure partiellement modulaire
+    ✅ features/order/          : Exemple de modularisation
+    ⚠️ pages/                   : Fichiers monolithiques
+    ⚠️ components/               : Mélange (organisés + non organisés)
+
+
+🔍 POINTS À VÉRIFIER
+───────────────────────────────────────────────────────────────────────────
+
+1. ✅ server/routes/driver-dashboard.ts
+   ✅ Déjà simplifié (27 lignes - orchestrateur léger)
+   ✅ Routes driver modulaires dans server/routes/driver/
+   ✅ Utilisé uniquement pour l'orchestration
+
+2. ✅ client/src/components/ui/input-otp.tsx
+   ✅ Composant UI générique (shadcn/ui)
+   ✅ Non lié à notre système OTP supprimé
+   ✅ Peut être conservé (composant réutilisable)
+
+3. ✅ Code mort potentiel
+   ✅ Tous les fichiers OTP supprimés
+   ✅ sms-service.ts nettoyé (sendOtpSms supprimé)
+   ✅ Seuls des commentaires documentant la suppression restent
+
+
+✅ AMÉLIORATIONS RÉCENTES
+───────────────────────────────────────────────────────────────────────────
+
+1. ✅ Badges dynamiques : Compte à rebours ouverture/fermeture
+2. ✅ Fuseau horaire : Africa/Tunis (UTC+1) partout
+3. ✅ Filtrage strict : Restaurants ouverts uniquement
+4. ✅ Bannière PWA : Ajoutée dans order-success.tsx
+5. ✅ OTP supprimé : Système complètement retiré
+6. ✅ driver-dashboard.ts : Simplifié (27 lignes)
+7. ✅ sms-service.ts : sendOtpSms supprimé
+
+
+═══════════════════════════════════════════════════════════════════════════
+État final : ✅ PROJET PROPRE ET MODULAIRE
+═══════════════════════════════════════════════════════════════════════════

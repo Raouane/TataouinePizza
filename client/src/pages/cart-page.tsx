@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useCart } from "@/lib/cart";
 import { useOrder } from "@/lib/order-context";
-import { createOrder, sendOtp, verifyOtp, getOrdersByPhone, customerLogin } from "@/lib/api";
+import { createOrder, getOrdersByPhone, customerLogin } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,7 +51,6 @@ export default function CartPage() {
   const [step, setStep] = useState<Step>("cart");
   const [phone, setPhone] = useState(onboarding?.phone || "");
   const [name, setName] = useState(onboarding?.name || "");
-  const [code, setCode] = useState("");
   const [address, setAddress] = useState(onboarding?.address || "");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -221,10 +220,8 @@ export default function CartPage() {
         return;
       }
       
-      // Authentification simple (MVP) - OTP désactivé par défaut
-      // ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG
+      // Authentification simple (MVP) - OTP supprimé pour les clients
       try {
-        // Essayer d'abord l'authentification simple
         const authResult = await customerLogin(name.trim(), phone);
         
         // Sauvegarder le token si nécessaire
@@ -232,37 +229,17 @@ export default function CartPage() {
           localStorage.setItem('customerToken', authResult.token);
         }
         
+        // Sauvegarder aussi le téléphone pour l'historique des commandes
+        localStorage.setItem('customerPhone', phone.trim());
+        
         // Passer directement à l'adresse (pas d'étape verify)
         setStep("address");
       } catch (error: any) {
-        // Si l'erreur indique que l'OTP est activé, essayer le flow OTP
-        if (error.message?.includes('OTP authentication is enabled') || error.message?.includes('OTP désactivé')) {
-          // Fallback vers OTP si activé
-      try {
-        await sendOtp(phone);
-        setStep("verify");
-          } catch (otpError) {
         toast({ 
           title: t('cart.error.order'), 
-          description: t('cart.error.sendOtp') || "Impossible d'envoyer le code", 
+          description: error.message || "Erreur lors de l'authentification", 
           variant: "destructive" 
         });
-          }
-        } else {
-          toast({ 
-            title: t('cart.error.order'), 
-            description: error.message || "Erreur lors de l'authentification", 
-            variant: "destructive" 
-          });
-        }
-      }
-    } else if (step === "verify") {
-      // Étape verify uniquement si OTP est activé
-      try {
-        await verifyOtp(phone, code);
-        setStep("address");
-      } catch (error) {
-        toast({ title: t('cart.error.code'), variant: "destructive" });
       }
     } else if (step === "address") {
       if(address.length < 5) {
@@ -276,8 +253,7 @@ export default function CartPage() {
 
   const handleBack = () => {
       if (step === "phone") setStep("cart");
-      if (step === "verify") setStep("phone");
-      if (step === "address") setStep(hasPhoneFromOnboarding ? "cart" : "verify");
+      if (step === "address") setStep(hasPhoneFromOnboarding ? "cart" : "phone");
       if (step === "summary") setStep("address");
   };
 
@@ -874,16 +850,14 @@ export default function CartPage() {
         <h1 className={`text-lg md:text-2xl font-serif font-bold flex-1 text-center md:text-left ${isRtl ? 'md:pr-4' : 'md:pl-4'}`}>
           {step === "cart" && t('cart.step.1')}
           {step === "phone" && t('cart.step.2')}
-          {!hasPhoneFromOnboarding && step === "verify" && t('cart.step.3')}
-          {step === "address" && (hasPhoneFromOnboarding ? t('cart.step.3') : t('cart.step.4'))}
+          {step === "address" && (hasPhoneFromOnboarding ? t('cart.step.3') : t('cart.step.3'))}
           {step === "summary" && (language === 'ar' ? "ملخص الطلب" : language === 'en' ? "Order Summary" : "Récapitulatif")}
         </h1>
         <div className="text-xs md:text-sm font-medium text-muted-foreground flex-shrink-0">
-          {step === "cart" && (hasPhoneFromOnboarding ? "1/3" : "1/5")}
-          {step === "phone" && (hasPhoneFromOnboarding ? "2/3" : "2/5")}
-          {!hasPhoneFromOnboarding && step === "verify" && "3/5"}
-          {step === "address" && (hasPhoneFromOnboarding ? "2/3" : "4/5")}
-          {step === "summary" && (hasPhoneFromOnboarding ? "3/3" : "5/5")}
+          {step === "cart" && (hasPhoneFromOnboarding ? "1/3" : "1/4")}
+          {step === "phone" && (hasPhoneFromOnboarding ? "2/3" : "2/4")}
+          {step === "address" && (hasPhoneFromOnboarding ? "2/3" : "3/4")}
+          {step === "summary" && (hasPhoneFromOnboarding ? "3/3" : "4/4")}
         </div>
       </div>
 
@@ -1046,38 +1020,7 @@ export default function CartPage() {
                 </motion.div>
             )}
 
-            {/* STEP 3: VERIFY CODE */}
-            {step === "verify" && (
-                <motion.div
-                    key="verify"
-                    initial={{ opacity: 0, x: isRtl ? -20 : 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: isRtl ? 20 : -20 }}
-                    className="p-4 md:p-6 lg:p-10 flex flex-col items-center justify-center text-center h-full min-h-[300px] overflow-y-auto flex-1"
-                >
-                     <div className="bg-primary/10 p-3 md:p-4 rounded-full mb-4 md:mb-6 text-primary">
-                        <CheckCircle2 className="h-6 w-6 md:h-8 md:w-8" />
-                    </div>
-                    <h3 className="text-lg md:text-xl font-bold mb-2">{t('cart.verify.title')}</h3>
-                    <p className="text-xs md:text-sm text-muted-foreground mb-4 md:mb-6 px-4">{t('cart.verify.desc')} +216 {phone}. (Code: 1234)</p>
-                    
-                    <Input 
-                        type="text" 
-                        placeholder="XXXX" 
-                        className="text-xl md:text-2xl tracking-[0.8em] md:tracking-[1em] text-center font-mono w-32 md:w-40 uppercase"
-                        value={code}
-                        maxLength={4}
-                        onChange={(e) => setCode(e.target.value)}
-                        autoFocus
-                    />
-                    
-                    <button className="mt-4 md:mt-6 text-xs md:text-sm text-primary hover:underline">
-                        {t('cart.resend')}
-                    </button>
-                </motion.div>
-            )}
-
-            {/* STEP 4: ADDRESS */}
+            {/* STEP 3: ADDRESS */}
             {step === "address" && (
                 <motion.div
                     key="address"

@@ -10,7 +10,7 @@ import { StepError } from "@/components/onboarding/step-error";
 import { StepProgress } from "@/components/onboarding/step-progress";
 import { motion, AnimatePresence } from "framer-motion";
 
-type Step = "phone" | "otp" | "location";
+type Step = "phone" | "location";
 
 const STORAGE_KEY = "tp_onboarding";
 
@@ -53,7 +53,6 @@ export default function OnboardingPage() {
     error,
     setError,
     sendOtpCode,
-    verifyOtpCode,
     getLocation,
     save,
     updateField,
@@ -79,15 +78,6 @@ export default function OnboardingPage() {
     [sendOtpCode],
   );
 
-  // Cette fonction n'est plus utilisée (OTP désactivé)
-  const handleVerifyOtp = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      // Ne devrait jamais être appelé car on saute l'étape OTP
-      setStep("location");
-    },
-    [],
-  );
 
   const handleUseLocation = useCallback(async () => {
     setError(null);
@@ -120,13 +110,6 @@ export default function OnboardingPage() {
     [updateField],
   );
 
-  const handleOtpChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value.replace(/\D/g, "").slice(0, 4);
-      updateField("otp", value);
-    },
-    [updateField],
-  );
 
   const stepVariants = {
     hidden: { opacity: 0, x: 20 },
@@ -238,74 +221,6 @@ export default function OnboardingPage() {
                   ) : (
                     t("Continuer", "Continue", "متابعة")
                   )}
-                </Button>
-              </motion.form>
-            )}
-
-            {step === "otp" && (
-              <motion.form
-                key="otp"
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-                variants={stepVariants}
-                onSubmit={handleVerifyOtp}
-                className="bg-white rounded-3xl p-6 shadow-md border border-orange-100 space-y-4"
-              >
-                <div className="text-center mb-2">
-                  <h2 className="text-lg font-semibold">
-                    {t(
-                      "Entre le code reçu par SMS",
-                      "Enter the SMS code",
-                      "أدخل الرمز المرسل في الرسالة",
-                    )}
-                  </h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {t(
-                      `Tentatives restantes: ${3 - state.otpAttempts}`,
-                      `Remaining attempts: ${3 - state.otpAttempts}`,
-                      `المحاولات المتبقية: ${3 - state.otpAttempts}`,
-                    )}
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="onboarding-otp" className="sr-only">
-                    {t("Code OTP", "OTP code", "رمز OTP")}
-                  </Label>
-                  <Input
-                    id="onboarding-otp"
-                    type="tel"
-                    maxLength={4}
-                    value={state.otp}
-                    onChange={handleOtpChange}
-                    className="h-12 text-center text-2xl tracking-[0.4em]"
-                    placeholder="0000"
-                    aria-label={t("Code OTP", "OTP code", "رمز OTP")}
-                    autoComplete="one-time-code"
-                  />
-                </div>
-                <StepError error={error} step="otp" currentStep={step} />
-                <Button
-                  type="submit"
-                  className="w-full h-12 text-base"
-                  disabled={loading || state.otp.length !== 4}
-                >
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    t("Confirmer", "Confirm", "تأكيد")
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="w-full text-sm"
-                  onClick={() => {
-                    setError(null);
-                    setStep("phone");
-                  }}
-                >
-                  {t("Changer de numéro", "Change number", "تغيير الرقم")}
                 </Button>
               </motion.form>
             )}

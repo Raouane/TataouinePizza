@@ -156,6 +156,89 @@ function getNextOpenTime(schedule: OpeningHoursSchedule, currentDate: Date): str
 }
 
 /**
+ * Calcule le temps en minutes jusqu'à la prochaine ouverture
+ * Retourne null si le restaurant est ouvert maintenant ou si l'ouverture est dans plus de 60 minutes
+ */
+export function getMinutesUntilOpening(schedule: OpeningHoursSchedule | null | undefined): number | null {
+  if (!schedule) return null;
+  
+  const tunisiaTime = getTunisiaTime();
+  const dayOfWeek = tunisiaTime.getDay();
+  const currentMinutes = tunisiaTime.getHours() * 60 + tunisiaTime.getMinutes();
+  
+  const todaySlots = getTimeSlotsForDay(schedule, dayOfWeek);
+  
+  // Vérifier s'il y a un créneau plus tard aujourd'hui
+  for (const slot of todaySlots) {
+    const startMinutes = timeToMinutes(slot.start);
+    if (startMinutes > currentMinutes) {
+      const minutesUntil = startMinutes - currentMinutes;
+      return minutesUntil <= 60 ? minutesUntil : null;
+    }
+  }
+  
+  // Sinon, chercher le prochain jour avec des horaires
+  for (let i = 1; i <= 7; i++) {
+    const nextDay = (dayOfWeek + i) % 7;
+    const nextDaySlots = getTimeSlotsForDay(schedule, nextDay);
+    if (nextDaySlots.length > 0) {
+      const nextSlot = nextDaySlots[0];
+      const nextStartMinutes = timeToMinutes(nextSlot.start);
+      // Calculer les minutes jusqu'au prochain jour
+      const minutesUntil = (24 * 60 * i) - currentMinutes + nextStartMinutes;
+      return minutesUntil <= 60 ? minutesUntil : null;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Calcule le temps en minutes jusqu'à la fermeture
+ * Retourne null si le restaurant est fermé ou si la fermeture est dans plus de 30 minutes
+ */
+export function getMinutesUntilClosing(schedule: OpeningHoursSchedule | null | undefined): number | null {
+  if (!schedule) return null;
+  
+  const tunisiaTime = getTunisiaTime();
+  const dayOfWeek = tunisiaTime.getDay();
+  const currentMinutes = tunisiaTime.getHours() * 60 + tunisiaTime.getMinutes();
+  
+  const todaySlots = getTimeSlotsForDay(schedule, dayOfWeek);
+  
+  // Trouver le créneau actuel
+  for (const slot of todaySlots) {
+    const startMinutes = timeToMinutes(slot.start);
+    const endMinutes = timeToMinutes(slot.end);
+    
+    // Si on est dans ce créneau
+    if (isTimeInSlot(currentMinutes, slot)) {
+      let closingMinutes: number;
+      
+      // Si le créneau passe minuit (ex: "23:00" à "02:00")
+      if (endMinutes < startMinutes || endMinutes === 0) {
+        // Si end est "00:00", c'est minuit (fin de journée = 24:00 = 1440 minutes)
+        if (endMinutes === 0) {
+          closingMinutes = 24 * 60; // 1440 minutes = minuit
+        } else {
+          // Le créneau passe minuit, donc la fermeture est le lendemain
+          closingMinutes = endMinutes + (24 * 60);
+        }
+      } else {
+        // Créneau normal, fermeture le même jour
+        closingMinutes = endMinutes;
+      }
+      
+      const minutesUntil = closingMinutes - currentMinutes;
+      // Retourner seulement si fermeture dans moins de 30 minutes
+      return minutesUntil <= 30 && minutesUntil > 0 ? minutesUntil : null;
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Résultat de la vérification du statut d'ouverture
  */
 export interface RestaurantOpenStatus {
@@ -214,6 +297,7 @@ export function isRestaurantOpen(schedule: OpeningHoursSchedule | null | undefin
 /**
  * Fonction utilitaire pour parser un JSON string en OpeningHoursSchedule
  * Utile quand les horaires sont stockés en base de données comme texte JSON
+ * Gère aussi les cas où le JSON contient des propriétés comme "closedDay"
  */
 export function parseOpeningHoursSchedule(jsonString: string | null | undefined): OpeningHoursSchedule | null {
   if (!jsonString || jsonString.trim() === '') {
@@ -221,10 +305,25 @@ export function parseOpeningHoursSchedule(jsonString: string | null | undefined)
   }
   
   try {
+    // Si c'est déjà un objet, le retourner directement
+    if (typeof jsonString === 'object') {
+      return jsonString as OpeningHoursSchedule;
+    }
+    
+    // Parser le JSON
     const parsed = JSON.parse(jsonString);
+    
+    // Si le JSON contient "closedDay" ou d'autres propriétés non-standard,
+    // c'est probablement un format d'horaires ancien, on retourne null pour utiliser le fallback
+    if (parsed && typeof parsed === 'object' && ('closedDay' in parsed || !('weekdays' in parsed) && !('weekend' in parsed) && !('monday' in parsed))) {
+      // Format non-standard, utiliser le fallback
+      return null;
+    }
+    
     return parsed as OpeningHoursSchedule;
   } catch (error) {
-    console.error('Erreur lors du parsing des horaires:', error);
+    // Si le parsing échoue, ce n'est probablement pas du JSON valide
+    // Retourner null pour utiliser le fallback (format ancien "09:00-23:00|Vendredi")
     return null;
   }
 }

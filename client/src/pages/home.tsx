@@ -4,24 +4,11 @@ import { useLanguage } from "@/lib/i18n";
 import { isRestaurantOpen } from "@/lib/restaurant-status";
 import { SearchBar } from "@/components/search-bar";
 import { PizzaSearchResult } from "@/components/pizza-search-result";
-import { RestaurantsSection } from "@/components/restaurants-section";
+import { RestaurantsSection } from "@/features/restaurant/components/restaurants-section";
+import { useRestaurants } from "@/features/restaurant/hooks/use-restaurants";
 import { getCategoryLabel } from "@/lib/category-labels";
 import { debounce } from "@/lib/debounce";
-
-interface Restaurant {
-  id: string;
-  name: string;
-  phone: string;
-  address: string;
-  description?: string;
-  imageUrl?: string;
-  categories?: string[];
-  isOpen?: boolean;
-  openingHours?: string;
-  deliveryTime?: number;
-  rating?: string;
-  reviewCount?: number;
-}
+import type { Restaurant } from "@/features/restaurant/restaurant.types";
 
 interface Pizza {
   id: string;
@@ -36,17 +23,20 @@ interface Pizza {
 export default function Home() {
   const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [pizzas, setPizzas] = useState<Pizza[]>([]);
   const [loadingPizzas, setLoadingPizzas] = useState(false);
-  const [loading, setLoading] = useState(true);
+  
+  // Utiliser le hook de la feature restaurant
+  const { 
+    restaurants, 
+    openRestaurants, 
+    closedRestaurants, 
+    loading,
+    searchRestaurants 
+  } = useRestaurants();
   
   // AbortController pour annuler les requêtes en cours
   const abortControllerRef = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    fetchRestaurants();
-  }, []);
 
   // Debounced search avec AbortController
   const debouncedFetchPizzas = useMemo(
@@ -77,20 +67,6 @@ export default function Home() {
       }
     };
   }, [searchQuery, debouncedFetchPizzas]);
-
-  const fetchRestaurants = async () => {
-    try {
-      const res = await fetch("/api/restaurants");
-      if (res.ok) {
-        const data = await res.json();
-        setRestaurants(data);
-      }
-    } catch (err) {
-      console.error("Erreur lors du chargement des restaurants:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // OPTIMISATION: Recherche côté serveur avec query param + AbortController
   const fetchPizzas = useCallback(async (query: string) => {
@@ -135,33 +111,11 @@ export default function Home() {
   // Préparer les données AVANT le return
   const showSearchResults = searchQuery.trim().length > 0;
   
+  // Utiliser la fonction de recherche de la feature restaurant
   const filteredRestaurants = useMemo(() => {
     if (showSearchResults) return [];
-    const query = searchQuery.toLowerCase();
-    return restaurants.filter(r => 
-      r.name.toLowerCase().includes(query) ||
-      r.description?.toLowerCase().includes(query)
-    );
-  }, [restaurants, searchQuery, showSearchResults]);
-
-  const sortedRestaurants = useMemo(() => {
-    return [...filteredRestaurants].sort((a, b) => {
-      const aIsOpen = isRestaurantOpen(a);
-      const bIsOpen = isRestaurantOpen(b);
-      if (aIsOpen === bIsOpen) return 0;
-      return aIsOpen ? -1 : 1;
-    });
-  }, [filteredRestaurants]);
-
-  const openRestaurants = useMemo(() => 
-    sortedRestaurants.filter(r => isRestaurantOpen(r)),
-    [sortedRestaurants]
-  );
-
-  const closedRestaurants = useMemo(() => 
-    sortedRestaurants.filter(r => !isRestaurantOpen(r)),
-    [sortedRestaurants]
-  );
+    return searchRestaurants(searchQuery);
+  }, [searchQuery, showSearchResults, searchRestaurants]);
 
   // Filtrer les pizzas (maintenant déjà filtrées côté serveur, mais on garde pour sécurité)
   const filteredPizzas = useMemo(() => {
@@ -261,7 +215,7 @@ export default function Home() {
                 getCategoryLabel={getCategoryLabelMemo}
               />
               
-              {filteredRestaurants.length === 0 && !loading && (
+              {(filteredRestaurants.length === 0 && openRestaurants.length === 0 && closedRestaurants.length === 0) && !loading && (
                 <div className="text-center py-12 bg-white rounded-2xl">
                   <div className="text-4xl mb-3">🔍</div>
                   <p className="text-gray-600 font-medium">{t('home.search.noRestaurants')}</p>

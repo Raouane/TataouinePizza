@@ -1,12 +1,12 @@
 import { motion } from "framer-motion";
 
-type Step = "phone" | "otp" | "location";
+type Step = "phone" | "location";
 
 interface StepProgressProps {
   currentStep: Step;
 }
 
-const steps: Step[] = ["phone", "otp", "location"];
+const steps: Step[] = ["phone", "location"];
 
 export function StepProgress({ currentStep }: StepProgressProps) {
   const currentIndex = steps.indexOf(currentStep);

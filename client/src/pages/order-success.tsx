@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { createOrder } from "@/lib/api";
 import { useCart } from "@/lib/cart";
 import { isRestaurantOpen as checkNewOpeningHours, parseOpeningHoursSchedule, formatOpeningHours } from "@shared/openingHours";
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 
 type SearchPhase = 'searching' | 'found' | 'success';
 
@@ -31,6 +32,7 @@ export default function OrderSuccess() {
   const [orderCreatedAt, setOrderCreatedAt] = useState<Date | null>(null);
   const [isVerifyingFlouci, setIsVerifyingFlouci] = useState(false);
   const [flouciVerified, setFlouciVerified] = useState(false);
+  const [showPwaBanner, setShowPwaBanner] = useState(false);
 
   // Mettre à jour le nom du livreur quand orderData change
   useEffect(() => {
@@ -463,6 +465,27 @@ export default function OrderSuccess() {
       return () => clearInterval(interval);
     }
   }, [searchPhase]);
+
+  // Afficher la bannière PWA 5 secondes après le succès de la commande
+  useEffect(() => {
+    if (searchPhase === 'success') {
+      // Vérifier si la bannière a déjà été affichée pour cette commande
+      const bannerShown = sessionStorage.getItem(`pwaBannerShown_${orderId}`);
+      if (bannerShown === 'true') {
+        return; // Ne pas réafficher
+      }
+
+      // Attendre 5 secondes avant d'afficher la bannière
+      const timer = setTimeout(() => {
+        setShowPwaBanner(true);
+        sessionStorage.setItem(`pwaBannerShown_${orderId}`, 'true');
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    } else {
+      setShowPwaBanner(false);
+    }
+  }, [searchPhase, orderId]);
 
   // Afficher le message de succès si la commande est livrée
   if (showSuccessMessage && isDelivered) {
@@ -922,6 +945,15 @@ export default function OrderSuccess() {
           </Link>
         </div>
       </div>
+
+      {/* Bannière PWA - apparaît 5 secondes après le succès de la commande */}
+      {showPwaBanner && searchPhase === 'success' && (
+        <PwaInstallPrompt
+          enableSound={false}
+          showDelay={0}
+          position="bottom"
+        />
+      )}
     </div>
   );
 }

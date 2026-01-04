@@ -232,6 +232,8 @@ const translations: Translations = {
   'openingHours.opensAt': { fr: "Ouvre à", en: "Opens at", ar: "يفتح في" },
   'openingHours.closed': { fr: "Fermé", en: "Closed", ar: "مغلق" },
   'openingHours.open': { fr: "Ouvert", en: "Open", ar: "مفتوح" },
+  'openingHours.opensIn': { fr: "Ouvre dans {minutes} min", en: "Opens in {minutes} min", ar: "يفتح بعد {minutes} دق" },
+  'openingHours.closesSoon': { fr: "Ferme bientôt ({minutes} min)", en: "Closes soon ({minutes} min)", ar: "يغلق قريباً ({minutes} دق)" },
 
   // Common
   'common.loading': { fr: "Chargement...", en: "Loading...", ar: "جاري التحميل..." },
@@ -359,7 +361,7 @@ const translations: Translations = {
   'profile.address.duplicate': { fr: "Cette adresse existe déjà", en: "This address already exists", ar: "هذا العنوان موجود بالفعل" },
 
   // PWA Install Prompt
-  'pwa.install.message': { fr: "Profitez de nos commandes en un clic ! Installez notre app maintenant 😊", en: "Enjoy ordering in one click! Install our app now 😊", ar: "إستمتع بالطلبات متاعك بكليك وحدة! ركّب التطبيق تاو 😊" },
+  'pwa.install.message': { fr: "Plus rapide, plus fluide. Ajoutez Tataouine Pizza à votre écran d'accueil.", en: "Faster, smoother. Add Tataouine Pizza to your home screen.", ar: "أسرع وأكثر سلاسة. أضف تاطاوين بيتزا إلى شاشتك الرئيسية." },
   'pwa.install.button': { fr: "Installer", en: "Install", ar: "تثبيت" },
   'pwa.install.later': { fr: "Plus tard", en: "Later", ar: "لاحقاً" },
   'pwa.install.instructions': { fr: "Voir instructions", en: "See instructions", ar: "عرض التعليمات" },

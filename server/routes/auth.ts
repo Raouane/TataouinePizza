@@ -1,11 +1,11 @@
 import type { Express, Request, Response } from "express";
 import rateLimit from "express-rate-limit";
 import { storage } from "../storage";
-import { verifyOtpSchema, sendOtpSchema, insertAdminUserSchema, customerLoginSchema } from "@shared/schema";
+import { insertAdminUserSchema, customerLoginSchema } from "@shared/schema";
 import { z } from "zod";
 import { authenticateAdmin, generateToken, hashPassword, comparePassword, type AuthRequest } from "../auth";
 import { errorHandler } from "../errors";
-import { authenticateCustomerSimple, isOtpEnabled } from "../services/customer-auth-service";
+import { authenticateCustomerSimple } from "../services/customer-auth-service";
 
 function validate<T>(schema: z.ZodSchema<T>, data: any): { success: true; data: T } | { success: false; error: z.ZodError } {
   const result = schema.safeParse(data);
@@ -15,20 +15,7 @@ function validate<T>(schema: z.ZodSchema<T>, data: any): { success: true; data: 
   return { success: false, error: result.error };
 }
 
-function generateOtp(): string {
-  return Math.floor(1000 + Math.random() * 9000).toString();
-}
-
 export function registerAuthRoutes(app: Express): void {
-  // Rate limiting pour éviter le spam SMS
-  const otpLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 3,
-    message: "Too many OTP requests, please try again later",
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-
   const adminLoginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 5,
@@ -38,29 +25,17 @@ export function registerAuthRoutes(app: Express): void {
   });
 
   // ============ CUSTOMER AUTHENTICATION (Simple - MVP) ============
-  // OTP DISABLED FOR MVP – ENABLE VIA ENABLE_SMS_OTP ENV FLAG
+  // OTP SUPPRIMÉ COMPLÈTEMENT - Authentification simple uniquement
   
   /**
    * POST /api/auth/login
    * Authentification simple pour les clients (prénom + téléphone)
-   * 
-   * Mode simple (ENABLE_SMS_OTP=false) :
    * - Crée ou récupère le client par téléphone
    * - Retourne un token JWT immédiatement
-   * 
-   * Mode OTP (ENABLE_SMS_OTP=true) :
-   * - Redirige vers le flow OTP classique
    */
   app.post("/api/auth/login", async (req, res) => {
     try {
-      // Vérifier si l'OTP est activé
-      if (isOtpEnabled()) {
-        return res.status(400).json({
-          error: "OTP authentication is enabled. Please use /api/otp/send and /api/otp/verify endpoints.",
-        });
-      }
-
-      // Mode simple : validation prénom + téléphone
+      // Validation prénom + téléphone
       const validation = validate(customerLoginSchema, req.body);
       if (!validation.success) {
         return res.status(400).json({
@@ -84,79 +59,9 @@ export function registerAuthRoutes(app: Express): void {
     }
   });
 
-  // ============ OTP (Conditional - only if ENABLE_SMS_OTP=true for customers) ============
-  // OTP DISABLED FOR CUSTOMERS (MVP) – ENABLE VIA ENABLE_SMS_OTP ENV FLAG
-  // OTP TOUJOURS ACTIVÉ pour les livreurs et restaurants
-  
-  app.post("/api/otp/send", otpLimiter, async (req, res) => {
-    const { userType } = req.body as { userType?: "customer" | "driver" | "restaurant" };
-    
-    // Si c'est un client et que l'OTP est désactivé, bloquer
-    if ((!userType || userType === "customer") && !isOtpEnabled()) {
-      return res.status(400).json({
-        error: "OTP authentication is disabled for customers. Please use /api/auth/login endpoint.",
-        message: "OTP désactivé pour les clients (MVP). Utilisez /api/auth/login avec prénom + téléphone.",
-      });
-    }
-    
-    // Pour les livreurs et restaurants, l'OTP est toujours activé
-    try {
-      const validation = validate(sendOtpSchema, req.body);
-      if (!validation.success) {
-        return res.status(400).json({ 
-          error: "Invalid phone number",
-          details: process.env.NODE_ENV === "development" ? validation.error.errors : undefined
-        });
-      }
-      const data = validation.data;
-      
-      const code = generateOtp();
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-      await storage.createOtpCode(data.phone, code, expiresAt);
-      
-      if (process.env.NODE_ENV !== "production") {
-        console.log(`[OTP] Code for ${data.phone}: ${code}`);
-      }
-      
-      res.json({ message: "OTP sent" });
-    } catch (error: any) {
-      console.error("[OTP] Erreur lors de l'envoi:", error);
-      res.status(500).json({ 
-        error: "Failed to send OTP",
-        details: process.env.NODE_ENV === "development" ? error.message : undefined
-      });
-    }
-  });
-  
-  app.post("/api/otp/verify", async (req, res) => {
-    const { userType } = req.body as { userType?: "customer" | "driver" | "restaurant" };
-    
-    // Si c'est un client et que l'OTP est désactivé, bloquer
-    if ((!userType || userType === "customer") && !isOtpEnabled()) {
-      return res.status(400).json({
-        error: "OTP authentication is disabled for customers. Please use /api/auth/login endpoint.",
-        message: "OTP désactivé pour les clients (MVP). Utilisez /api/auth/login avec prénom + téléphone.",
-      });
-    }
-    
-    // Pour les livreurs et restaurants, l'OTP est toujours activé
-
-    try {
-      const validation = validate(verifyOtpSchema, req.body);
-      if (!validation.success) {
-        return res.status(400).json({ 
-          error: "Invalid request",
-          details: process.env.NODE_ENV === "development" ? validation.error.errors : undefined
-        });
-      }
-      const data = validation.data;
-      
-      const verified = await storage.verifyOtpCode(data.phone, data.code);
-      res.json({ verified });
-    } catch (error) {
-      res.status(500).json({ error: "Verification failed" });
-    }
-  });
+  // ============ OTP SUPPRIMÉ COMPLÈTEMENT ============
+  // Les routes /api/otp/send et /api/otp/verify ont été supprimées pour tous les utilisateurs
+  // Tous utilisent maintenant l'authentification par téléphone + mot de passe (ou prénom + téléphone pour les clients)
 
   // ============ ADMIN AUTH ============
   

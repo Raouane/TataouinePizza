@@ -27,14 +27,29 @@ function parseOpeningHours(openingHours?: string | null): {
 }
 
 /**
+ * Obtient l'heure actuelle en Tunisie (UTC+1)
+ * La Tunisie n'utilise pas l'heure d'été, donc toujours UTC+1
+ */
+function getTunisiaTime(): Date {
+  const now = new Date();
+  // Obtenir l'heure UTC
+  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
+  // Ajouter le décalage de la Tunisie (UTC+1 = +1 heure = 3600000 ms)
+  const tunisiaTime = new Date(utcTime + (1 * 60 * 60 * 1000));
+  return tunisiaTime;
+}
+
+/**
  * Vérifie si un restaurant est ouvert MAINTENANT
  * Logique centralisée et cohérente
+ * Utilise le fuseau horaire 'Africa/Tunis' (UTC+1)
  */
 export function checkRestaurantStatus(restaurant: {
   isOpen?: boolean | null;
   openingHours?: string | null;
 }): RestaurantStatus {
-  const now = new Date();
+  // Utiliser l'heure de Tunisie (UTC+1) au lieu de l'heure locale du serveur
+  const now = getTunisiaTime();
   const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const currentDay = dayNames[now.getDay()];
   const currentHour = now.getHours();
