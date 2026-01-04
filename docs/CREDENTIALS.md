@@ -21,17 +21,25 @@ Les livreurs suivants sont créés automatiquement lors du seed de la base de do
 
 Les restaurants suivants sont créés automatiquement :
 
-1. **Tataouine Pizza**
-   - Téléphone : `21611111111`
-   - Adresse : Avenue Habib Bourguiba, Tataouine
+| Nom | Téléphone | Mot de passe | Adresse |
+|-----|-----------|--------------|---------|
+| **Tataouine Pizza** | `21611111111` | `1234` | Avenue Habib Bourguiba, Tataouine |
+| **Pizza del Sol** | `21622222222` | `1234` | Rue de la Liberté, Tataouine |
+| **Sahara Grill** | `21633333333` | `1234` | Boulevard de l'Environnement, Tataouine |
+| **Le Jardin Salades** | `21644444444` | `1234` | Rue Ibn Khaldoun, Tataouine |
+| **Burger House** | `21655555555` | `1234` | Avenue de la République, Tataouine |
 
-2. **Pizza del Sol**
-   - Téléphone : `21622222222`
-   - Adresse : Rue de la Liberté, Tataouine
+### Connexion restaurant
 
-3. **Sahara Grill**
-   - Téléphone : `21633333333`
-   - Adresse : Boulevard de l'Environnement, Tataouine
+1. Allez sur : `https://tataouine-pizza.onrender.com/restaurant/login`
+2. Entrez un des numéros de téléphone ci-dessus
+3. Entrez le mot de passe : `1234` (mot de passe par défaut)
+4. Cliquez sur "Se connecter"
+
+⚠️ **Note** : Si vous obtenez l'erreur "Mot de passe non configuré", exécutez le script :
+```bash
+npm run script:set-default-passwords
+```
 
 ## 👤 Administrateurs
 

@@ -103,7 +103,7 @@ export default function RestaurantLogin() {
                   placeholder="••••••••"
                   disabled={loading}
                   required
-                  minLength={4}
+                  minLength={6}
                   className="pl-10"
                   data-testid="input-restaurant-password"
                 />
@@ -112,7 +112,7 @@ export default function RestaurantLogin() {
 
             <Button
               type="submit"
-              disabled={loading || phone.length < 8 || password.length < 4}
+              disabled={loading || phone.length < 8 || password.length < 6}
               className="w-full bg-orange-600 hover:bg-orange-700"
               data-testid="button-restaurant-login"
             >
