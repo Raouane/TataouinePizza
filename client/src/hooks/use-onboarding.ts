@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { sendOtp, verifyOtp } from "@/lib/api";
+import { customerLogin } from "@/lib/api";
 import { toast } from "sonner";
 import { useLanguage } from "@/lib/i18n";
 import { getOnboarding, saveOnboarding } from "@/pages/onboarding";
@@ -75,7 +75,8 @@ export function useOnboarding() {
     return Date.now() - state.otpSentAt > OTP_TIMEOUT_MS;
   }, [state.otpSentAt]);
 
-  // Envoyer l'OTP
+  // Authentification simple (sans OTP) - MVP
+  // OTP désactivé pour économiser sur les coûts SMS
   const sendOtpCode = useCallback(async (): Promise<boolean> => {
     setError(null);
 
@@ -101,19 +102,15 @@ export function useOnboarding() {
 
     try {
       setLoading(true);
-      await sendOtp(state.phone);
-      setState((prev) => ({
-        ...prev,
-        otpAttempts: 0,
-        otpSentAt: Date.now(),
-      }));
-      toast.success(t("Code envoyé par SMS", "Code sent by SMS", "تم إرسال الرمز عبر الرسالة القصيرة"));
+      // Utiliser l'authentification simple (sans OTP)
+      await customerLogin(state.name.trim(), state.phone.trim());
+      toast.success(t("Authentification réussie", "Authentication successful", "تمت المصادقة بنجاح"));
       return true;
     } catch (err: any) {
       const errorMessage = err?.message || t(
-        "Échec de l'envoi du code. Réessaie.",
-        "Failed to send code. Please try again.",
-        "فشل إرسال الرمز، حاول مرة أخرى.",
+        "Échec de l'authentification. Réessaie.",
+        "Authentication failed. Please try again.",
+        "فشلت المصادقة، حاول مرة أخرى.",
       );
       setError(errorMessage);
       toast.error(errorMessage);
@@ -123,74 +120,51 @@ export function useOnboarding() {
     }
   }, [state.name, state.phone, validateName, validatePhone, t]);
 
-  // Vérifier l'OTP
+  // Vérifier l'OTP - Désactivé (MVP sans OTP)
+  // Cette fonction n'est plus utilisée mais conservée pour compatibilité
   const verifyOtpCode = useCallback(async (): Promise<boolean> => {
-    setError(null);
+    // L'authentification se fait directement dans sendOtpCode
+    // Cette fonction retourne toujours true pour permettre le passage à l'étape suivante
+    return true;
+  }, []);
 
-    if (state.otp.length !== 4) {
-      const msg = t(
-        "Code à 4 chiffres requis",
-        "4-digit code required",
-        "رمز من 4 أرقام مطلوب",
-      );
-      setError(msg);
-      return false;
-    }
-
-    if (isOtpExpired()) {
-      const msg = t(
-        "Le code a expiré. Demande un nouveau code.",
-        "Code expired. Request a new code.",
-        "انتهت صلاحية الرمز. اطلب رمزًا جديدًا.",
-      );
-      setError(msg);
-      setState((prev) => ({ ...prev, otp: "", otpSentAt: null }));
-      return false;
-    }
-
-    if (state.otpAttempts >= MAX_OTP_ATTEMPTS) {
-      const msg = t(
-        "Trop de tentatives. Réessaie dans quelques minutes.",
-        "Too many attempts. Try again in a few minutes.",
-        "محاولات كثيرة جدًا. حاول مرة أخرى بعد بضع دقائق.",
-      );
-      setError(msg);
-      return false;
-    }
-
+  // Géocodage inverse : convertir lat/lng en nom de ville
+  const reverseGeocode = useCallback(async (lat: number, lng: number): Promise<string | null> => {
     try {
-      setLoading(true);
-      const res = await verifyOtp(state.phone, state.otp);
-      if (!res.verified) {
-        setState((prev) => ({
-          ...prev,
-          otpAttempts: prev.otpAttempts + 1,
-          otp: "",
-        }));
-        const msg = t("Code incorrect", "Invalid code", "رمز غير صحيح");
-        setError(msg);
-        toast.error(msg);
-        return false;
-      }
-      toast.success(t("Code vérifié avec succès", "Code verified successfully", "تم التحقق من الرمز بنجاح"));
-      return true;
-    } catch (err: any) {
-      const errorMessage = err?.message || t(
-        "Échec de la vérification. Réessaie.",
-        "Verification failed. Please try again.",
-        "فشل التحقق، حاول مرة أخرى.",
+      // Utiliser l'API Nominatim d'OpenStreetMap (gratuite)
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'TataouinePizza/1.0', // Requis par Nominatim
+          },
+        }
       );
-      setError(errorMessage);
-      toast.error(errorMessage);
-      return false;
-    } finally {
-      setLoading(false);
+      
+      if (!response.ok) {
+        return null;
+      }
+      
+      const data = await response.json();
+      
+      // Extraire le nom de la ville
+      const city = data.address?.city || 
+                   data.address?.town || 
+                   data.address?.village || 
+                   data.address?.municipality ||
+                   data.address?.county ||
+                   null;
+      
+      return city;
+    } catch (error) {
+      console.error('[Geocoding] Erreur:', error);
+      return null;
     }
-  }, [state.otp, state.phone, state.otpAttempts, isOtpExpired, t]);
+  }, []);
 
-  // Obtenir la géolocalisation
+  // Obtenir la géolocalisation et convertir en nom de ville
   const getLocation = useCallback((): Promise<{ lat: number; lng: number } | null> => {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
       if (!("geolocation" in navigator)) {
         const msg = t(
           "La géolocalisation n'est pas supportée par ce navigateur.",
@@ -204,11 +178,30 @@ export function useOnboarding() {
 
       setLoading(true);
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
+        async (pos) => {
           const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
           setState((prev) => ({ ...prev, coords }));
+          
+          // Convertir les coordonnées en nom de ville
+          const cityName = await reverseGeocode(coords.lat, coords.lng);
+          if (cityName) {
+            // Mettre à jour l'adresse avec le nom de la ville
+            setState((prev) => ({
+              ...prev,
+              address: cityName,
+            }));
+            toast.success(
+              t(
+                `Position enregistrée: ${cityName}`,
+                `Location saved: ${cityName}`,
+                `تم حفظ الموقع: ${cityName}`
+              )
+            );
+          } else {
+            toast.success(t("Position enregistrée", "Location saved", "تم حفظ الموقع"));
+          }
+          
           setLoading(false);
-          toast.success(t("Position enregistrée", "Location saved", "تم حفظ الموقع"));
           resolve(coords);
         },
         () => {
@@ -227,7 +220,7 @@ export function useOnboarding() {
         },
       );
     });
-  }, [t]);
+  }, [t, reverseGeocode]);
 
   // Sauvegarder les données
   const save = useCallback(() => {
@@ -240,7 +233,22 @@ export function useOnboarding() {
       lng: state.coords?.lng,
     };
     saveOnboarding(data);
-  }, [state]);
+    console.log('[Onboarding] 💾 Données sauvegardées:', { 
+      name: data.name, 
+      phone: data.phone, 
+      hasAddress: !!data.address,
+      hasCoords: !!(data.lat && data.lng)
+    });
+    
+    // Afficher un message de succès
+    toast.success(
+      t(
+        "✅ Modification réussie ! Redirection vers l'accueil...",
+        "✅ Update successful! Redirecting to home...",
+        "✅ تم التعديل بنجاح! جاري التوجيه إلى الصفحة الرئيسية..."
+      )
+    );
+  }, [state, t]);
 
   // Mettre à jour un champ
   const updateField = useCallback(<K extends keyof UseOnboardingState>(

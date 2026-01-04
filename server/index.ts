@@ -49,7 +49,7 @@ declare module "http" {
 // Configuration CSP pour autoriser les images externes (nécessaire pour les images de restaurants)
 app.use(
   helmet({
-    contentSecurityPolicy: {
+    contentSecurityPolicy: process.env.NODE_ENV === "production" ? {
       directives: {
         defaultSrc: ["'self'"],
         styleSrc: [
@@ -57,7 +57,19 @@ app.use(
           "'unsafe-inline'", // Tailwind nécessite unsafe-inline
           "https://fonts.googleapis.com", // Google Fonts CSS
         ],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Vite nécessite unsafe-eval en dev
+        scriptSrc: [
+          "'self'", 
+          "'unsafe-inline'", // Tailwind nécessite unsafe-inline
+          "'unsafe-eval'", // Vite nécessite unsafe-eval en dev
+          "https://js.stripe.com", // Stripe.js
+          "https://js.clover.com", // Stripe Clover (utilisé par Stripe.js)
+        ],
+        scriptSrcElem: [
+          "'self'",
+          "'unsafe-inline'",
+          "https://js.stripe.com", // Stripe.js (pour les éléments <script>)
+          "https://js.clover.com", // Stripe Clover
+        ],
         imgSrc: [
           "'self'",
           "data:",
@@ -68,6 +80,7 @@ app.use(
           "'self'", 
           "https:", 
           "http:",
+          "https://api.stripe.com", // API Stripe
           "ws://localhost:5000", // WebSocket serveur (même port que le serveur)
           "ws://localhost:5173", // HMR WebSocket (port Vite alternatif)
           "ws://localhost:24678", // WebSocket serveur (port alternatif - peut être utilisé par Vite ou autres services)
@@ -102,7 +115,7 @@ app.use(
         ],
         frameSrc: ["'none'"],
       },
-    },
+    } : false, // Désactiver CSP en développement pour éviter les problèmes avec Stripe.js et Vite
   })
 );
 

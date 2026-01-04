@@ -33,11 +33,17 @@ import { isOnboardingEnabled, shouldSkipOnboarding } from "@/lib/onboarding-conf
 // ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG
 function useOnboarding() {
   const onboardingEnabled = isOnboardingEnabled();
+  const [location] = useLocation();
   
   // Si l'onboarding est désactivé, toujours retourner true (accès direct)
+  // MAIS ne pas rediriger si on est déjà sur /onboarding
   const [isOnboarded, setIsOnboarded] = useState(() => {
     if (!onboardingEnabled) {
       return true; // Onboarding désactivé → accès direct
+    }
+    // Si on est sur /onboarding, ne pas considérer comme complété pour éviter les redirections
+    if (location === '/onboarding') {
+      return false;
     }
     return !!getOnboarding();
   });
@@ -49,11 +55,21 @@ function useOnboarding() {
       return;
     }
 
+    // Si on est sur /onboarding, ne pas considérer comme complété
+    if (location === '/onboarding') {
+      setIsOnboarded(false);
+      return;
+    }
+
     // Vérifier l'onboarding au montage
     setIsOnboarded(!!getOnboarding());
 
     // Écouter les changements du localStorage
     const handleStorageChange = () => {
+      // Ne pas rediriger si on est sur /onboarding
+      if (location === '/onboarding') {
+        return;
+      }
       setIsOnboarded(!!getOnboarding());
     };
 
@@ -62,6 +78,11 @@ function useOnboarding() {
 
     // Vérifier périodiquement (pour les changements dans le même onglet)
     const interval = setInterval(() => {
+      // Ne JAMAIS rediriger si on est sur /onboarding (même après sauvegarde)
+      if (location === '/onboarding') {
+        setIsOnboarded(false); // Forcer à false pour éviter toute redirection
+        return;
+      }
       const currentState = !!getOnboarding();
       if (currentState !== isOnboarded) {
         setIsOnboarded(currentState);
@@ -72,7 +93,7 @@ function useOnboarding() {
       window.removeEventListener("storage", handleStorageChange);
       clearInterval(interval);
     };
-  }, [isOnboarded, onboardingEnabled]);
+  }, [isOnboarded, onboardingEnabled, location]);
 
   return isOnboarded;
 }

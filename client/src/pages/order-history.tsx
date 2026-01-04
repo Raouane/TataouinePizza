@@ -9,15 +9,29 @@ import type { Order } from "@/lib/api";
 import { Clock, MapPin, Phone, RefreshCw, ArrowLeft, Download, Store } from "lucide-react";
 import { getStatusColor, getStatusLabel } from "@/lib/order-status-helpers";
 
+/**
+ * Helper pour obtenir le téléphone utilisateur
+ * Fusionne les sources : onboarding (prioritaire) ou customerPhone (fallback)
+ */
+const getUserPhone = (): string => {
+  const onboarding = getOnboarding();
+  // Priorité 1 : Onboarding
+  if (onboarding?.phone) {
+    return onboarding.phone;
+  }
+  // Priorité 2 : CustomerPhone depuis le panier
+  const customerPhone = localStorage.getItem('customerPhone');
+  return customerPhone || "";
+};
+
 export default function OrderHistory() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { t, language } = useLanguage();
   
-  // Récupérer le téléphone depuis l'onboarding
-  const onboardingData = getOnboarding();
-  const phone = onboardingData?.phone || "";
+  // Récupérer le téléphone (onboarding ou customerPhone)
+  const phone = getUserPhone();
 
   // Charger automatiquement les commandes au montage du composant
   useEffect(() => {
@@ -72,16 +86,21 @@ export default function OrderHistory() {
     window.open(invoiceUrl, '_blank');
   };
 
-  // Si pas de données d'onboarding, afficher un message
-  if (!onboardingData || !phone || phone.length < 8) {
+  // Si pas de téléphone valide, afficher un message
+  // Permet l'accès même sans onboarding complet (utilise customerPhone)
+  if (!phone || phone.length < 8) {
     return (
       <div className="max-w-2xl mx-auto space-y-6 pb-20">
         <div className="flex items-center gap-4 mb-6">
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="md:hidden">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="md:hidden"
+            onClick={() => window.history.back()}
+            aria-label={t('common.back') || "Retour"}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
           <div>
             <h1 className="text-3xl font-serif font-bold mb-2">{t('history.title')}</h1>
             <p className="text-muted-foreground">{t('history.subtitle')}</p>
@@ -89,10 +108,17 @@ export default function OrderHistory() {
         </div>
 
         <Card className="p-6 text-center">
-          <p className="text-muted-foreground mb-4">{t('history.noOnboarding')}</p>
-          <Link href="/onboarding">
-            <Button>{t('history.completeOnboarding')}</Button>
-          </Link>
+          <p className="text-muted-foreground mb-4">
+            {t('history.noOnboarding') || "Vous devez compléter l'onboarding ou passer une commande pour voir vos commandes."}
+          </p>
+          <div className="flex gap-2 justify-center">
+            <Link href="/onboarding">
+              <Button>{t('history.completeOnboarding') || "Compléter l'onboarding"}</Button>
+            </Link>
+            <Link href="/cart">
+              <Button variant="outline">Passer une commande</Button>
+            </Link>
+          </div>
         </Card>
       </div>
     );
@@ -103,11 +129,15 @@ export default function OrderHistory() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="md:hidden">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="md:hidden"
+            onClick={() => window.history.back()}
+            aria-label={t('common.back') || "Retour"}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
           <div>
             <h1 className="text-3xl font-serif font-bold mb-2">{t('history.title')}</h1>
             <p className="text-muted-foreground">{t('history.subtitle')}</p>

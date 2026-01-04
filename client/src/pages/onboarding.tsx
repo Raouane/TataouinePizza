@@ -65,26 +65,28 @@ export default function OnboardingPage() {
     [language],
   );
 
+  // Authentification simple (sans OTP) - Passe directement à la localisation
   const handleSendOtp = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       const success = await sendOtpCode();
       if (success) {
-        setStep("otp");
+        // Passer directement à l'étape de localisation (sauter l'étape OTP)
+        // Ne pas sauvegarder ici pour éviter que le router redirige vers la home
+        setStep("location");
       }
     },
     [sendOtpCode],
   );
 
+  // Cette fonction n'est plus utilisée (OTP désactivé)
   const handleVerifyOtp = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      const success = await verifyOtpCode();
-      if (success) {
-        setStep("location");
-      }
+      // Ne devrait jamais être appelé car on saute l'étape OTP
+      setStep("location");
     },
-    [verifyOtpCode],
+    [],
   );
 
   const handleUseLocation = useCallback(async () => {
@@ -96,9 +98,19 @@ export default function OnboardingPage() {
   }, [getLocation, showManualAddress, setError]);
 
   const handleFinish = useCallback(() => {
+    // Sauvegarder les données
     save();
-    navigate("/");
-  }, [save, navigate]);
+    
+    // Afficher un message de succès
+    console.log('[Onboarding] ✅ Profil sauvegardé, redirection vers la home...');
+    
+    // Utiliser window.location.href pour forcer la redirection
+    // et éviter que le router ne détecte le changement avant
+    setTimeout(() => {
+      // Forcer la redirection vers la home
+      window.location.href = "/";
+    }, 1500);
+  }, [save]);
 
   const handlePhoneChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -224,7 +236,7 @@ export default function OnboardingPage() {
                   {loading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    t("Recevoir un code", "Send code", "إرسال الرمز")
+                    t("Continuer", "Continue", "متابعة")
                   )}
                 </Button>
               </motion.form>
