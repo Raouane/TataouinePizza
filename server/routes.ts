@@ -11,6 +11,7 @@ import { registerWebhookRoutes } from "./routes/webhooks";
 import { registerWhatsAppWebhookRoutes } from "./routes/whatsapp-webhook";
 import { registerTelegramWebhookRoutes } from "./routes/telegram-webhook";
 import { registerStripeRoutes } from "./routes/stripe";
+import { registerFlouciRoutes } from "./routes/flouci";
 
 let seeded = false;
 
@@ -64,6 +65,7 @@ export async function registerRoutes(
   registerAdminCrudRoutes(app);
   registerAdminSeedRoutes(app);
   registerStripeRoutes(app);
+  registerFlouciRoutes(app);
 
   return httpServer;
 }

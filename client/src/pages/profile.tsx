@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { PaymentMethodsDialog } from "@/components/payment-methods-dialog";
+import { FlouciInfoDialog } from "@/components/flouci-info-dialog";
 
 type SavedAddress = {
   readonly id: string;
@@ -125,8 +126,9 @@ const getUserIdentity = (): UserIdentity => {
 };
 
 export default function Profile() {
-  // Feature flag pour Stripe - activé pour les tests
-  const stripeEnabled = true;
+  // Feature flags pour les méthodes de paiement
+  const stripeEnabled = true; // Paiement international (EUR/USD)
+  const flouciEnabled = false; // Paiement local tunisien (TND)
 
   const { t, language, setLanguage } = useLanguage();
   const { toast } = useToast();
@@ -142,6 +144,7 @@ export default function Profile() {
   const [newAddressStreet, setNewAddressStreet] = useState("");
   const [newAddressDetails, setNewAddressDetails] = useState("");
   const [showPaymentMethodsDialog, setShowPaymentMethodsDialog] = useState(false);
+  const [showFlouciInfoDialog, setShowFlouciInfoDialog] = useState(false);
 
   // Fonction pour réinitialiser le formulaire d'ajout d'adresse
   const resetNewAddressForm = useCallback(() => {
@@ -677,10 +680,16 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* Dialog des méthodes de paiement */}
+      {/* Dialog des méthodes de paiement Stripe */}
       <PaymentMethodsDialog 
         open={showPaymentMethodsDialog} 
         onOpenChange={setShowPaymentMethodsDialog} 
+      />
+
+      {/* Dialog d'information Flouci */}
+      <FlouciInfoDialog 
+        open={showFlouciInfoDialog} 
+        onOpenChange={setShowFlouciInfoDialog} 
       />
 
       {/* Dialog de gestion des adresses */}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearchParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Check, Phone, MessageCircle, MapPin, Clock, ChefHat, Package, Bike, User, AlertCircle, X } from "lucide-react";
@@ -10,13 +10,17 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { createOrder } from "@/lib/api";
+import { useCart } from "@/lib/cart";
 
 type SearchPhase = 'searching' | 'found' | 'success';
 
 export default function OrderSuccess() {
-  const { t } = useLanguage();
-  const { activeOrder, orderId, orderData, status, eta, refreshOrderData } = useOrder();
+  const { t, language } = useLanguage();
+  const { activeOrder, orderId, orderData, status, eta, refreshOrderData, startOrder } = useOrder();
   const [, setLocation] = useLocation();
+  const [searchParams] = useSearchParams();
+  const { clearCart } = useCart();
   const [searchPhase, setSearchPhase] = useState<SearchPhase>('searching');
   const [driverName, setDriverName] = useState<string>('');
   const [hasShownSearch, setHasShownSearch] = useState(false);
@@ -25,6 +29,8 @@ export default function OrderSuccess() {
   const [showTimeoutAlert, setShowTimeoutAlert] = useState(false);
   const [showTimeoutDialog, setShowTimeoutDialog] = useState(false);
   const [orderCreatedAt, setOrderCreatedAt] = useState<Date | null>(null);
+  const [isVerifyingFlouci, setIsVerifyingFlouci] = useState(false);
+  const [flouciVerified, setFlouciVerified] = useState(false);
 
   // Mettre à jour le nom du livreur quand orderData change
   useEffect(() => {
@@ -33,13 +39,172 @@ export default function OrderSuccess() {
     }
   }, [orderData?.driverName]);
 
+  // Vérifier le paiement Flouci si on arrive depuis Flouci
+  useEffect(() => {
+    const paymentParam = searchParams.get('payment');
+    const paymentId = searchParams.get('id') || searchParams.get('payment_id'); // Flouci peut passer l'ID dans l'URL
+    
+    if (paymentParam === 'flouci' && !flouciVerified && !isVerifyingFlouci) {
+      const pendingOrder = sessionStorage.getItem('pendingFlouciOrder');
+      
+      // Si on a un payment_id dans l'URL, l'utiliser
+      // Sinon, on devra le récupérer depuis le developer_tracking_id stocké
+      if (pendingOrder) {
+        if (paymentId) {
+          // Payment ID fourni dans l'URL
+          handleFlouciVerification(paymentId);
+        } else {
+          // Pas de payment_id dans l'URL, vérifier si on peut le récupérer autrement
+          // Note: Flouci peut aussi passer le payment_id dans le hash de l'URL
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const hashPaymentId = hashParams.get('id') || hashParams.get('payment_id');
+          
+          if (hashPaymentId) {
+            handleFlouciVerification(hashPaymentId);
+          } else {
+            // Si pas de payment_id, afficher un message d'erreur
+            console.error('[OrderSuccess] ❌ Payment ID not found in URL');
+            toast.error(
+              language === 'ar' 
+                ? 'معرف الدفع غير موجود' 
+                : language === 'en' 
+                ? 'Payment ID not found' 
+                : 'Identifiant de paiement introuvable'
+            );
+            setTimeout(() => {
+              setLocation('/cart?payment=error');
+            }, 2000);
+          }
+        }
+      }
+    }
+  }, [searchParams, flouciVerified, isVerifyingFlouci, language]);
+
+  // Fonction pour vérifier et créer la commande Flouci
+  const handleFlouciVerification = async (paymentId: string) => {
+    setIsVerifyingFlouci(true);
+    
+    try {
+      console.log('[OrderSuccess] 🔍 Vérification paiement Flouci:', paymentId);
+      
+      // Vérifier le statut du paiement
+      const response = await fetch(`/api/payments/flouci/verify/${paymentId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to verify Flouci payment');
+      }
+      
+      const data = await response.json();
+      
+      console.log('[OrderSuccess] 📊 Statut paiement Flouci:', data);
+      
+      // Vérifier si le paiement est réussi
+      if (data.success && data.status === 'SUCCESS') {
+        // Récupérer les données de commande depuis sessionStorage
+        const pendingOrderStr = sessionStorage.getItem('pendingFlouciOrder');
+        if (!pendingOrderStr) {
+          throw new Error('Order data not found');
+        }
+        
+        const pendingOrder = JSON.parse(pendingOrderStr);
+        
+        console.log('[OrderSuccess] ✅ Paiement Flouci confirmé, création de la commande');
+        
+        // Créer les commandes
+        const orderPromises = pendingOrder.restaurants.map(async (restaurantCart: any) => {
+          return createOrder({
+            restaurantId: restaurantCart.restaurantId,
+            customerName: pendingOrder.customerName,
+            phone: pendingOrder.phone,
+            address: pendingOrder.address,
+            addressDetails: pendingOrder.addressDetails,
+            customerLat: pendingOrder.customerLat,
+            customerLng: pendingOrder.customerLng,
+            items: restaurantCart.items,
+          });
+        });
+        
+        const results = await Promise.all(orderPromises);
+        console.log(`[OrderSuccess] ✅ ${results.length} commande(s) créée(s) avec succès`);
+        
+        // Nettoyer sessionStorage
+        sessionStorage.removeItem('pendingFlouciOrder');
+        sessionStorage.removeItem('flouciPaymentId');
+        
+        // Sauvegarder les données client
+        if (pendingOrder.customerName && pendingOrder.phone) {
+          localStorage.setItem('customerName', pendingOrder.customerName);
+          localStorage.setItem('customerPhone', pendingOrder.phone);
+        }
+        
+        // Vider le panier
+        clearCart();
+        
+        // Démarrer le suivi de commande
+        if (results.length > 0 && results[0].orderId) {
+          startOrder(results[0].orderId);
+        } else {
+          startOrder();
+        }
+        
+        setFlouciVerified(true);
+        
+        toast.success(
+          language === 'ar' 
+            ? 'تم تأكيد الدفع وإنشاء الطلب بنجاح' 
+            : language === 'en' 
+            ? 'Payment confirmed and order created successfully' 
+            : 'Paiement confirmé et commande créée avec succès'
+        );
+      } else {
+        // Paiement échoué ou en attente
+        console.warn('[OrderSuccess] ⚠️ Paiement Flouci non confirmé:', data.status);
+        
+        toast.error(
+          language === 'ar' 
+            ? 'لم يتم تأكيد الدفع. يرجى المحاولة مرة أخرى.' 
+            : language === 'en' 
+            ? 'Payment not confirmed. Please try again.' 
+            : 'Paiement non confirmé. Veuillez réessayer.'
+        );
+        
+        // Rediriger vers le panier
+        setTimeout(() => {
+          setLocation('/cart?payment=failed');
+        }, 2000);
+      }
+    } catch (error: any) {
+      console.error('[OrderSuccess] ❌ Erreur vérification Flouci:', error);
+      toast.error(
+        language === 'ar' 
+          ? 'خطأ في التحقق من الدفع' 
+          : language === 'en' 
+          ? 'Payment verification error' 
+          : 'Erreur de vérification du paiement'
+      );
+      
+      // Rediriger vers le panier en cas d'erreur
+      setTimeout(() => {
+        setLocation('/cart?payment=error');
+      }, 2000);
+    } finally {
+      setIsVerifyingFlouci(false);
+    }
+  };
+
   // Charger les données initiales si orderId existe mais orderData n'est pas encore disponible
   useEffect(() => {
-    if (orderId && !orderData && !isDelivered) {
+    if (orderId && !orderData && !isDelivered && !isVerifyingFlouci) {
       console.log('[OrderSuccess] Chargement initial des données de commande');
       refreshOrderData();
     }
-  }, [orderId, orderData, isDelivered, refreshOrderData]);
+  }, [orderId, orderData, isDelivered, refreshOrderData, isVerifyingFlouci]);
 
   // Détecter quand la commande est livrée et afficher le message de succès
   useEffect(() => {
@@ -224,6 +389,41 @@ export default function OrderSuccess() {
           >
             {t('success.back') || 'Retour à l\'accueil'}
           </Button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Afficher un écran de chargement pendant la vérification Flouci
+  if (isVerifyingFlouci) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen px-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center"
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            className="h-24 w-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6"
+          >
+            <Check className="h-12 w-12 text-primary" />
+          </motion.div>
+          <h1 className="text-2xl font-serif font-bold mb-2">
+            {language === 'ar' 
+              ? 'جارٍ التحقق من الدفع...' 
+              : language === 'en' 
+              ? 'Verifying payment...' 
+              : 'Vérification du paiement...'}
+          </h1>
+          <p className="text-muted-foreground">
+            {language === 'ar' 
+              ? 'يرجى الانتظار بينما نتحقق من الدفع' 
+              : language === 'en' 
+              ? 'Please wait while we verify your payment' 
+              : 'Veuillez patienter pendant que nous vérifions votre paiement'}
+          </p>
         </motion.div>
       </div>
     );

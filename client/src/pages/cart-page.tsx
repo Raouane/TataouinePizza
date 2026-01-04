@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type Step = "cart" | "phone" | "verify" | "address" | "summary";
+type PaymentMethod = "cash" | "stripe" | "flouci";
 
 type SavedAddress = {
   id: string;
@@ -36,6 +37,10 @@ type SavedAddress = {
 const DELIVERY_FEE = 2.00; // Prix de livraison fixe en TND
 
 export default function CartPage() {
+  // Feature flags pour les méthodes de paiement (synchronisés avec Profile.tsx)
+  const stripeEnabled = true; // Paiement international (EUR/USD)
+  const flouciEnabled = false; // Paiement local tunisien (TND)
+
   const { restaurants, removeItem, updateQuantity, total, clearCart, clearRestaurant } = useCart();
   const { startOrder, activeOrder, orderId } = useOrder();
   const onboarding = getOnboarding();
@@ -59,6 +64,8 @@ export default function CartPage() {
   const [newAddressStreet, setNewAddressStreet] = useState("");
   const [newAddressDetails, setNewAddressDetails] = useState("");
   const [addressDetails, setAddressDetails] = useState(onboarding?.addressDetails || "");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   // ✅ MODIFIÉ : Charger uniquement name et phone, nettoyer les anciennes clés
   useEffect(() => {
@@ -559,8 +566,144 @@ export default function CartPage() {
       return;
     }
     
-    // Créer la commande normalement
+    // Gérer selon la méthode de paiement sélectionnée
+    if (paymentMethod === "flouci") {
+      // Flouci : initialiser le paiement avant de créer la commande
+      if (!flouciEnabled) {
+        toast({
+          title: language === 'ar' ? 'خطأ' : language === 'en' ? 'Error' : 'Erreur',
+          description: language === 'ar' 
+            ? 'طريقة الدفع Flouci غير متاحة حالياً' 
+            : language === 'en' 
+            ? 'Flouci payment method is not available' 
+            : 'La méthode de paiement Flouci n\'est pas disponible',
+          variant: 'destructive',
+        });
+        return;
+      }
+      await handleFlouciPayment();
+      return;
+    }
+    
+    if (paymentMethod === "stripe") {
+      // Stripe : pour l'instant, créer la commande normalement
+      // TODO: Implémenter le flux Stripe complet si nécessaire
+      if (!stripeEnabled) {
+        toast({
+          title: language === 'ar' ? 'خطأ' : language === 'en' ? 'Error' : 'Erreur',
+          description: language === 'ar' 
+            ? 'طريقة الدفع Stripe غير متاحة حالياً' 
+            : language === 'en' 
+            ? 'Stripe payment method is not available' 
+            : 'La méthode de paiement Stripe n\'est pas disponible',
+          variant: 'destructive',
+        });
+        return;
+      }
+      // Pour l'instant, Stripe utilise le flux espèces (à améliorer plus tard)
+      await proceedWithOrderCreation();
+      return;
+    }
+    
+    // Espèces à la livraison : créer la commande normalement
     await proceedWithOrderCreation();
+  };
+
+  // Fonction pour gérer le paiement Flouci
+  const handleFlouciPayment = async () => {
+    setIsProcessingPayment(true);
+    
+    try {
+      // Construire les URLs de redirection
+      const baseUrl = window.location.origin;
+      const successLink = `${baseUrl}/success?payment=flouci&amount=${totalWithDelivery}`;
+      const failLink = `${baseUrl}/cart?payment=failed`;
+      
+      // Générer un ID de suivi unique pour cette commande
+      const trackingId = `order_${Date.now()}_${phone}`;
+      
+      // Stocker temporairement les données de commande dans sessionStorage
+      // pour les créer après le paiement réussi
+      const orderData = {
+        restaurants: restaurants.map(r => ({
+          restaurantId: r.restaurantId,
+          restaurantName: r.restaurantName,
+          items: r.items.map(item => ({
+            pizzaId: item.id.toString(),
+            size: item.size || "medium",
+            quantity: item.quantity,
+          })),
+        })),
+        customerName: name.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        addressDetails: addressDetails.trim() || "",
+        customerLat: onboarding?.lat,
+        customerLng: onboarding?.lng,
+        total: totalWithDelivery,
+      };
+      sessionStorage.setItem('pendingFlouciOrder', JSON.stringify(orderData));
+      
+      console.log('[Cart] 💳 Initialisation paiement Flouci:', {
+        amount: totalWithDelivery,
+        successLink,
+        failLink,
+      });
+      
+      // Appeler l'API Flouci
+      const response = await fetch('/api/payments/flouci/init', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          amount: totalWithDelivery,
+          success_link: successLink,
+          fail_link: failLink,
+          developer_tracking_id: trackingId,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to initialize Flouci payment');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success || !data.link) {
+        throw new Error('Invalid response from Flouci API');
+      }
+      
+      console.log('[Cart] ✅ Paiement Flouci initialisé:', {
+        payment_id: data.payment_id,
+        link: data.link,
+      });
+      
+      // Stocker le payment_id pour la vérification après retour
+      sessionStorage.setItem('flouciPaymentId', data.payment_id);
+      
+      // Rediriger vers Flouci
+      window.location.href = data.link;
+      
+    } catch (error: any) {
+      console.error('[Cart] ❌ Erreur paiement Flouci:', error);
+      toast({
+        title: language === 'ar' 
+          ? 'خطأ في الدفع' 
+          : language === 'en' 
+          ? 'Payment Error' 
+          : 'Erreur de paiement',
+        description: error.message || (language === 'ar' 
+          ? 'فشل في تهيئة الدفع عبر Flouci' 
+          : language === 'en' 
+          ? 'Failed to initialize Flouci payment' 
+          : 'Échec de l\'initialisation du paiement Flouci'),
+        variant: 'destructive',
+      });
+      setIsProcessingPayment(false);
+    }
   };
 
   if (restaurants.length === 0 && step === "cart") {
@@ -1155,10 +1298,12 @@ export default function CartPage() {
                             <Button 
                                 className="w-full h-11 md:h-12 text-sm md:text-base rounded-xl shadow-lg shadow-primary/20" 
                                 onClick={handleConfirmOrder}
-                                disabled={checkingActiveOrder}
+                                disabled={checkingActiveOrder || isProcessingPayment}
                             >
                                 {checkingActiveOrder ? (
                                   language === 'ar' ? "جارٍ التحقق..." : language === 'en' ? "Checking..." : "Vérification..."
+                                ) : isProcessingPayment ? (
+                                  language === 'ar' ? "جارٍ التوجيه إلى Flouci..." : language === 'en' ? "Redirecting to Flouci..." : "Redirection vers Flouci..."
                                 ) : (
                                   <>
                                     {language === 'ar' ? "تأكيد الطلب" : language === 'en' ? "Confirm Order" : "Confirmer la commande"}

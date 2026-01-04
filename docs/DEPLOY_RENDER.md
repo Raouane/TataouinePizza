@@ -60,6 +60,10 @@ Dans les paramètres du service Web, ajoutez ces variables d'environnement :
 #### Variables optionnelles :
 
 - **N8N_WEBHOOK_URL**: URL de votre webhook n8n (si configuré)
+- **VITE_STRIPE_PUBLISHABLE_KEY**: Clé publique Stripe (pour les paiements)
+- **STRIPE_SECRET_KEY**: Clé secrète Stripe (pour les paiements)
+
+> 📚 **Voir le guide complet** : [Configuration Stripe sur Render](./STRIPE_RENDER.md)
 - **TWILIO_ACCOUNT_SID**: Si vous utilisez Twilio pour les SMS
 - **TWILIO_AUTH_TOKEN**: Si vous utilisez Twilio
 - **TWILIO_PHONE_NUMBER**: Si vous utilisez Twilio

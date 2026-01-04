@@ -113,7 +113,11 @@ app.use(
           "'self'",
           "data:", // Nécessaire pour les fichiers audio en base64 (notifications sonores)
         ],
-        frameSrc: ["'none'"],
+        frameSrc: [
+          "'self'",
+          "https://js.stripe.com", // Stripe iframes (CardElement, etc.)
+          "https://hooks.stripe.com", // Stripe webhooks iframes
+        ],
       },
     } : false, // Désactiver CSP en développement pour éviter les problèmes avec Stripe.js et Vite
   })
