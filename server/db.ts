@@ -76,20 +76,30 @@ const poolConfig: any = {
   connectionString,
 };
 
-// Pour Supabase, TOUJOURS configurer SSL pour accepter les certificats
-// Même si sslmode est déjà dans l'URL, on doit configurer rejectUnauthorized
+// ✅ FIX FORCÉ : Pour Supabase, TOUJOURS configurer SSL pour accepter les certificats
+// Même si sslmode est déjà dans l'URL, on doit configurer rejectUnauthorized dans l'objet Pool
 if (isSupabase) {
+  // Forcer la configuration SSL même si elle est dans l'URL
   poolConfig.ssl = {
     rejectUnauthorized: false, // Accepter les certificats Supabase (auto-signés)
   };
-  console.log("[DB] ✅ Configuration SSL Supabase appliquée (rejectUnauthorized: false)");
-  console.log("[DB] ✅ URL Supabase détectée, certificats auto-signés acceptés");
+  console.log("[DB] ✅✅✅ Configuration SSL Supabase FORCÉE (rejectUnauthorized: false)");
+  console.log("[DB] ✅ URL Supabase détectée:", connectionString.includes('pooler') ? 'Pooler' : 'Direct');
+  console.log("[DB] ✅ Certificats auto-signés acceptés");
 } else if (isRender) {
   // Pour Render PostgreSQL, on peut aussi avoir besoin de cette config
   poolConfig.ssl = {
     rejectUnauthorized: false, // Accepter les certificats Render
   };
   console.log("[DB] ✅ Configuration SSL Render appliquée (rejectUnauthorized: false)");
+} else {
+  // Pour toute autre connexion, vérifier si PGSSLMODE est défini
+  if (process.env.PGSSLMODE === 'no-verify') {
+    poolConfig.ssl = {
+      rejectUnauthorized: false,
+    };
+    console.log("[DB] ✅ Configuration SSL via PGSSLMODE=no-verify");
+  }
 }
 
 const pool = new Pool(poolConfig);
