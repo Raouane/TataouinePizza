@@ -225,24 +225,28 @@ export function registerDriverOrdersRoutes(app: Express): void {
         const orderId = req.params.id;
         console.log(`[Driver] ✅ Commande ${orderId} livrée, vérification du statut du livreur ${driverId}`);
         
-        // ✅ NOUVEAU : Supprimer les messages Telegram envoyés aux livreurs
+        // ✅ MODIFIÉ : Supprimer UNIQUEMENT les messages Telegram duplicatas (pas les originaux)
+        // Les messages originaux sont conservés pour référence
+        // Seuls les duplicatas (avec scheduled_deletion_at) sont supprimés
         try {
           const { telegramService } = await import("../../services/telegram-service.js");
           
           // Récupérer tous les messages Telegram pour cette commande
           const telegramMessages = await storage.getTelegramMessagesByOrderId(orderId);
           
-          // Filtrer les messages non supprimés (statut != "deleted")
-          const activeMessages = telegramMessages.filter((msg: any) => msg.status !== "deleted");
+          // Filtrer UNIQUEMENT les duplicatas (ceux avec scheduled_deletion_at) qui ne sont pas déjà supprimés
+          const duplicateMessages = telegramMessages.filter((msg: any) => 
+            msg.status !== "deleted" && msg.scheduledDeletionAt !== null && msg.scheduledDeletionAt !== undefined
+          );
           
-          if (activeMessages.length === 0) {
-            console.log(`[Driver] ℹ️ Aucun message Telegram actif à supprimer pour commande ${orderId}`);
+          if (duplicateMessages.length === 0) {
+            console.log(`[Driver] ℹ️ Aucun message Telegram duplicata à supprimer pour commande ${orderId} (les originaux sont conservés)`);
           } else {
-            console.log(`[Driver] 🗑️ Suppression de ${activeMessages.length} message(s) Telegram pour commande ${orderId}`);
+            console.log(`[Driver] 🗑️ Suppression de ${duplicateMessages.length} message(s) Telegram duplicata(s) pour commande ${orderId} (originaux conservés)`);
             
-            // Supprimer chaque message
+            // Supprimer chaque duplicata
             let deletedCount = 0;
-            for (const msg of activeMessages) {
+            for (const msg of duplicateMessages) {
               try {
                 const deleteResult = await telegramService.deleteMessage(msg.chatId, msg.messageId);
                 if (deleteResult.success) {
@@ -250,15 +254,15 @@ export function registerDriverOrdersRoutes(app: Express): void {
                   await storage.markTelegramMessageAsDeleted(msg.id);
                   deletedCount++;
                 } else {
-                  console.error(`[Driver] ⚠️ Erreur suppression message ${msg.messageId}:`, deleteResult.error);
+                  console.error(`[Driver] ⚠️ Erreur suppression duplicata ${msg.messageId}:`, deleteResult.error);
                 }
               } catch (error) {
-                console.error(`[Driver] ⚠️ Erreur suppression message ${msg.messageId}:`, error);
+                console.error(`[Driver] ⚠️ Erreur suppression duplicata ${msg.messageId}:`, error);
                 // Continuer même si un message échoue
               }
             }
             
-            console.log(`[Driver] ✅ ${deletedCount}/${activeMessages.length} message(s) Telegram supprimé(s) pour commande ${orderId}`);
+            console.log(`[Driver] ✅ ${deletedCount}/${duplicateMessages.length} duplicata(s) Telegram supprimé(s) pour commande ${orderId}`);
           }
         } catch (telegramError) {
           console.error('[Driver] ⚠️ Erreur suppression messages Telegram:', telegramError);

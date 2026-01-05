@@ -26,7 +26,15 @@ export default function DriverLogin() {
       
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Téléphone ou mot de passe incorrect");
+        // Améliorer le message d'erreur pour les erreurs de validation
+        let errorMessage = err.error || "Téléphone ou mot de passe incorrect";
+        
+        // Si c'est une erreur de validation de téléphone, rendre le message plus clair
+        if (err.error && err.error.includes("numéro de téléphone tunisien")) {
+          errorMessage = "Le numéro de téléphone doit être tunisien (commence par 2, 4, 5 ou 9 et contient 8 chiffres). Exemple : 21612345678 ou 12345678";
+        }
+        
+        throw new Error(errorMessage);
       }
       
       const { token, refreshToken, driver } = await res.json();
@@ -96,7 +104,10 @@ export default function DriverLogin() {
                 />
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Format: 216XXXXXXXX (sans espaces)
+                Format: 216XXXXXXXX (sans espaces) - Numéro tunisien uniquement
+              </p>
+              <p className="text-xs text-amber-600 mt-1">
+                ⚠️ Le numéro doit commencer par 2, 4, 5 ou 9 et contenir 8 chiffres
               </p>
             </div>
 

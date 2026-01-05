@@ -73,7 +73,10 @@ export class RestaurantStorage extends BaseStorage {
 
   async getRestaurantByPhone(phone: string): Promise<Restaurant | undefined> {
     try {
+      console.log("[STORAGE] 🔍 getRestaurantByPhone - Recherche avec téléphone:", phone);
+      
       // Essayer d'abord avec le téléphone tel quel
+      console.log("[STORAGE] 📞 Tentative 1: Recherche avec téléphone exact:", phone);
       let rawResult = await db.execute(sql`
         SELECT id, name, phone, password, address, description, image_url, categories, 
                is_open::text as is_open_text, opening_hours, delivery_time, 
@@ -81,35 +84,72 @@ export class RestaurantStorage extends BaseStorage {
         FROM restaurants WHERE phone = ${phone}
       `);
       
+      console.log("[STORAGE] 📊 Résultat tentative 1:", {
+        rowsFound: rawResult.rows?.length || 0,
+        hasPassword: rawResult.rows?.[0]?.password ? "OUI" : "NON"
+      });
+      
       // Si pas trouvé et que le téléphone commence par 216, essayer sans le préfixe
       if ((!rawResult.rows || rawResult.rows.length === 0) && phone.startsWith('216')) {
         const phoneWithoutPrefix = phone.substring(3);
+        console.log("[STORAGE] 📞 Tentative 2: Recherche sans préfixe 216:", phoneWithoutPrefix);
         rawResult = await db.execute(sql`
           SELECT id, name, phone, password, address, description, image_url, categories, 
                  is_open::text as is_open_text, opening_hours, delivery_time, 
                  min_order, rating, order_type, created_at, updated_at 
           FROM restaurants WHERE phone = ${phoneWithoutPrefix}
         `);
+        console.log("[STORAGE] 📊 Résultat tentative 2:", {
+          rowsFound: rawResult.rows?.length || 0,
+          hasPassword: rawResult.rows?.[0]?.password ? "OUI" : "NON"
+        });
       }
       
       // Si pas trouvé et que le téléphone ne commence pas par 216, essayer avec le préfixe
       if ((!rawResult.rows || rawResult.rows.length === 0) && !phone.startsWith('216')) {
         const phoneWithPrefix = `216${phone}`;
+        console.log("[STORAGE] 📞 Tentative 3: Recherche avec préfixe 216:", phoneWithPrefix);
         rawResult = await db.execute(sql`
           SELECT id, name, phone, password, address, description, image_url, categories, 
                  is_open::text as is_open_text, opening_hours, delivery_time, 
                  min_order, rating, order_type, created_at, updated_at 
           FROM restaurants WHERE phone = ${phoneWithPrefix}
         `);
+        console.log("[STORAGE] 📊 Résultat tentative 3:", {
+          rowsFound: rawResult.rows?.length || 0,
+          hasPassword: rawResult.rows?.[0]?.password ? "OUI" : "NON"
+        });
       }
       
       if (!rawResult.rows || rawResult.rows.length === 0) {
+        console.log("[STORAGE] ❌ Aucun restaurant trouvé pour téléphone:", phone);
         return undefined;
       }
       
       const row = rawResult.rows[0] as any;
-      return this.buildRestaurantFromRow(row);
+      console.log("[STORAGE] ✅ Restaurant trouvé dans la DB:", {
+        id: row.id,
+        name: row.name,
+        phone: row.phone,
+        hasPassword: !!row.password,
+        passwordType: typeof row.password,
+        passwordValue: row.password ? row.password.substring(0, 20) + "..." : "NULL",
+        allFields: Object.keys(row)
+      });
+      
+      const restaurant = this.buildRestaurantFromRow(row);
+      console.log("[STORAGE] 🏗️ Restaurant construit:", {
+        id: restaurant.id,
+        name: restaurant.name,
+        phone: restaurant.phone,
+        hasPassword: !!restaurant.password,
+        passwordType: typeof restaurant.password,
+        passwordValue: restaurant.password ? restaurant.password.substring(0, 20) + "..." : "NULL"
+      });
+      
+      return restaurant;
     } catch (e) {
+      console.log("[STORAGE] ❌ ERREUR dans getRestaurantByPhone:", e);
       this.log('error', 'getRestaurantByPhone error', e);
       return undefined;
     }

@@ -113,11 +113,29 @@ export interface IStorage {
   deleteOldIdempotencyKeys(olderThanHours?: number): Promise<void>;
 
   // Telegram Messages
-  saveTelegramMessage(orderId: string, driverId: string, chatId: string, messageId: number, status?: string): Promise<void>;
-  getTelegramMessagesByOrderId(orderId: string): Promise<Array<{ id: string; orderId: string; driverId: string; chatId: string; messageId: number; status: string }>>;
+  saveTelegramMessage(orderId: string, driverId: string, chatId: string, messageId: number, status?: string, scheduledDeletionAt?: Date | null): Promise<void>;
+  getTelegramMessagesByOrderId(orderId: string): Promise<Array<{ id: string; orderId: string; driverId: string; chatId: string; messageId: number; status: string; scheduledDeletionAt: Date | null }>>;
   getTelegramMessageByOrderAndDriver(orderId: string, driverId: string): Promise<{ id: string; orderId: string; driverId: string; chatId: string; messageId: number; status: string } | null>;
   updateTelegramMessageStatus(orderId: string, driverId: string, newStatus: string): Promise<void>;
   markTelegramMessageAsDeleted(messageId: string): Promise<void>;
+  getTelegramMessagesByOrderIdAndDriver(orderId: string, driverId: string): Promise<Array<{
+    id: string;
+    orderId: string;
+    driverId: string;
+    chatId: string;
+    messageId: number;
+    status: string;
+    scheduledDeletionAt: Date | null;
+  }>>;
+  getTelegramMessagesScheduledForDeletion(): Promise<Array<{
+    id: string;
+    orderId: string;
+    driverId: string;
+    chatId: string;
+    messageId: number;
+    status: string;
+    scheduledDeletionAt: Date;
+  }>>;
 
   // Cash Handovers
   createCashHandover(driverId: string, amount: number, deliveryCount: number, handoverDate: Date): Promise<CashHandover>;
@@ -357,9 +375,10 @@ export class DatabaseStorage implements IStorage {
     driverId: string,
     chatId: string,
     messageId: number,
-    status: string = "sent"
+    status: string = "sent",
+    scheduledDeletionAt?: Date | null
   ): Promise<void> {
-    return this.telegramStorage.saveTelegramMessage(orderId, driverId, chatId, messageId, status);
+    return this.telegramStorage.saveTelegramMessage(orderId, driverId, chatId, messageId, status, scheduledDeletionAt);
   }
 
   async getTelegramMessagesByOrderId(orderId: string): Promise<Array<{
@@ -369,6 +388,7 @@ export class DatabaseStorage implements IStorage {
     chatId: string;
     messageId: number;
     status: string;
+    scheduledDeletionAt: Date | null;
   }>> {
     return this.telegramStorage.getTelegramMessagesByOrderId(orderId);
   }
@@ -390,6 +410,30 @@ export class DatabaseStorage implements IStorage {
 
   async markTelegramMessageAsDeleted(messageId: string): Promise<void> {
     return this.telegramStorage.markTelegramMessageAsDeleted(messageId);
+  }
+
+  async getTelegramMessagesByOrderIdAndDriver(orderId: string, driverId: string): Promise<Array<{
+    id: string;
+    orderId: string;
+    driverId: string;
+    chatId: string;
+    messageId: number;
+    status: string;
+    scheduledDeletionAt: Date | null;
+  }>> {
+    return this.telegramStorage.getTelegramMessagesByOrderIdAndDriver(orderId, driverId);
+  }
+
+  async getTelegramMessagesScheduledForDeletion(): Promise<Array<{
+    id: string;
+    orderId: string;
+    driverId: string;
+    chatId: string;
+    messageId: number;
+    status: string;
+    scheduledDeletionAt: Date;
+  }>> {
+    return this.telegramStorage.getTelegramMessagesScheduledForDeletion();
   }
 
   // ============ CASH HANDOVERS ============

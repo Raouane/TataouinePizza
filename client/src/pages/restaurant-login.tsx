@@ -14,31 +14,68 @@ export default function RestaurantLogin() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("==========================================");
+    console.log("[CLIENT RESTAURANT LOGIN] 🔵 Clic sur Se connecter");
+    console.log("[CLIENT RESTAURANT LOGIN] 📥 Données du formulaire:", {
+      phone,
+      phoneLength: phone.length,
+      password: password ? "***" : "MANQUANT",
+      passwordLength: password.length,
+      loading,
+      buttonDisabled: loading || phone.length < 8 || password.length < 6
+    });
+    
     setError("");
     setLoading(true);
 
     try {
+      const requestBody = { phone, password };
+      console.log("[CLIENT RESTAURANT LOGIN] 📤 Envoi de la requête à /api/restaurant/login");
+      console.log("[CLIENT RESTAURANT LOGIN] 📋 Body:", {
+        phone: requestBody.phone,
+        password: requestBody.password ? "***" : "MANQUANT"
+      });
+      
       const res = await fetch("/api/restaurant/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, password }),
+        body: JSON.stringify(requestBody),
+      });
+      
+      console.log("[CLIENT RESTAURANT LOGIN] 📥 Réponse reçue:", {
+        status: res.status,
+        statusText: res.statusText,
+        ok: res.ok
       });
       
       if (!res.ok) {
         const err = await res.json();
+        console.log("[CLIENT RESTAURANT LOGIN] ❌ Erreur de la réponse:", err);
         throw new Error(err.error || "Téléphone ou mot de passe incorrect");
       }
       
-      const { token, restaurant } = await res.json();
+      const data = await res.json();
+      console.log("[CLIENT RESTAURANT LOGIN] ✅ Connexion réussie:", {
+        hasToken: !!data.token,
+        restaurant: data.restaurant
+      });
+      
+      const { token, restaurant } = data;
       localStorage.setItem("restaurantToken", token);
       localStorage.setItem("restaurantId", restaurant.id);
       localStorage.setItem("restaurantName", restaurant.name);
       localStorage.setItem("restaurantPhone", phone);
+      console.log("[CLIENT RESTAURANT LOGIN] 💾 Données sauvegardées dans localStorage");
+      console.log("[CLIENT RESTAURANT LOGIN] 🔄 Redirection vers /restaurant/dashboard");
       setLocation("/restaurant/dashboard");
     } catch (err: any) {
+      console.log("[CLIENT RESTAURANT LOGIN] ❌ ERREUR:", err);
+      console.log("[CLIENT RESTAURANT LOGIN] 📝 Message d'erreur:", err.message);
       setError(err.message || "Erreur lors de la connexion");
     } finally {
       setLoading(false);
+      console.log("[CLIENT RESTAURANT LOGIN] ✅ Fin du traitement (loading = false)");
+      console.log("==========================================");
     }
   };
 
@@ -73,7 +110,13 @@ export default function RestaurantLogin() {
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form 
+            onSubmit={(e) => {
+              console.log("[CLIENT RESTAURANT LOGIN] 📝 Formulaire soumis");
+              handleLogin(e);
+            }} 
+            className="space-y-4"
+          >
             <div>
               <label className="block text-sm font-medium mb-2">Téléphone</label>
               <div className="relative">
@@ -115,6 +158,15 @@ export default function RestaurantLogin() {
               disabled={loading || phone.length < 8 || password.length < 6}
               className="w-full bg-orange-600 hover:bg-orange-700"
               data-testid="button-restaurant-login"
+              onClick={() => {
+                console.log("[CLIENT RESTAURANT LOGIN] 🖱️ Clic sur le bouton détecté");
+                console.log("[CLIENT RESTAURANT LOGIN] 📊 État du bouton:", {
+                  loading,
+                  phoneLength: phone.length,
+                  passwordLength: password.length,
+                  disabled: loading || phone.length < 8 || password.length < 6
+                });
+              }}
             >
               {loading ? "Connexion..." : "Se connecter"}
             </Button>

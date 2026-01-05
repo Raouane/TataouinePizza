@@ -29,7 +29,7 @@ export const phoneSchema = z
     // Normaliser : supprimer espaces, tirets, points, et préfixes
     let cleaned = val.replace(/[\s\-\.\(\)]/g, "");
     
-    // Supprimer les préfixes internationaux
+    // Supprimer les préfixes internationaux tunisiens uniquement
     if (cleaned.startsWith("+216")) {
       cleaned = cleaned.substring(4);
     } else if (cleaned.startsWith("00216")) {
@@ -38,12 +38,22 @@ export const phoneSchema = z
       cleaned = cleaned.substring(3);
     }
     
+    // Si le numéro commence par un préfixe international non tunisien (ex: +33, +1, etc.)
+    // on le supprime aussi pour permettre la validation
+    if (cleaned.match(/^\+\d{1,3}/)) {
+      // Supprimer le préfixe international (ex: +33, +1, +44, etc.)
+      cleaned = cleaned.replace(/^\+\d{1,3}/, "");
+    }
+    
     return cleaned;
   })
   .refine(
-    (val) => /^[2459]\d{7}$/.test(val),
+    (val) => {
+      // Vérifier que c'est un numéro tunisien valide
+      return /^[2459]\d{7}$/.test(val);
+    },
     {
-      message: "Le numéro de téléphone tunisien doit commencer par 2, 4, 5 ou 9 et contenir 8 chiffres",
+      message: "Le numéro de téléphone doit être tunisien : commencer par 2, 4, 5 ou 9 et contenir 8 chiffres. Exemples : 21612345678, 12345678, ou 21234567",
     }
   );
 
@@ -54,6 +64,9 @@ export const phoneSchema = z
  * Tunisie : environ 30°N à 37°N
  * 
  * Pour Tataouine spécifiquement : ~32.9°N
+ * 
+ * ⚠️ NOTE: La validation géographique stricte est actuellement DÉSACTIVÉE dans insertOrderSchema
+ * pour permettre les commandes de partout. Réactiver dans shared/schema.ts quand nécessaire.
  */
 export const latitudeSchema = z
   .number()
@@ -73,6 +86,9 @@ export const latitudeSchema = z
  * Tunisie : environ 7°E à 12°E
  * 
  * Pour Tataouine spécifiquement : ~10.4°E
+ * 
+ * ⚠️ NOTE: La validation géographique stricte est actuellement DÉSACTIVÉE dans insertOrderSchema
+ * pour permettre les commandes de partout. Réactiver dans shared/schema.ts quand nécessaire.
  */
 export const longitudeSchema = z
   .number()

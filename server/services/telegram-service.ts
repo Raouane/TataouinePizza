@@ -626,17 +626,35 @@ ${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
     if (result.success && result.messageId && driverId) {
       console.log(`[Telegram] ✅ Message envoyé: ${result.messageId || 'N/A'}`);
       
-      // ✅ NOUVEAU : Stocker le messageId dans la base de données
+      // ✅ SOLUTION 3 : Identifier les duplicatas et programmer leur suppression
       try {
         const { storage } = await import("../storage.js");
+        
+        // Vérifier si c'est un duplicata (il existe déjà un message pour cette commande + driver)
+        const existingMessages = await storage.getTelegramMessagesByOrderIdAndDriver(orderId, driverId);
+        const isDuplicate = existingMessages.length > 0;
+        
+        // Si c'est un duplicata, programmer sa suppression après 5 minutes
+        const scheduledDeletionAt = isDuplicate 
+          ? new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
+          : null;
+        
+        if (isDuplicate) {
+          console.log(`[Telegram] 🔄 Duplicata détecté (messageId: ${result.messageId}). Suppression programmée dans 5 minutes.`);
+        } else {
+          console.log(`[Telegram] 📝 Message original (messageId: ${result.messageId}). Conservé indéfiniment.`);
+        }
+        
+        // Stocker le messageId dans la base de données avec la date de suppression programmée
         await storage.saveTelegramMessage(
           orderId,
           driverId,
           driverTelegramId,
           result.messageId,
-          "sent"
+          "sent",
+          scheduledDeletionAt
         );
-        console.log(`[Telegram] 💾 MessageId ${result.messageId} sauvegardé pour commande ${orderId}`);
+        console.log(`[Telegram] 💾 MessageId ${result.messageId} sauvegardé pour commande ${orderId} (duplicata: ${isDuplicate ? 'OUI' : 'NON'})`);
       } catch (storageError: any) {
         console.error(`[Telegram] ⚠️ Erreur sauvegarde messageId (non-bloquant):`, storageError);
         // Ne pas bloquer si la sauvegarde échoue

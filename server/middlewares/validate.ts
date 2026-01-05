@@ -29,6 +29,12 @@ export function validate<T extends ZodSchema>(
     try {
       const data = target === "body" ? req.body : target === "query" ? req.query : req.params;
       
+      console.log(`[VALIDATE] 🔍 Validation ${target} pour ${req.method} ${req.path}`);
+      console.log(`[VALIDATE] 📥 Données reçues:`, {
+        target,
+        data: target === "body" ? { ...data, password: data.password ? "***" : "MANQUANT" } : data
+      });
+      
       // Valider avec Zod
       const result = await schema.safeParseAsync(data);
       
@@ -39,6 +45,11 @@ export function validate<T extends ZodSchema>(
           message: err.message,
           code: err.code,
         }));
+
+        console.log(`[VALIDATE] ❌ Validation échouée:`, {
+          errors,
+          receivedData: target === "body" ? { ...data, password: data.password ? "***" : "MANQUANT" } : data
+        });
 
         const isDevelopment = process.env.NODE_ENV === "development";
         
@@ -51,6 +62,11 @@ export function validate<T extends ZodSchema>(
         );
       }
 
+      console.log(`[VALIDATE] ✅ Validation réussie:`, {
+        target,
+        validatedData: target === "body" ? { ...result.data, password: result.data.password ? "***" : "MANQUANT" } : result.data
+      });
+
       // Remplacer les données par les données validées (Zod peut transformer/coercer)
       if (target === "body") {
         req.body = result.data;
@@ -62,7 +78,7 @@ export function validate<T extends ZodSchema>(
 
       next();
     } catch (error: any) {
-      console.error("[VALIDATE] Erreur de validation:", error);
+      console.error("[VALIDATE] ❌ ERREUR de validation:", error);
       errorHandler.sendError(res, errorHandler.badRequest("Validation error"));
     }
   };

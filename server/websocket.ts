@@ -77,6 +77,9 @@ export function setupWebSocket(httpServer: Server): WebSocketServer {
   // ✅ NOUVEAU : Démarrer la re-notification périodique
   startPeriodicReNotification();
   
+  // ✅ NOUVEAU : Démarrer le job de nettoyage des messages Telegram duplicatas
+  startTelegramDuplicateCleanupJob();
+  
   // Démarrer le timer d'inactivité
   resetInactivityTimer(wss);
 
@@ -855,6 +858,75 @@ function startPeriodicReNotification(): void {
   }, RE_NOTIFICATION_INTERVAL_MS);
   
   console.log("[Periodic Re-Notification] ✅ Timer démarré (intervalle: 1 minute)");
+}
+
+/**
+ * Job périodique pour supprimer les messages Telegram duplicatas programmés
+ * Vérifie toutes les minutes les messages avec scheduled_deletion_at <= NOW()
+ * et les supprime automatiquement
+ */
+function startTelegramDuplicateCleanupJob(): void {
+  const CLEANUP_INTERVAL_MS = 1 * 60 * 1000; // 1 minute
+  
+  // Exécuter immédiatement au démarrage
+  cleanupScheduledTelegramMessages();
+  
+  // Puis exécuter périodiquement
+  setInterval(async () => {
+    await cleanupScheduledTelegramMessages();
+  }, CLEANUP_INTERVAL_MS);
+  
+  console.log("[Telegram Cleanup] ✅ Job de nettoyage des duplicatas démarré (intervalle: 1 minute)");
+}
+
+/**
+ * Nettoie les messages Telegram programmés pour suppression
+ */
+async function cleanupScheduledTelegramMessages(): Promise<void> {
+  try {
+    const { storage } = await import("./storage.js");
+    const { telegramService } = await import("./services/telegram-service.js");
+    
+    console.log("[Telegram Cleanup] 🔍 Vérification des messages programmés pour suppression...");
+    
+    const messagesToDelete = await storage.getTelegramMessagesScheduledForDeletion();
+    
+    if (messagesToDelete.length === 0) {
+      console.log("[Telegram Cleanup] ⏭️ Aucun message à supprimer");
+      return;
+    }
+    
+    console.log(`[Telegram Cleanup] 📋 ${messagesToDelete.length} message(s) duplicata(s) à supprimer`);
+    
+    let deletedCount = 0;
+    let errorCount = 0;
+    
+    for (const msg of messagesToDelete) {
+      try {
+        // Supprimer le message via l'API Telegram
+        const deleteResult = await telegramService.deleteMessage(msg.chatId, msg.messageId);
+        
+        if (deleteResult.success) {
+          // Marquer comme supprimé dans la DB
+          await storage.markTelegramMessageAsDeleted(msg.id);
+          deletedCount++;
+          console.log(`[Telegram Cleanup] ✅ Duplicata ${msg.messageId} supprimé (commande: ${msg.orderId.slice(0, 8)})`);
+        } else {
+          console.error(`[Telegram Cleanup] ⚠️ Erreur suppression message ${msg.messageId}:`, deleteResult.error);
+          errorCount++;
+        }
+      } catch (error: any) {
+        console.error(`[Telegram Cleanup] ⚠️ Erreur suppression message ${msg.messageId}:`, error);
+        errorCount++;
+        // Continuer même si un message échoue
+      }
+    }
+    
+    console.log(`[Telegram Cleanup] ✅ Nettoyage terminé: ${deletedCount} supprimé(s), ${errorCount} erreur(s)`);
+  } catch (error: any) {
+    console.error("[Telegram Cleanup] ❌ Erreur lors du nettoyage:", error);
+    console.error("[Telegram Cleanup] ❌ Stack:", error.stack);
+  }
 }
 
 /**

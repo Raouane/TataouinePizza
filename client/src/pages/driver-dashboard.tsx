@@ -3,7 +3,7 @@ import { useLocation, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Bike, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock, Store, Banknote, Navigation, Power, ExternalLink, User, Menu, BarChart3, Bell, Settings, Eye, History, CheckCircle, XCircle, Calculator } from "lucide-react";
+import { Bike, LogOut, Phone, MapPin, Check, RefreshCw, AlertCircle, ArrowLeft, Package, Clock, Store, Banknote, Navigation, Power, User, Menu, BarChart3, Bell, Settings, Eye, History, CheckCircle, XCircle, Calculator } from "lucide-react";
 import { SwipeButton } from "@/components/swipe-button";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
@@ -53,8 +53,7 @@ export default function DriverDashboard() {
   const [isOnline, setIsOnline] = useState(true);
   const [wsConnected, setWsConnected] = useState(false);
   const [lastNotification, setLastNotification] = useState<any>(null);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [showCustomerDialog, setShowCustomerDialog] = useState(false);
+  // ✅ SUPPRIMÉ : selectedOrder et showCustomerDialog (modal supprimée)
   const [showStatsDialog, setShowStatsDialog] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
@@ -2150,28 +2149,56 @@ export default function DriverDashboard() {
                           <Navigation className="w-4 h-4" />
                           Livrer à:
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedOrder(order);
-                            setShowCustomerDialog(true);
-                          }}
-                          className="h-7 text-xs"
-                        >
-                          <ExternalLink className="w-3 h-3 mr-1" />
-                          Détails
-                        </Button>
+                        {/* ✅ MODIFIÉ : Boutons d'action directs (sans modal) */}
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              // Navigation directe vers le client
+                              const lat = order.customerLat ? Number(order.customerLat) : null;
+                              const lng = order.customerLng ? Number(order.customerLng) : null;
+                              
+                              if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
+                                const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+                                window.open(url, '_blank');
+                              } else {
+                                const addressWithCity = `${order.address}, Tataouine, Tunisie`;
+                                const address = encodeURIComponent(addressWithCity);
+                                const url = `https://www.google.com/maps/search/?api=1&query=${address}`;
+                                toast.warning("Coordonnées GPS non disponibles, utilisation de l'adresse textuelle", {
+                                  description: "La navigation peut être moins précise.",
+                                  duration: 3000,
+                                });
+                                window.open(url, '_blank');
+                              }
+                            }}
+                            className="h-7 text-xs px-2"
+                          >
+                            <MapPin className="w-3 h-3 mr-1" />
+                            Navigation
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              window.open(`tel:${order.phone}`, '_self');
+                            }}
+                            className="h-7 text-xs px-2"
+                          >
+                            <Phone className="w-3 h-3 mr-1" />
+                            Appeler
+                          </Button>
+                        </div>
                       </div>
                       <p className="font-semibold">{order.customerName}</p>
                       <p className="text-sm">{order.address}</p>
                       {order.addressDetails && (
                         <p className="text-xs text-muted-foreground">{order.addressDetails}</p>
                       )}
-                      <a href={`tel:${order.phone}`} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mt-1">
-                        <Phone className="w-3 h-3" />
+                      <p className="text-xs text-muted-foreground mt-1">
                         <span className="format-technical">{order.phone}</span>
-                      </a>
+                      </p>
                     </div>
 
                     <div className="pt-2 border-t space-y-2">
@@ -2241,112 +2268,7 @@ export default function DriverDashboard() {
         )}
       </div>
 
-      {/* Modal Détails Client */}
-      {showCustomerDialog && selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowCustomerDialog(false)}>
-          <Card className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <User className="w-5 h-5 text-primary" />
-                  <h2 className="text-xl font-bold">Informations Client</h2>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowCustomerDialog(false)}
-                  className="h-8 w-8 p-0"
-                >
-                  <AlertCircle className="w-4 h-4 rotate-45" />
-                </Button>
-              </div>
-              
-              <p className="text-sm text-muted-foreground">
-                Détails de livraison pour la commande #{selectedOrder.id.slice(0, 8)}
-              </p>
-              
-              <div className="bg-blue-50 rounded-lg p-4 space-y-3">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Nom du client</p>
-                  <p className="font-semibold text-lg">{selectedOrder.customerName}</p>
-                </div>
-                
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Téléphone</p>
-                  <a 
-                    href={`tel:${selectedOrder.phone}`} 
-                    className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
-                  >
-                    <Phone className="w-4 h-4" />
-                    <span className="format-technical">{selectedOrder.phone}</span>
-                  </a>
-                </div>
-                
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Adresse de livraison</p>
-                  <p className="font-medium">{selectedOrder.address}</p>
-                  {selectedOrder.addressDetails && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {selectedOrder.addressDetails}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    // Utiliser les coordonnées GPS si disponibles, sinon l'adresse textuelle
-                    const lat = selectedOrder.customerLat ? Number(selectedOrder.customerLat) : null;
-                    const lng = selectedOrder.customerLng ? Number(selectedOrder.customerLng) : null;
-                    
-                    console.log("[Navigation] Coordonnées GPS:", { lat, lng, address: selectedOrder.address });
-                    
-                    if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
-                      // Utiliser /dir/ pour la navigation (itinéraire) avec les coordonnées GPS exactes
-                      const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-                      console.log("[Navigation] URL Maps avec GPS:", url);
-                      window.open(url, '_blank');
-                    } else {
-                      // Fallback: utiliser l'adresse textuelle avec la ville pour plus de précision
-                      // Ajouter "Tataouine, Tunisie" pour éviter les ambiguïtés
-                      const addressWithCity = `${selectedOrder.address}, Tataouine, Tunisie`;
-                      const address = encodeURIComponent(addressWithCity);
-                      const url = `https://www.google.com/maps/search/?api=1&query=${address}`;
-                      console.log("[Navigation] URL Maps avec adresse (pas de GPS):", url);
-                      // Afficher un avertissement que les coordonnées GPS ne sont pas disponibles
-                      toast.warning("Coordonnées GPS non disponibles, utilisation de l'adresse textuelle", {
-                        description: "Cette commande a été créée avant l'ajout du GPS. La navigation peut être moins précise.",
-                        duration: 5000,
-                      });
-                      window.open(url, '_blank');
-                    }
-                  }}
-                >
-                  <MapPin className="w-4 h-4 mr-2" />
-                  Naviguer vers client
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    window.open(`tel:${selectedOrder.phone}`, '_self');
-                  }}
-                >
-                  <Phone className="w-4 h-4 mr-2" />
-                  Appeler
-                </Button>
-              </div>
-
-              <div className="pt-2 border-t">
-                <p className="text-xs text-muted-foreground mb-1">Total commande</p>
-                <p className="font-bold text-xl"><span className="format-technical">{Number(selectedOrder.totalPrice).toFixed(2)} TND</span></p>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
+      {/* ✅ SUPPRIMÉ : Modal Détails Client (remplacée par boutons directs sur la carte) */}
 
       {/* Modal Statistiques */}
       <Dialog open={showStatsDialog} onOpenChange={setShowStatsDialog}>

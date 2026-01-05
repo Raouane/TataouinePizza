@@ -89,15 +89,33 @@ export abstract class BaseStorage {
    * Construire un Restaurant depuis raw SQL row
    */
   protected buildRestaurantFromRow(row: any): Restaurant {
-    const categories = this.parseCategories(row.categories, row.name);
-    const isOpen = this.parseIsOpen(row.is_open_text, row.name);
-    const openingHours = this.parseOpeningHours(row.opening_hours);
-
-    return {
+    console.log("[BUILD] 🏗️ buildRestaurantFromRow - Début construction restaurant");
+    console.log("[BUILD] 📋 Row reçue:", {
       id: row.id,
       name: row.name,
       phone: row.phone,
-      password: row.password || null,
+      hasPassword: !!row.password,
+      passwordType: typeof row.password,
+      passwordValue: row.password ? row.password.substring(0, 20) + "..." : "NULL",
+      allKeys: Object.keys(row)
+    });
+    
+    const categories = this.parseCategories(row.categories, row.name);
+    const isOpen = this.parseIsOpen(row.is_open_text, row.name);
+    const openingHours = this.parseOpeningHours(row.opening_hours);
+    
+    const passwordValue = row.password || null;
+    console.log("[BUILD] 🔐 Password extrait:", {
+      hasPassword: !!passwordValue,
+      passwordType: typeof passwordValue,
+      passwordValue: passwordValue ? passwordValue.substring(0, 20) + "..." : "NULL"
+    });
+
+    const restaurant = {
+      id: row.id,
+      name: row.name,
+      phone: row.phone,
+      password: passwordValue,
       address: row.address,
       description: row.description || null,
       imageUrl: row.image_url || null,
@@ -111,5 +129,16 @@ export abstract class BaseStorage {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     } as Restaurant;
+    
+    console.log("[BUILD] ✅ Restaurant construit:", {
+      id: restaurant.id,
+      name: restaurant.name,
+      phone: restaurant.phone,
+      hasPassword: !!restaurant.password,
+      passwordType: typeof restaurant.password,
+      passwordValue: restaurant.password ? restaurant.password.substring(0, 20) + "..." : "NULL"
+    });
+    
+    return restaurant;
   }
 }

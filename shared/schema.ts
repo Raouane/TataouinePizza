@@ -152,7 +152,8 @@ export const telegramMessages = pgTable("telegram_messages", {
   driverId: varchar("driver_id").notNull().references(() => drivers.id, { onDelete: "cascade" }),
   chatId: text("chat_id").notNull(), // Telegram chat ID (driverTelegramId)
   messageId: integer("message_id").notNull(), // Telegram message ID
-  status: text("status").default("sent"), // "sent", "accepted", "delivery", "delivered"
+  status: text("status").default("sent"), // "sent", "accepted", "delivery", "delivered", "deleted"
+  scheduledDeletionAt: timestamp("scheduled_deletion_at"), // Date de suppression programmée pour les duplicatas
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -257,7 +258,11 @@ export const insertOrderSchema = z.object({
     });
   }
   
+  // ⚠️ VALIDATION GPS DÉSACTIVÉE TEMPORAIREMENT
+  // TODO: Réactiver cette validation pour éviter les commandes de toute la planète
   // Validation de la zone géographique (Tunisie)
+  // Plage valide : Latitude 30°-37.5°N, Longitude 7°-12°E
+  /*
   if (hasLat && hasLng) {
     if (data.customerLat! < 30.0 || data.customerLat! > 37.5) {
       ctx.addIssue({
@@ -275,6 +280,7 @@ export const insertOrderSchema = z.object({
       });
     }
   }
+  */
 });
 
 export const verifyOtpSchema = z.object({

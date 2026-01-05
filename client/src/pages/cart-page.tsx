@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useCart } from "@/lib/cart";
 import { useOrder } from "@/lib/order-context";
 import { createOrder, getOrdersByPhone, customerLogin } from "@/lib/api";
@@ -47,7 +47,8 @@ export default function CartPage() {
 
   const { restaurants, removeItem, updateQuantity, total, clearCart, clearRestaurant } = useCart();
   const { startOrder, activeOrder, orderId } = useOrder();
-  const onboarding = getOnboarding();
+  // ✅ FIX : Utiliser useMemo pour stabiliser onboarding et éviter les boucles infinies
+  const onboarding = useMemo(() => getOnboarding(), []);
   const hasPhoneFromOnboarding = !!onboarding?.phone;
   const [step, setStep] = useState<Step>("cart");
   const [phone, setPhone] = useState(onboarding?.phone || "");
@@ -94,7 +95,9 @@ export default function CartPage() {
   }, []); // Seulement au montage
 
   // ✅ MODIFIÉ : Charger les adresses sauvegardées + intégrer onboarding si première fois
+  // ✅ FIX : Séparer en deux useEffect pour éviter les boucles infinies
   useEffect(() => {
+    // Éviter les exécutions inutiles si les données ne sont pas prêtes
     if (!phone || phone.length < 8) {
       // Si pas de téléphone mais qu'on a des données d'onboarding, les intégrer
       if (onboarding?.phone && onboarding?.address) {
@@ -148,17 +151,44 @@ export default function CartPage() {
       console.log('[Cart] ✅ Adresse onboarding intégrée dans savedAddresses');
     }
     
+    // ✅ FIX : Ne mettre à jour que si les adresses ont réellement changé
     if (addresses.length > 0) {
-      setSavedAddresses(addresses);
-      // ✅ MODIFIÉ : Sélectionner l'adresse la plus récente (première dans la liste) ou celle par défaut
-      const defaultAddress = addresses.find(a => a.isDefault) || addresses[0];
-      if (defaultAddress) {
-        setSelectedAddressId(defaultAddress.id);
-        setAddress(defaultAddress.street);
-        setAddressDetails(defaultAddress.details || "");
+      const currentAddressesJson = JSON.stringify(savedAddresses.map(a => ({ id: a.id, label: a.label, street: a.street, details: a.details, isDefault: a.isDefault })));
+      const newAddressesJson = JSON.stringify(addresses.map(a => ({ id: a.id, label: a.label, street: a.street, details: a.details, isDefault: a.isDefault })));
+      
+      if (currentAddressesJson !== newAddressesJson) {
+        setSavedAddresses(addresses);
       }
     }
-  }, [phone, onboarding, language]);
+  }, [phone, onboarding?.phone, onboarding?.address, onboarding?.addressDetails, language]);
+
+  // ✅ FIX : Séparer la sélection de l'adresse par défaut dans un useEffect distinct
+  // ✅ FIX : Utiliser useRef pour éviter les boucles infinies
+  const hasInitializedAddress = useRef(false);
+  
+  useEffect(() => {
+    if (savedAddresses.length > 0) {
+      const defaultAddress = savedAddresses.find(a => a.isDefault) || savedAddresses[0];
+      if (defaultAddress) {
+        // ✅ FIX : Ne mettre à jour que si on n'a pas encore initialisé OU si l'adresse sélectionnée n'existe plus
+        const selectedAddressExists = savedAddresses.some(a => a.id === selectedAddressId);
+        
+        if (!hasInitializedAddress.current || !selectedAddressExists || selectedAddressId !== defaultAddress.id) {
+          // ✅ FIX : Vérifier que les valeurs ont vraiment changé avant de mettre à jour
+          if (selectedAddressId !== defaultAddress.id) {
+            setSelectedAddressId(defaultAddress.id);
+          }
+          if (address !== defaultAddress.street) {
+            setAddress(defaultAddress.street);
+          }
+          if (addressDetails !== (defaultAddress.details || "")) {
+            setAddressDetails(defaultAddress.details || "");
+          }
+          hasInitializedAddress.current = true;
+        }
+      }
+    }
+  }, [savedAddresses]); // ✅ FIX : Dépendre uniquement de savedAddresses
 
   // Vérifier si le client a une commande active
   useEffect(() => {
@@ -376,14 +406,17 @@ export default function CartPage() {
         itemsCount: orderItems.length 
       });
       
+      // ⚠️ VALIDATION GPS DÉSACTIVÉE TEMPORAIREMENT
+      // TODO: Réactiver la validation GPS côté client quand on réactive côté serveur
+      // Pour l'instant, on envoie les coordonnées telles quelles (ou null si absentes)
       return createOrder({
         restaurantId: restaurantCart.restaurantId,
         customerName: name.trim(),
         phone: phone.trim(),
         address: finalAddress,
         addressDetails: finalAddressDetails,
-        customerLat: onboarding?.lat, // Optionnel
-        customerLng: onboarding?.lng, // Optionnel
+        customerLat: onboarding?.lat ?? null, // Optionnel
+        customerLng: onboarding?.lng ?? null, // Optionnel
         items: orderItems,
       });
     });
@@ -739,6 +772,8 @@ export default function CartPage() {
       
       // Stocker temporairement les données de commande dans sessionStorage
       // pour les créer après le paiement réussi
+      // ⚠️ VALIDATION GPS DÉSACTIVÉE TEMPORAIREMENT
+      // TODO: Réactiver la validation GPS côté client quand on réactive côté serveur
       const orderData = {
         restaurants: restaurants.map(r => ({
           restaurantId: r.restaurantId,
@@ -753,8 +788,8 @@ export default function CartPage() {
         phone: phone.trim(),
         address: address.trim(),
         addressDetails: addressDetails.trim() || "",
-        customerLat: onboarding?.lat,
-        customerLng: onboarding?.lng,
+        customerLat: onboarding?.lat ?? null, // Optionnel
+        customerLng: onboarding?.lng ?? null, // Optionnel
         total: totalWithDelivery,
       };
       sessionStorage.setItem('pendingFlouciOrder', JSON.stringify(orderData));

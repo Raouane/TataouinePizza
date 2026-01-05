@@ -18,7 +18,32 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 export async function comparePassword(password: string, hash: string): Promise<boolean> {
-  return bcryptjs.compare(password, hash);
+  console.log("[AUTH] 🔐 comparePassword - Début comparaison");
+  console.log("[AUTH] 📝 Password fourni:", {
+    type: typeof password,
+    length: password?.length || 0,
+    value: password ? password.substring(0, 5) + "..." : "NULL"
+  });
+  console.log("[AUTH] 📝 Hash stocké:", {
+    type: typeof hash,
+    length: hash?.length || 0,
+    value: hash ? hash.substring(0, 20) + "..." : "NULL",
+    startsWith: hash ? hash.substring(0, 7) : "NULL"
+  });
+  
+  if (!password || !hash) {
+    console.log("[AUTH] ❌ comparePassword - Password ou hash manquant");
+    return false;
+  }
+  
+  try {
+    const result = await bcryptjs.compare(password, hash);
+    console.log("[AUTH] ✅ comparePassword - Résultat:", result);
+    return result;
+  } catch (error) {
+    console.log("[AUTH] ❌ comparePassword - Erreur:", error);
+    return false;
+  }
 }
 
 export function generateToken(adminId: string, email: string): string {
