@@ -109,7 +109,20 @@ if (poolConfig.ssl) {
   console.log("[DB] ⚠️ Aucune configuration SSL appliquée - risque d'erreur SSL");
 }
 
+// ✅ FIX ULTIME : S'assurer que SSL est TOUJOURS configuré pour Supabase
+// Même si la détection a échoué, forcer SSL si l'URL contient "supabase"
+if (!poolConfig.ssl && (connectionString.includes('supabase') || process.env.PGSSLMODE === 'no-verify')) {
+  poolConfig.ssl = {
+    rejectUnauthorized: false,
+  };
+  console.log("[DB] ⚠️ SSL FORCÉ en dernier recours (fallback)");
+}
+
 const pool = new Pool(poolConfig);
+
+// ✅ FIX : Vérifier que la configuration SSL est bien appliquée
+console.log("[DB] 🔍 Configuration Pool finale - SSL:", poolConfig.ssl ? JSON.stringify(poolConfig.ssl) : "NON CONFIGURÉ");
+console.log("[DB] 🔍 ConnectionString (masqué):", connectionString.replace(/:([^:@]+)@/, ':****@'));
 
 // Test de connexion
 pool.on("error", (err) => {
