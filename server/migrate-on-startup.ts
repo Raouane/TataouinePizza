@@ -191,6 +191,21 @@ export async function runMigrationsOnStartup() {
     `);
     console.log("[DB] ✅ Colonne push_subscription vérifiée");
 
+    // Ajouter la colonne telegram_id si elle n'existe pas (pour les tables existantes)
+    await db.execute(sql`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'drivers' AND column_name = 'telegram_id'
+        ) THEN
+          ALTER TABLE drivers ADD COLUMN telegram_id TEXT;
+          RAISE NOTICE 'Colonne telegram_id ajoutée à drivers';
+        END IF;
+      END $$;
+    `);
+    console.log("[DB] ✅ Colonne telegram_id vérifiée");
+
     // Créer la table pizzas si elle n'existe pas
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS pizzas (
@@ -274,6 +289,21 @@ export async function runMigrationsOnStartup() {
     `);
     console.log("[DB] ✅ Colonne client_order_id ajoutée/vérifiée");
 
+    // Ajouter la colonne ignored_by si elle n'existe pas (pour les tables existantes)
+    await db.execute(sql`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'orders' AND column_name = 'ignored_by'
+        ) THEN
+          ALTER TABLE orders ADD COLUMN ignored_by TEXT;
+          RAISE NOTICE 'Colonne ignored_by ajoutée à orders';
+        END IF;
+      END $$;
+    `);
+    console.log("[DB] ✅ Colonne ignored_by vérifiée");
+
     // Créer la table order_items si elle n'existe pas
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS order_items (
@@ -297,11 +327,27 @@ export async function runMigrationsOnStartup() {
         chat_id TEXT NOT NULL,
         message_id INTEGER NOT NULL,
         status TEXT DEFAULT 'sent',
+        scheduled_deletion_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
     `);
     console.log("[DB] ✅ Table telegram_messages créée/vérifiée");
+    
+    // Ajouter la colonne scheduled_deletion_at si elle n'existe pas (migration)
+    await db.execute(sql`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'telegram_messages' AND column_name = 'scheduled_deletion_at'
+        ) THEN
+          ALTER TABLE telegram_messages ADD COLUMN scheduled_deletion_at TIMESTAMP;
+          RAISE NOTICE 'Colonne scheduled_deletion_at ajoutée à telegram_messages';
+        END IF;
+      END $$;
+    `);
+    console.log("[DB] ✅ Colonne scheduled_deletion_at vérifiée pour telegram_messages");
     
     // Créer les index pour améliorer les performances
     await db.execute(sql`
@@ -312,6 +358,9 @@ export async function runMigrationsOnStartup() {
     `);
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS idx_telegram_messages_order_driver ON telegram_messages(order_id, driver_id);
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_telegram_messages_scheduled_deletion ON telegram_messages(scheduled_deletion_at) WHERE scheduled_deletion_at IS NOT NULL;
     `);
     console.log("[DB] ✅ Index telegram_messages créés/vérifiés");
 
