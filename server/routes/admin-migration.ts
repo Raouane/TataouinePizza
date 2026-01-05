@@ -96,23 +96,32 @@ export function registerAdminMigrationRoute(app: Express): void {
     async (req: AuthRequest, res: Response) => {
       console.log("[MIGRATION] 🚀 Démarrage de la migration vers Supabase");
       
-      const SUPABASE_DB_URL = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
-      const RENDER_DB_URL = process.env.OLD_DATABASE_URL || process.env.DATABASE_URL;
+      // DATABASE_URL pointe actuellement vers Render (source)
+      // SUPABASE_DATABASE_URL doit pointer vers Supabase (destination)
+      const RENDER_DB_URL = process.env.DATABASE_URL; // Source (Render)
+      const SUPABASE_DB_URL = process.env.SUPABASE_DATABASE_URL; // Destination (Supabase)
       
-      if (!SUPABASE_DB_URL || !RENDER_DB_URL) {
+      if (!RENDER_DB_URL) {
         return res.status(400).json({
           error: "Configuration manquante",
-          message: "SUPABASE_DATABASE_URL et OLD_DATABASE_URL doivent être définis",
+          message: "DATABASE_URL (Render) doit être défini",
         });
       }
       
-      // Détecter quelle URL est Render et laquelle est Supabase
-      const isSupabaseUrl = (url: string) => url.includes('supabase');
-      const supabaseUrl = isSupabaseUrl(SUPABASE_DB_URL) ? SUPABASE_DB_URL : 
-                         isSupabaseUrl(RENDER_DB_URL) ? RENDER_DB_URL : SUPABASE_DB_URL;
-      const renderUrl = !isSupabaseUrl(SUPABASE_DB_URL) && !isSupabaseUrl(RENDER_DB_URL) ? 
-                        RENDER_DB_URL : 
-                        (isSupabaseUrl(SUPABASE_DB_URL) ? RENDER_DB_URL : SUPABASE_DB_URL);
+      if (!SUPABASE_DB_URL) {
+        return res.status(400).json({
+          error: "Configuration manquante",
+          message: "SUPABASE_DATABASE_URL doit être défini dans Render Environment",
+          instructions: [
+            "1. Allez dans Render Dashboard > Votre service > Environment",
+            "2. Ajoutez: SUPABASE_DATABASE_URL=<votre-url-supabase>",
+            "3. Redéployez le service",
+          ],
+        });
+      }
+      
+      const renderUrl = RENDER_DB_URL;
+      const supabaseUrl = SUPABASE_DB_URL;
       
       const supabasePoolConfig: any = {
         connectionString: supabaseUrl,
