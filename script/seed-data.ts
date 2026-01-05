@@ -289,10 +289,14 @@ async function seedData() {
     // ============ PRODUITS - SAHARA GRILL ============
     console.log("🍖 Insertion des produits pour Sahara Grill...");
     
-    const saharaGrillProducts = [
-      {
-        // id sera généré automatiquement par la DB (UUID)
-        restaurantId: saharaGrillId,
+    const saharaGrillId = restaurantIds["Sahara Grill"];
+    if (!saharaGrillId) {
+      console.log("⚠️  Restaurant 'Sahara Grill' non trouvé, skip produits");
+    } else {
+      const saharaGrillProducts = [
+        {
+          // id sera généré automatiquement par la DB (UUID)
+          restaurantId: saharaGrillId,
         name: "Kebab Mixte",
         description: "Viande hachée et poulet grillé",
         productType: "grill",
@@ -387,6 +391,7 @@ async function seedData() {
       }
     }
     console.log(`✅ ${saharaGrillProducts.length} produits insérés pour Sahara Grill\n`);
+    }
 
     // ============ PRODUITS - TATAOUINE PIZZA ============
     console.log("🍕 Insertion des produits pour Tataouine Pizza...");
@@ -512,10 +517,14 @@ async function seedData() {
     // ============ PRODUITS - LE JARDIN SALADES ============
     console.log("🥗 Insertion des produits pour Le Jardin Salades...");
     
-    const jardinSaladesProducts = [
-      {
-        // id sera généré automatiquement par la DB (UUID)
-        restaurantId: jardinSaladesId,
+    const jardinSaladesId = restaurantIds["Le Jardin Salades"];
+    if (!jardinSaladesId) {
+      console.log("⚠️  Restaurant 'Le Jardin Salades' non trouvé, skip produits");
+    } else {
+      const jardinSaladesProducts = [
+        {
+          // id sera généré automatiquement par la DB (UUID)
+          restaurantId: jardinSaladesId,
         name: "Salade Niçoise",
         description: "Salade verte, thon, œufs, olives, tomates",
         productType: "salade",
@@ -596,7 +605,7 @@ async function seedData() {
       for (const price of prices) {
         try {
           await db.insert(pizzaPrices).values({
-            pizzaId: product.id,
+            pizzaId: pizzaId,
             size: price.size,
             price: price.price,
           });
@@ -608,6 +617,7 @@ async function seedData() {
       }
     }
     console.log(`✅ ${jardinSaladesProducts.length} produits insérés pour Le Jardin Salades\n`);
+    }
 
     // ============ PRODUITS - BURGER HOUSE ============
     console.log("🍔 Insertion des produits pour Burger House...");
@@ -728,11 +738,17 @@ async function seedData() {
     console.log(`✅ ${burgerHouseProducts.length} produits insérés pour Burger House\n`);
     }
 
+    // Compter le total de produits insérés
+    const totalProducts = await db.execute(sql`
+      SELECT COUNT(*) as count FROM pizzas
+    `);
+    const totalProductsNum = parseInt(totalProducts.rows[0]?.count || "0");
+
     console.log("✨ Données de test insérées avec succès !");
     console.log("\n📊 Résumé :");
     console.log(`   - ${restaurantData.length} restaurants`);
     console.log(`   - ${driverData.length} livreurs`);
-    console.log(`   - ${pizzaDelSolProducts.length + saharaGrillProducts.length + tataouinePizzaProducts.length + jardinSaladesProducts.length + burgerHouseProducts.length} produits`);
+    console.log(`   - ${totalProductsNum} produits au total`);
     console.log("\n💡 Les mots de passe des livreurs sont tous : 'driver123'");
     
   } catch (error) {
