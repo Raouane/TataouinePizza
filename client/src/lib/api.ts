@@ -520,39 +520,6 @@ export async function deleteDriver(id: string, token: string): Promise<void> {
   }
 }
 
-// ============ MIGRATION ============
-
-export interface MigrationResult {
-  success: boolean;
-  message: string;
-  summary: {
-    totalMigrated: number;
-    totalSkipped: number;
-  };
-  details: Record<string, { migrated: number; skipped: number }>;
-  counts: {
-    before: Record<string, number>;
-    after: Record<string, number>;
-  };
-}
-
-export async function migrateToSupabase(token: string): Promise<MigrationResult> {
-  const res = await fetch(`${API_BASE}/admin/migrate-to-supabase`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || error.message || "Erreur lors de la migration");
-  }
-  
-  return res.json();
-}
-
 export async function getAdminPizzas(token: string): Promise<Pizza[]> {
   const res = await fetch(`${API_BASE}/admin/pizzas`, {
     headers: { Authorization: `Bearer ${token}` },
