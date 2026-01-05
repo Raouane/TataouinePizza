@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { RefreshCw, Menu, Settings, BarChart3, Store, Bike, Pizza as PizzaIcon, ShoppingCart, LogOut } from "lucide-react";
+import { RefreshCw, Menu, Settings, BarChart3, Store, Bike, Pizza as PizzaIcon, ShoppingCart, LogOut, Database } from "lucide-react";
 
 interface AdminHeaderProps {
   activeTab: string;
@@ -11,6 +11,7 @@ interface AdminHeaderProps {
   onLogout: () => void;
   showMenu: boolean;
   onSetShowMenu: (show: boolean) => void;
+  onMigrate?: () => void;
 }
 
 export function AdminHeader({
@@ -22,6 +23,7 @@ export function AdminHeader({
   onLogout,
   showMenu,
   onSetShowMenu,
+  onMigrate,
 }: AdminHeaderProps) {
   return (
     <div className="border-b bg-white shadow-sm sticky top-0 z-10">
@@ -122,6 +124,26 @@ export function AdminHeader({
                       <p className="text-xs text-muted-foreground">{totalOrders} commande{totalOrders > 1 ? 's' : ''}</p>
                     </div>
                   </Button>
+
+                  {/* Migration (temporaire) */}
+                  {onMigrate && (
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-3 h-auto py-3 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                      onClick={() => {
+                        onMigrate();
+                        onSetShowMenu(false);
+                      }}
+                    >
+                      <div className="bg-purple-100 p-2 rounded-lg">
+                        <Database className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-medium">Migration DB</p>
+                        <p className="text-xs text-muted-foreground">Render → Supabase</p>
+                      </div>
+                    </Button>
+                  )}
 
                   {/* Déconnexion */}
                   <Button

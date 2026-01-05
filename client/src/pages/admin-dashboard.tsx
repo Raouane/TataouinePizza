@@ -8,6 +8,8 @@ import { useDrivers } from "@/hooks/use-drivers";
 import { usePizzas } from "@/hooks/use-pizzas";
 import { adminError, adminLog } from "@/lib/admin-helpers";
 import { toast } from "sonner";
+import { migrateToSupabase } from "@/lib/api";
+import { migrateToSupabase } from "@/lib/api";
 import { OrderDetailsDialog } from "@/components/order-details-dialog";
 import { AdminHeader } from "@/components/admin/admin-header";
 import { StatsDialog } from "@/components/admin/stats-dialog";
@@ -243,6 +245,57 @@ export default function AdminDashboard() {
     setLocation("/admin/login");
   }, [setLocation]);
 
+  const handleMigrate = useCallback(async () => {
+    if (!token) {
+      toast.error("Vous devez être connecté pour effectuer la migration");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "⚠️ MIGRATION VERS SUPABASE\n\n" +
+      "Cette opération va migrer toutes les données de Render vers Supabase.\n\n" +
+      "Assurez-vous que:\n" +
+      "1. SUPABASE_DATABASE_URL est configuré dans Render\n" +
+      "2. DATABASE_URL pointe vers Render (source)\n\n" +
+      "Continuer ?"
+    );
+
+    if (!confirmed) return;
+
+    toast.loading("Migration en cours...", { id: "migration" });
+
+    try {
+      const result = await migrateToSupabase(token);
+      
+      toast.success(
+        `Migration terminée ! ${result.summary.totalMigrated} lignes migrées, ${result.summary.totalSkipped} ignorées`,
+        { id: "migration", duration: 10000 }
+      );
+
+      // Afficher les détails dans la console
+      console.log("📊 Résultat de la migration:", result);
+      console.log("📋 Détails par table:", result.details);
+      console.log("📈 Comparaison avant/après:", result.counts);
+
+      // Afficher un résumé dans une alerte
+      const summary = Object.entries(result.details)
+        .map(([table, data]) => `${table}: ${data.migrated} migrées, ${data.skipped} ignorées`)
+        .join("\n");
+      
+      alert(
+        `✅ Migration terminée avec succès !\n\n` +
+        `Total: ${result.summary.totalMigrated} lignes migrées\n` +
+        `Total: ${result.summary.totalSkipped} lignes ignorées (doublons)\n\n` +
+        `Détails:\n${summary}\n\n` +
+        `Vérifiez la console pour plus de détails.`
+      );
+
+    } catch (err: any) {
+      adminError("Erreur lors de la migration:", err);
+      toast.error(err.message || "Erreur lors de la migration", { id: "migration", duration: 10000 });
+    }
+  }, [token]);
+
   // Handlers pour ouvrir les dialogs de suppression
   const openDeleteRestaurantDialog = useCallback((restaurant: Restaurant) => {
     setRestaurantToDelete(restaurant);
@@ -270,6 +323,7 @@ export default function AdminDashboard() {
         onLogout={handleLogout}
         showMenu={showMenu}
         onSetShowMenu={setShowMenu}
+        onMigrate={handleMigrate}
       />
       
       <div className="max-w-7xl mx-auto px-3 md:px-4 py-4 md:py-6">
