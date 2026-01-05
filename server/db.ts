@@ -35,7 +35,10 @@ if (!process.env.DATABASE_URL) {
 // Log de débogage (masquer le mot de passe)
 const dbUrl = process.env.DATABASE_URL;
 const maskedUrl = dbUrl.replace(/:([^:@]+)@/, ':****@'); // Masquer le mot de passe
-console.log("[DB] DATABASE_URL:", maskedUrl);
+console.log("[DB] DATABASE_URL (masqué):", maskedUrl);
+console.log("[DB] DATABASE_URL length:", dbUrl?.length || 0);
+console.log("[DB] DATABASE_URL contient 'supabase':", dbUrl?.includes('supabase') || false);
+console.log("[DB] DATABASE_URL contient '%' (encodé):", dbUrl?.includes('%') || false);
 
 // ✅ FIX : Encoder correctement l'URL pour gérer les caractères spéciaux dans le mot de passe
 let connectionString = process.env.DATABASE_URL;
@@ -133,11 +136,17 @@ if (!poolConfig.ssl && (connectionString.includes('supabase') || process.env.PGS
   console.log("[DB] ⚠️ SSL FORCÉ en dernier recours (fallback)");
 }
 
+// ✅ LOG : Vérifier le format de l'URL finale avant création du Pool
+const finalMaskedUrl = connectionString.replace(/:([^:@]+)@/, ':****@');
+console.log("[DB] 🔍 ConnectionString finale (masqué):", finalMaskedUrl);
+console.log("[DB] 🔍 ConnectionString length:", connectionString.length);
+console.log("[DB] 🔍 ConnectionString contient 'postgresql://':", connectionString.startsWith('postgresql://'));
+console.log("[DB] 🔍 ConnectionString contient '@':", connectionString.includes('@'));
+
 const pool = new Pool(poolConfig);
 
 // ✅ FIX : Vérifier que la configuration SSL est bien appliquée
 console.log("[DB] 🔍 Configuration Pool finale - SSL:", poolConfig.ssl ? JSON.stringify(poolConfig.ssl) : "NON CONFIGURÉ");
-console.log("[DB] 🔍 ConnectionString (masqué):", connectionString.replace(/:([^:@]+)@/, ':****@'));
 
 // Test de connexion
 pool.on("error", (err) => {
