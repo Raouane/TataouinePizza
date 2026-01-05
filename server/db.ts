@@ -4,6 +4,13 @@ import { Pool } from "pg";
 import PgTypes from "pg-types";
 import dns from "dns";
 
+// ✅ FIX ULTIME : Désactiver la vérification SSL au niveau Node.js si NODE_TLS_REJECT_UNAUTHORIZED=0
+// Cette variable d'environnement peut être définie sur Render pour forcer l'acceptation des certificats
+if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  console.log("[DB] ⚠️ NODE_TLS_REJECT_UNAUTHORIZED=0 détecté - Vérification SSL désactivée au niveau Node.js");
+}
+
 // ✅ FIX : Forcer IPv4 pour éviter les problèmes ENETUNREACH avec IPv6
 dns.setDefaultResultOrder('ipv4first');
 
@@ -33,21 +40,29 @@ console.log("[DB] DATABASE_URL:", maskedUrl);
 // ✅ FIX : Encoder correctement l'URL pour gérer les caractères spéciaux dans le mot de passe
 let connectionString = process.env.DATABASE_URL;
 
-// Si l'URL contient un mot de passe avec des caractères spéciaux non encodés, l'encoder
-try {
-  // Parser l'URL pour extraire les composants
-  const urlMatch = connectionString.match(/^postgresql:\/\/([^:]+):([^@]+)@(.+)$/);
-  if (urlMatch) {
-    const [, user, password, rest] = urlMatch;
-    // Encoder le mot de passe si nécessaire
-    const encodedPassword = encodeURIComponent(password);
-    // Reconstruire l'URL avec le mot de passe encodé
-    connectionString = `postgresql://${user}:${encodedPassword}@${rest}`;
-    console.log("[DB] Mot de passe encodé pour gérer les caractères spéciaux");
+// ✅ FIX : Vérifier si le mot de passe est déjà encodé (contient %)
+// Si oui, ne pas le ré-encoder (éviter le double encodage)
+const isPasswordEncoded = connectionString.includes('%');
+
+if (!isPasswordEncoded) {
+  // Si l'URL contient un mot de passe avec des caractères spéciaux non encodés, l'encoder
+  try {
+    // Parser l'URL pour extraire les composants
+    const urlMatch = connectionString.match(/^postgresql:\/\/([^:]+):([^@]+)@(.+)$/);
+    if (urlMatch) {
+      const [, user, password, rest] = urlMatch;
+      // Encoder le mot de passe si nécessaire (seulement s'il n'est pas déjà encodé)
+      const encodedPassword = encodeURIComponent(password);
+      // Reconstruire l'URL avec le mot de passe encodé
+      connectionString = `postgresql://${user}:${encodedPassword}@${rest}`;
+      console.log("[DB] Mot de passe encodé pour gérer les caractères spéciaux");
+    }
+  } catch (e) {
+    // Si le parsing échoue, utiliser l'URL telle quelle
+    console.log("[DB] Utilisation de l'URL telle quelle (déjà encodée ou format différent)");
   }
-} catch (e) {
-  // Si le parsing échoue, utiliser l'URL telle quelle
-  console.log("[DB] Utilisation de l'URL telle quelle (déjà encodée ou format différent)");
+} else {
+  console.log("[DB] Mot de passe déjà encodé dans l'URL, pas de ré-encodage");
 }
 
 // Vérifier et corriger l'URL si le port manque pour Render
