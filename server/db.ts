@@ -71,16 +71,25 @@ if ((isSupabase || isRender) && !connectionString.includes('sslmode=')) {
 }
 
 // ✅ FIX : Configuration SSL pour Supabase (accepter les certificats)
+// IMPORTANT : Toujours appliquer rejectUnauthorized: false pour Supabase
 const poolConfig: any = {
   connectionString,
 };
 
-// Pour Supabase, configurer SSL pour accepter les certificats
+// Pour Supabase, TOUJOURS configurer SSL pour accepter les certificats
+// Même si sslmode est déjà dans l'URL, on doit configurer rejectUnauthorized
 if (isSupabase) {
   poolConfig.ssl = {
-    rejectUnauthorized: false, // Accepter les certificats Supabase
+    rejectUnauthorized: false, // Accepter les certificats Supabase (auto-signés)
   };
-  console.log("[DB] Configuration SSL Supabase appliquée (rejectUnauthorized: false)");
+  console.log("[DB] ✅ Configuration SSL Supabase appliquée (rejectUnauthorized: false)");
+  console.log("[DB] ✅ URL Supabase détectée, certificats auto-signés acceptés");
+} else if (isRender) {
+  // Pour Render PostgreSQL, on peut aussi avoir besoin de cette config
+  poolConfig.ssl = {
+    rejectUnauthorized: false, // Accepter les certificats Render
+  };
+  console.log("[DB] ✅ Configuration SSL Render appliquée (rejectUnauthorized: false)");
 }
 
 const pool = new Pool(poolConfig);
