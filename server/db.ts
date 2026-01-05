@@ -2,6 +2,10 @@ import "dotenv/config";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import PgTypes from "pg-types";
+import dns from "dns";
+
+// ✅ FIX : Forcer IPv4 pour éviter les problèmes ENETUNREACH avec IPv6
+dns.setDefaultResultOrder('ipv4first');
 
 // Custom types parser to correctly parse booleans
 const BOOL_OID = 16; // PostgreSQL boolean type OID
@@ -26,23 +30,57 @@ const dbUrl = process.env.DATABASE_URL;
 const maskedUrl = dbUrl.replace(/:([^:@]+)@/, ':****@'); // Masquer le mot de passe
 console.log("[DB] DATABASE_URL:", maskedUrl);
 
-// Vérifier et corriger l'URL si le port manque pour Render
+// ✅ FIX : Encoder correctement l'URL pour gérer les caractères spéciaux dans le mot de passe
 let connectionString = process.env.DATABASE_URL;
+
+// Si l'URL contient un mot de passe avec des caractères spéciaux non encodés, l'encoder
+try {
+  // Parser l'URL pour extraire les composants
+  const urlMatch = connectionString.match(/^postgresql:\/\/([^:]+):([^@]+)@(.+)$/);
+  if (urlMatch) {
+    const [, user, password, rest] = urlMatch;
+    // Encoder le mot de passe si nécessaire
+    const encodedPassword = encodeURIComponent(password);
+    // Reconstruire l'URL avec le mot de passe encodé
+    connectionString = `postgresql://${user}:${encodedPassword}@${rest}`;
+    console.log("[DB] Mot de passe encodé pour gérer les caractères spéciaux");
+  }
+} catch (e) {
+  // Si le parsing échoue, utiliser l'URL telle quelle
+  console.log("[DB] Utilisation de l'URL telle quelle (déjà encodée ou format différent)");
+}
+
+// Vérifier et corriger l'URL si le port manque pour Render
 if (connectionString.includes('.render.com') && !connectionString.match(/:\d+\//)) {
   // Ajouter le port 5432 si manquant pour Render
   connectionString = connectionString.replace('.render.com/', '.render.com:5432/');
   console.log("[DB] Port 5432 ajouté automatiquement pour Render");
 }
 
-// Ajouter SSL pour Render PostgreSQL si pas déjà présent
-if (connectionString.includes('.render.com') && !connectionString.includes('sslmode=')) {
+// ✅ FIX : Configurer SSL pour Supabase (gérer les certificats)
+const isSupabase = connectionString.includes('.supabase.co') || connectionString.includes('.supabase.com');
+const isRender = connectionString.includes('.render.com');
+
+// Ajouter SSL pour Supabase et Render PostgreSQL si pas déjà présent
+if ((isSupabase || isRender) && !connectionString.includes('sslmode=')) {
   connectionString += (connectionString.includes('?') ? '&' : '?') + 'sslmode=require';
-  console.log("[DB] SSL mode ajouté automatiquement pour Render");
+  console.log("[DB] SSL mode ajouté automatiquement");
 }
 
-const pool = new Pool({
+// ✅ FIX : Configuration SSL pour Supabase (accepter les certificats)
+const poolConfig: any = {
   connectionString,
-});
+};
+
+// Pour Supabase, configurer SSL pour accepter les certificats
+if (isSupabase) {
+  poolConfig.ssl = {
+    rejectUnauthorized: false, // Accepter les certificats Supabase
+  };
+  console.log("[DB] Configuration SSL Supabase appliquée (rejectUnauthorized: false)");
+}
+
+const pool = new Pool(poolConfig);
 
 // Test de connexion
 pool.on("error", (err) => {
