@@ -58,7 +58,10 @@ if (connectionString.includes('.render.com') && !connectionString.match(/:\d+\//
 }
 
 // ✅ FIX : Configurer SSL pour Supabase (gérer les certificats)
-const isSupabase = connectionString.includes('.supabase.co') || connectionString.includes('.supabase.com');
+const isSupabase = connectionString.includes('.supabase.co') || 
+                   connectionString.includes('.supabase.com') || 
+                   connectionString.includes('pooler.supabase.com') ||
+                   connectionString.includes('supabase');
 const isRender = connectionString.includes('.render.com');
 
 // Ajouter SSL pour Supabase et Render PostgreSQL si pas déjà présent
