@@ -78,8 +78,16 @@ const poolConfig: any = {
 
 // ✅ FIX FORCÉ : Pour Supabase, TOUJOURS configurer SSL pour accepter les certificats
 // Même si sslmode est déjà dans l'URL, on doit configurer rejectUnauthorized dans l'objet Pool
-if (isSupabase) {
-  // Forcer la configuration SSL même si elle est dans l'URL
+console.log("[DB] 🔍 Détection connexion - isSupabase:", isSupabase, "isRender:", isRender, "PGSSLMODE:", process.env.PGSSLMODE);
+
+// ✅ PRIORITÉ 1 : Si PGSSLMODE=no-verify est défini, l'utiliser pour TOUTES les connexions
+if (process.env.PGSSLMODE === 'no-verify') {
+  poolConfig.ssl = {
+    rejectUnauthorized: false,
+  };
+  console.log("[DB] ✅✅✅ Configuration SSL via PGSSLMODE=no-verify (PRIORITÉ)");
+} else if (isSupabase) {
+  // ✅ PRIORITÉ 2 : Pour Supabase, TOUJOURS configurer SSL pour accepter les certificats
   poolConfig.ssl = {
     rejectUnauthorized: false, // Accepter les certificats Supabase (auto-signés)
   };
@@ -87,19 +95,18 @@ if (isSupabase) {
   console.log("[DB] ✅ URL Supabase détectée:", connectionString.includes('pooler') ? 'Pooler' : 'Direct');
   console.log("[DB] ✅ Certificats auto-signés acceptés");
 } else if (isRender) {
-  // Pour Render PostgreSQL, on peut aussi avoir besoin de cette config
+  // ✅ PRIORITÉ 3 : Pour Render PostgreSQL, on peut aussi avoir besoin de cette config
   poolConfig.ssl = {
     rejectUnauthorized: false, // Accepter les certificats Render
   };
   console.log("[DB] ✅ Configuration SSL Render appliquée (rejectUnauthorized: false)");
+}
+
+// Log final de la configuration SSL
+if (poolConfig.ssl) {
+  console.log("[DB] ✅✅✅ Configuration SSL finale appliquée:", JSON.stringify(poolConfig.ssl));
 } else {
-  // Pour toute autre connexion, vérifier si PGSSLMODE est défini
-  if (process.env.PGSSLMODE === 'no-verify') {
-    poolConfig.ssl = {
-      rejectUnauthorized: false,
-    };
-    console.log("[DB] ✅ Configuration SSL via PGSSLMODE=no-verify");
-  }
+  console.log("[DB] ⚠️ Aucune configuration SSL appliquée - risque d'erreur SSL");
 }
 
 const pool = new Pool(poolConfig);
