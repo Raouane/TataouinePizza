@@ -6,21 +6,22 @@ import dns from "dns";
 dns.setDefaultResultOrder('ipv4first');
 
 // Configuration des deux bases de données
-// SOURCE: Render (ancienne DB avec vos données) - Port 1000
+// SOURCE: Render (ancienne DB avec vos données)
 // DESTINATION: Supabase (nouvelle DB vide)
-const OLD_DB_URL = process.env.OLD_DATABASE_URL || "postgresql://tataouine_pizza_db_user:GcE7XAoz1gArWXTgtpk7beVnN3SrgKFC@dpg-d54ost5actks73aj2760-a:1000/tataouine_pizza_db";
+const OLD_DB_URL = process.env.OLD_DATABASE_URL || "postgresql://tataouine_pizza_db_user:GcE7XAoz1gArWXTgtpk7beVnN3SrgKFC@dpg-d54ost5actks73aj2760-a.frankfurt-postgres.render.com/tataouine_pizza_db";
 
 if (!OLD_DB_URL) {
   console.error("❌ OLD_DATABASE_URL n'est pas défini");
-  console.error("💡 Définissez OLD_DATABASE_URL dans .env avec l'URL Render EXTERNE complète (port 1000)");
+  console.error("💡 Définissez OLD_DATABASE_URL dans .env avec l'URL Render EXTERNE complète");
   process.exit(1);
 }
 
 let oldDbUrl = OLD_DB_URL;
-// Si l'URL n'a pas de port, ajouter 1000 (port Render)
+// Si l'URL n'a pas de port, ne pas en ajouter (utiliser le port par défaut PostgreSQL)
+// Les URLs externes de Render incluent généralement déjà le port
 if (!oldDbUrl.match(/:\d+\//)) {
-  oldDbUrl = oldDbUrl.replace(/\/([^\/]+)$/, ':1000/$1');
-  console.log("⚠️  Port 1000 ajouté automatiquement à l'URL Render");
+  console.log("⚠️  Aucun port spécifié dans l'URL, utilisation du port par défaut PostgreSQL (5432)");
+  // Ne pas modifier l'URL, laisser PostgreSQL utiliser le port par défaut
 }
 
 const NEW_DB_URL = process.env.DATABASE_URL; // Supabase
@@ -39,8 +40,18 @@ if (NEW_DB_URL.includes('supabase')) {
   newPoolConfig.ssl = { rejectUnauthorized: false };
 }
 
+// Configurer SSL pour Render également
+const oldPoolConfig: any = {
+  connectionString: oldDbUrl,
+};
+
+// Render peut nécessiter SSL pour les connexions externes
+if (oldDbUrl.includes('render.com')) {
+  oldPoolConfig.ssl = { rejectUnauthorized: false };
+}
+
 // Créer les pools de connexion
-const oldPool = new Pool({ connectionString: oldDbUrl });
+const oldPool = new Pool(oldPoolConfig);
 const newPool = new Pool(newPoolConfig);
 
 // Ordre d'importation (respect des foreign keys)

@@ -50,6 +50,7 @@
     "script:test-telegram": "tsx server/scripts/test-telegram.ts",
     "script:check-database-state": "tsx server/scripts/check-database-state.ts",
     "script:migrate-to-supabase": "tsx script/migrate-render-to-supabase.ts",
+    "script:migrate-from-render-service": "tsx script/migrate-from-render-service.ts",
     "script:add-telegram-column": "tsx server/scripts/add-telegram-column.ts",
     "script:add-driver-telegram-id": "tsx server/scripts/add-driver-telegram-id.ts",
     "update:received-to-delivery": "tsx server/scripts/update-received-to-delivery.ts",
