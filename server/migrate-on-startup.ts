@@ -412,6 +412,30 @@ export async function runMigrationsOnStartup() {
     `);
     console.log("[DB] ✅ Index cash_handovers créés/vérifiés");
 
+    // Créer la table idempotency_keys si elle n'existe pas (anti double commande)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS idempotency_keys (
+        key VARCHAR PRIMARY KEY NOT NULL,
+        order_id VARCHAR NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+        driver_id VARCHAR NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,
+        response TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    console.log("[DB] ✅ Table idempotency_keys créée/vérifiée");
+    
+    // Créer les index pour améliorer les performances
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_idempotency_keys_order_id ON idempotency_keys(order_id);
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_idempotency_keys_driver_id ON idempotency_keys(driver_id);
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_idempotency_keys_created_at ON idempotency_keys(created_at);
+    `);
+    console.log("[DB] ✅ Index idempotency_keys créés/vérifiés");
+
     console.log("[DB] 🎉 Toutes les migrations sont terminées avec succès!");
   } catch (error: any) {
     console.error("[DB] ❌ Erreur lors des migrations:", error.message);

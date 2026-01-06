@@ -39,6 +39,8 @@ export default function AdminDashboard() {
   const [showMenu, setShowMenu] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
+  // ✅ NOUVEAU : État pour filtrer les produits par restaurant
+  const [selectedRestaurantForProducts, setSelectedRestaurantForProducts] = useState<string | null>(null);
   
   // Dialog states
   const [showRestaurantDialog, setShowRestaurantDialog] = useState(false);
@@ -108,13 +110,23 @@ export default function AdminDashboard() {
   }, [createRestaurant, fetchRestaurants]);
 
   const handleUpdateRestaurant = useCallback(async (id: string, data: Partial<Restaurant>) => {
-    await updateRestaurant(id, {
+    console.log(`[AdminDashboard] 🔄 handleUpdateRestaurant pour ${id}`);
+    console.log(`[AdminDashboard]    ImageUrl dans data: ${data.imageUrl || 'NULL'}`);
+    
+    const result = await updateRestaurant(id, {
       ...data,
       openingHours: data.openingHours === null ? undefined : data.openingHours,
       minOrder: typeof data.minOrder === 'string' ? data.minOrder : data.minOrder?.toString(),
       rating: typeof data.rating === 'string' ? data.rating : data.rating?.toString(),
     });
+    
+    console.log(`[AdminDashboard] ✅ Restaurant mis à jour`);
+    console.log(`[AdminDashboard]    ImageUrl dans le résultat: ${result.imageUrl || 'NULL'}`);
+    
+    // Rafraîchir la liste pour s'assurer que tout est à jour
     await fetchRestaurants();
+    
+    console.log(`[AdminDashboard] ✅ Liste des restaurants rafraîchie`);
   }, [updateRestaurant, fetchRestaurants]);
 
   const handleDeleteRestaurant = useCallback(async () => {
@@ -370,6 +382,10 @@ export default function AdminDashboard() {
             onUpdate={handleUpdateRestaurant}
             onDelete={openDeleteRestaurantDialog}
             onToggleVisibility={handleToggleRestaurantVisibility}
+            onViewProducts={(restaurantId) => {
+              setSelectedRestaurantForProducts(restaurantId);
+              setActiveTab("pizzas");
+            }}
           />
         )}
         
@@ -418,6 +434,7 @@ export default function AdminDashboard() {
             onCreate={handleCreatePizza}
             onUpdate={handleUpdatePizza}
             onDelete={openDeletePizzaDialog}
+            initialRestaurantFilter={selectedRestaurantForProducts}
           />
         )}
       </div>

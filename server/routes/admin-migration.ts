@@ -71,8 +71,13 @@ async function migrateTable(
           ON CONFLICT DO NOTHING
         `;
         
-        await supabasePool.query(insertQuery, valuesArray);
-        migrated++;
+        const result = await supabasePool.query(insertQuery, valuesArray);
+        // rowCount = 1 si une ligne a été insérée, 0 si elle existait déjà (ON CONFLICT DO NOTHING)
+        if (result.rowCount && result.rowCount > 0) {
+          migrated++;
+        } else {
+          skipped++;
+        }
       } catch (error: any) {
         if (error.code === '23505') {
           skipped++;

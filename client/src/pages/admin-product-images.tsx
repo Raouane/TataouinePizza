@@ -82,10 +82,42 @@ export default function AdminProductImages() {
     
     try {
       console.log(`[ADMIN IMAGES] Mise à jour image pour "${editingPizza.name}"`);
-      console.log(`[ADMIN IMAGES] Nouvelle URL: ${imageUrl}`);
+      console.log(`[ADMIN IMAGES] URL avant normalisation: ${imageUrl}`);
+      
+      // ✅ Normaliser l'URL : convertir les chemins Windows en URLs relatives
+      let normalizedUrl = imageUrl.trim();
+      
+      // Si c'est un chemin Windows (contient \ ou C:\), le convertir en URL relative
+      if (normalizedUrl.includes('\\') || normalizedUrl.match(/^[A-Z]:\\/i)) {
+        console.log(`[ADMIN IMAGES] 🔄 Détection chemin Windows, conversion en URL relative...`);
+        
+        // Extraire le nom du fichier
+        const fileName = normalizedUrl.split('\\').pop() || normalizedUrl.split('/').pop() || '';
+        
+        // Si le chemin contient "images/products", extraire la partie relative
+        const productsIndex = normalizedUrl.toLowerCase().indexOf('images/products');
+        if (productsIndex !== -1) {
+          const relativePath = normalizedUrl.substring(productsIndex);
+          normalizedUrl = '/' + relativePath.replace(/\\/g, '/');
+        } else if (fileName) {
+          // Sinon, utiliser juste le nom du fichier dans images/products
+          normalizedUrl = `/images/products/${fileName}`;
+        } else {
+          normalizedUrl = '';
+        }
+        
+        console.log(`[ADMIN IMAGES] ✅ URL normalisée: ${normalizedUrl}`);
+      }
+      
+      // S'assurer que l'URL commence par / pour les chemins relatifs
+      if (normalizedUrl && !normalizedUrl.startsWith('/') && !normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+        normalizedUrl = '/' + normalizedUrl;
+      }
+      
+      console.log(`[ADMIN IMAGES] URL finale envoyée: ${normalizedUrl}`);
       
       await updatePizza(editingPizza.id, {
-        imageUrl: imageUrl.trim() || undefined,
+        imageUrl: normalizedUrl || undefined,
       }, token);
       
       toast.success("Image mise à jour avec succès!");
@@ -384,37 +416,65 @@ export default function AdminProductImages() {
               <Input
                 value={imageUrl}
                 onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="/images/products/nom-du-produit.jpg"
+                placeholder="/images/products/nom-du-produit.jpg ou https://..."
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Format recommandé: /images/products/nom-du-produit.jpg
+                💡 Vous pouvez :
               </p>
+              <ul className="text-xs text-muted-foreground mt-1 ml-4 list-disc space-y-1">
+                <li>Coller un chemin Windows (ex: C:\Users\...\4fromage.png) - sera automatiquement converti</li>
+                <li>Utiliser un chemin relatif (ex: /images/products/4fromage.png)</li>
+                <li>Utiliser une URL externe (ex: https://images.unsplash.com/...)</li>
+              </ul>
             </div>
 
             {/* Aperçu */}
-            {imageUrl && imageUrl.trim() !== "" && (
-              <div>
-                <Label>Aperçu</Label>
-                <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden mt-1">
-                  <img
-                    src={imageUrl}
-                    alt="Aperçu"
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                      const parent = target.parentElement;
-                      if (parent && !parent.querySelector('.preview-error')) {
-                        const errorDiv = document.createElement('div');
-                        errorDiv.className = 'preview-error w-full h-full flex items-center justify-center bg-red-50';
-                        errorDiv.innerHTML = '<p class="text-red-500 text-sm">Image invalide</p>';
-                        parent.appendChild(errorDiv);
-                      }
-                    }}
-                  />
+            {imageUrl && imageUrl.trim() !== "" && (() => {
+              // Normaliser l'URL pour l'aperçu aussi
+              let previewUrl = imageUrl.trim();
+              
+              // Si c'est un chemin Windows, le convertir pour l'aperçu
+              if (previewUrl.includes('\\') || previewUrl.match(/^[A-Z]:\\/i)) {
+                const productsIndex = previewUrl.toLowerCase().indexOf('images/products');
+                if (productsIndex !== -1) {
+                  previewUrl = '/' + previewUrl.substring(productsIndex).replace(/\\/g, '/');
+                } else {
+                  const fileName = previewUrl.split('\\').pop() || previewUrl.split('/').pop() || '';
+                  if (fileName) {
+                    previewUrl = `/images/products/${fileName}`;
+                  }
+                }
+              }
+              
+              return (
+                <div>
+                  <Label>Aperçu</Label>
+                  <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden mt-1">
+                    <img
+                      src={previewUrl}
+                      alt="Aperçu"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent && !parent.querySelector('.preview-error')) {
+                          const errorDiv = document.createElement('div');
+                          errorDiv.className = 'preview-error w-full h-full flex items-center justify-center bg-red-50';
+                          errorDiv.innerHTML = '<p class="text-red-500 text-sm">Image invalide</p>';
+                          parent.appendChild(errorDiv);
+                        }
+                      }}
+                    />
+                  </div>
+                  {previewUrl !== imageUrl && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      💡 URL normalisée pour l'aperçu: {previewUrl}
+                    </p>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             <div className="flex gap-2">
               <Button onClick={handleUpdateImage} className="flex-1">

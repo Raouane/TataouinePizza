@@ -84,6 +84,13 @@ export class OrderCreationService {
 
     // 4. Déterminer le statut initial
     const initialStatus = this.getInitialStatus();
+    
+    console.log(`\n[OrderCreationService] 🆕 ========================================`);
+    console.log(`[OrderCreationService] 🆕 CRÉATION D'UNE NOUVELLE COMMANDE`);
+    console.log(`[OrderCreationService]    Restaurant ID: ${input.restaurantId}`);
+    console.log(`[OrderCreationService]    Client: ${input.customerName} (${input.phone})`);
+    console.log(`[OrderCreationService]    Statut initial déterminé: ${initialStatus}`);
+    console.log(`[OrderCreationService]    ⚠️ Le statut devrait être "accepted" ou "ready", JAMAIS "delivered"`);
 
     // 5. Convertir les coordonnées GPS
     const gpsCoords = parseGpsCoordinates({
@@ -119,6 +126,8 @@ export class OrderCreationService {
       const duplicateOrder = await this.findDuplicateOrder(input, totalPrice);
       if (duplicateOrder) {
         console.log(`[OrderCreationService] ✅ Doublon détecté, retour de la commande existante: ${duplicateOrder.id}`);
+        console.log(`[OrderCreationService]    Statut de la commande dupliquée: ${duplicateOrder.status}`);
+        console.log(`[OrderCreationService] ========================================\n`);
         return {
           orderId: duplicateOrder.id,
           totalPrice: Number(duplicateOrder.totalPrice),
@@ -131,14 +140,23 @@ export class OrderCreationService {
       }
     }
 
-    if (process.env.NODE_ENV !== "production") {
-      console.log("[OrderCreationService] ✅ Commande créée:", {
-        id: order.id,
-        customerLat: order.customerLat,
-        customerLng: order.customerLng,
-        status: order.status,
-      });
+    console.log(`[OrderCreationService] ✅ Commande créée avec succès`);
+    console.log(`[OrderCreationService]    Order ID: ${order.id}`);
+    console.log(`[OrderCreationService]    Statut en DB: ${order.status}`);
+    console.log(`[OrderCreationService]    Driver ID: ${order.driverId || 'NULL (normal au départ)'}`);
+    
+    // ⚠️ ALERTE si le statut est "delivered" dès la création
+    if (order.status === 'delivered') {
+      console.error(`\n[OrderCreationService] ⚠️⚠️⚠️ ALERTE CRITIQUE: STATUT "delivered" DÈS LA CRÉATION ! ⚠️⚠️⚠️`);
+      console.error(`[OrderCreationService]    Order ID: ${order.id}`);
+      console.error(`[OrderCreationService]    Statut en DB: ${order.status}`);
+      console.error(`[OrderCreationService]    ⚠️ Une commande ne devrait JAMAIS être créée avec le statut "delivered" !`);
+      console.error(`[OrderCreationService] ⚠️⚠️⚠️ ========================================\n`);
+    } else if (order.status !== initialStatus) {
+      console.warn(`[OrderCreationService] ⚠️ Le statut en DB (${order.status}) diffère du statut initial (${initialStatus})`);
     }
+    
+    console.log(`[OrderCreationService] ========================================\n`);
 
     // 8. Notifier les livreurs (non-bloquant)
     this.notifyDrivers(order, restaurant, input, orderItemsDetails, totalPrice).catch((error) => {

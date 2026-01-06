@@ -40,7 +40,19 @@ export function ImageWithFallback({
 
   const normalizedSrc = normalizeImageUrl(src);
 
+  // Logs pour déboguer les images
+  if (normalizedSrc && typeof window !== 'undefined') {
+    console.log(`[ImageWithFallback] 🖼️  Image pour "${alt}":`);
+    console.log(`[ImageWithFallback]   Source originale: ${src}`);
+    console.log(`[ImageWithFallback]   URL normalisée: ${normalizedSrc}`);
+  }
+
   if (!normalizedSrc || hasError) {
+    if (normalizedSrc) {
+      console.error(`[ImageWithFallback] ❌ Erreur chargement image: ${normalizedSrc}`);
+    } else {
+      console.warn(`[ImageWithFallback] ⚠️  Pas de source pour "${alt}"`);
+    }
     return (
       <div className={`flex items-center justify-center ${className}`}>
         {fallback}
@@ -57,10 +69,15 @@ export function ImageWithFallback({
         src={normalizedSrc}
         alt={alt}
         className={className}
-        onLoad={() => setIsLoading(false)}
-        onError={() => {
+        onLoad={() => {
+          setIsLoading(false);
+          console.log(`[ImageWithFallback] ✅ Image chargée avec succès: ${normalizedSrc}`);
+        }}
+        onError={(e) => {
           setIsLoading(false);
           setHasError(true);
+          console.error(`[ImageWithFallback] ❌ Erreur chargement image: ${normalizedSrc}`);
+          console.error(`[ImageWithFallback]   Event:`, e);
         }}
         loading="lazy"
       />

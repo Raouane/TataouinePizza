@@ -404,16 +404,56 @@ export function registerAdminCrudRoutes(app: Express): void {
     try {
       const restaurantId = req.params.id;
       
+      console.log(`\n[ADMIN CRUD] 🔄 Mise à jour restaurant ${restaurantId}`);
+      console.log(`[ADMIN CRUD]    Données reçues:`, JSON.stringify(req.body, null, 2));
+      
       const restaurant = await storage.getRestaurantById(restaurantId);
       if (!restaurant) throw errorHandler.notFound("Restaurant non trouvé");
       
-      const validation = validate(updateRestaurantSchema, req.body);
+      console.log(`[ADMIN CRUD]    Image actuelle: ${restaurant.imageUrl || 'NULL'}`);
+      
+      // ✅ Normaliser l'imageUrl AVANT validation si c'est un chemin Windows
+      let normalizedBody = { ...req.body };
+      if (normalizedBody.imageUrl && typeof normalizedBody.imageUrl === 'string') {
+        const originalUrl = normalizedBody.imageUrl;
+        
+        // Si c'est un chemin Windows, le convertir en URL relative
+        if (originalUrl.includes('\\') || originalUrl.match(/^[A-Z]:\\/i)) {
+          console.log(`[ADMIN CRUD] 🔄 Détection chemin Windows: ${originalUrl}`);
+          
+          // Extraire le nom du fichier
+          const fileName = originalUrl.split('\\').pop() || originalUrl.split('/').pop() || '';
+          
+          // Si le chemin contient "images", extraire la partie relative
+          const imagesIndex = originalUrl.toLowerCase().indexOf('images');
+          if (imagesIndex !== -1) {
+            const relativePath = originalUrl.substring(imagesIndex);
+            normalizedBody.imageUrl = '/' + relativePath.replace(/\\/g, '/');
+          } else if (fileName) {
+            // Sinon, utiliser juste le nom du fichier à la racine
+            normalizedBody.imageUrl = `/${fileName}`;
+          } else {
+            normalizedBody.imageUrl = null;
+          }
+          
+          console.log(`[ADMIN CRUD] ✅ URL normalisée: ${normalizedBody.imageUrl}`);
+        }
+      }
+      
+      const validation = validate(updateRestaurantSchema, normalizedBody);
       if (!validation.success) {
+        console.error(`[ADMIN CRUD] ❌ Validation échouée:`, validation.error.errors);
         throw errorHandler.badRequest(
           validation.error.errors.map(e => e.message).join(", ")
         );
       }
       const updateData = validation.data;
+      
+      console.log(`[ADMIN CRUD] ✅ Validation réussie`);
+      console.log(`[ADMIN CRUD]    ImageUrl AVANT validation: ${normalizedBody.imageUrl || 'NULL'}`);
+      console.log(`[ADMIN CRUD]    ImageUrl APRÈS validation: ${updateData.imageUrl || 'NULL'}`);
+      console.log(`[ADMIN CRUD]    Type: ${typeof updateData.imageUrl}`);
+      console.log(`[ADMIN CRUD]    ImageUrl à sauvegarder: ${updateData.imageUrl || 'NULL'}`);
       
       // Vérifier que le nouveau numéro n'est pas déjà utilisé par un autre restaurant
       if (updateData.phone !== undefined) {
@@ -443,7 +483,14 @@ export function registerAdminCrudRoutes(app: Express): void {
       if (updateData.phone !== undefined) finalUpdateData.phone = updateData.phone;
       if (updateData.address !== undefined) finalUpdateData.address = updateData.address;
       if (updateData.description !== undefined) finalUpdateData.description = updateData.description;
-      if (updateData.imageUrl !== undefined) finalUpdateData.imageUrl = updateData.imageUrl;
+      // ✅ IMPORTANT : Inclure imageUrl même si c'est null (pour permettre de supprimer l'image)
+      // Utiliser 'in' pour vérifier la présence de la clé, pas seulement si elle est undefined
+      if ('imageUrl' in updateData) {
+        finalUpdateData.imageUrl = updateData.imageUrl ?? null;
+        console.log(`[ADMIN CRUD] ✅ imageUrl inclus dans finalUpdateData: ${finalUpdateData.imageUrl || 'NULL'}`);
+      } else {
+        console.log(`[ADMIN CRUD] ⚠️ imageUrl NON présent dans updateData`);
+      }
       if (updateData.categories !== undefined) finalUpdateData.categories = JSON.stringify(updateData.categories);
       if (updateData.isOpen !== undefined) finalUpdateData.isOpen = updateData.isOpen;
       if (updateData.openingHours !== undefined) {
@@ -459,6 +506,10 @@ export function registerAdminCrudRoutes(app: Express): void {
       }
       
       const updated = await storage.updateRestaurant(restaurantId, finalUpdateData);
+      
+      console.log(`[ADMIN CRUD] ✅ Restaurant mis à jour`);
+      console.log(`[ADMIN CRUD]    ImageUrl sauvegardée: ${updated.imageUrl || 'NULL'}`);
+      console.log(`[ADMIN CRUD] ========================================\n`);
       
       // Parser les catégories pour la réponse
       const restaurantResponse = {
@@ -568,22 +619,62 @@ export function registerAdminCrudRoutes(app: Express): void {
     try {
       const pizzaId = req.params.id;
       
+      console.log(`\n[ADMIN CRUD] 🔄 Mise à jour produit ${pizzaId}`);
+      console.log(`[ADMIN CRUD]    Données reçues:`, JSON.stringify(req.body, null, 2));
+      
       const pizza = await storage.getPizzaById(pizzaId);
       if (!pizza) throw errorHandler.notFound("Produit non trouvé");
       
-      const validation = validate(updatePizzaSchema, req.body);
+      console.log(`[ADMIN CRUD]    Image actuelle: ${pizza.imageUrl || 'NULL'}`);
+      
+      // ✅ Normaliser l'imageUrl AVANT validation si c'est un chemin Windows
+      let normalizedBody = { ...req.body };
+      if (normalizedBody.imageUrl && typeof normalizedBody.imageUrl === 'string') {
+        const originalUrl = normalizedBody.imageUrl;
+        
+        // Si c'est un chemin Windows, le convertir en URL relative
+        if (originalUrl.includes('\\') || originalUrl.match(/^[A-Z]:\\/i)) {
+          console.log(`[ADMIN CRUD] 🔄 Détection chemin Windows: ${originalUrl}`);
+          
+          // Extraire le nom du fichier
+          const fileName = originalUrl.split('\\').pop() || originalUrl.split('/').pop() || '';
+          
+          // Si le chemin contient "images/products", extraire la partie relative
+          const productsIndex = originalUrl.toLowerCase().indexOf('images/products');
+          if (productsIndex !== -1) {
+            const relativePath = originalUrl.substring(productsIndex);
+            normalizedBody.imageUrl = '/' + relativePath.replace(/\\/g, '/');
+          } else if (fileName) {
+            // Sinon, utiliser juste le nom du fichier dans images/products
+            normalizedBody.imageUrl = `/images/products/${fileName}`;
+          } else {
+            normalizedBody.imageUrl = null;
+          }
+          
+          console.log(`[ADMIN CRUD] ✅ URL normalisée: ${normalizedBody.imageUrl}`);
+        }
+      }
+      
+      const validation = validate(updatePizzaSchema, normalizedBody);
       if (!validation.success) {
+        console.error(`[ADMIN CRUD] ❌ Validation échouée:`, validation.error.errors);
         throw errorHandler.badRequest(
           validation.error.errors.map(e => e.message).join(", ")
         );
       }
       const { prices, ...updateData } = validation.data;
       
+      console.log(`[ADMIN CRUD]    ImageUrl à sauvegarder: ${updateData.imageUrl || 'NULL'}`);
+      
       const updated = await storage.updatePizza(pizzaId, {
         ...updateData,
         description: updateData.description ?? undefined,
         imageUrl: updateData.imageUrl ?? undefined,
       });
+      
+      console.log(`[ADMIN CRUD] ✅ Produit mis à jour`);
+      console.log(`[ADMIN CRUD]    ImageUrl sauvegardée: ${updated.imageUrl || 'NULL'}`);
+      console.log(`[ADMIN CRUD] ========================================\n`);
       
       // Mettre à jour les prix si fournis
       if (prices !== undefined) {

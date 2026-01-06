@@ -18,7 +18,20 @@ export function PizzaImage({ src, alt, className = "", fallback }: PizzaImagePro
       : `${window.location.origin}${src.startsWith("/") ? "" : "/"}${src}`
     : null;
 
+  // Logs pour déboguer les images
+  if (normalizedSrc && typeof window !== 'undefined') {
+    console.log(`[PizzaImage] 🖼️  Image pour "${alt}":`);
+    console.log(`[PizzaImage]   Source originale: ${src}`);
+    console.log(`[PizzaImage]   URL normalisée: ${normalizedSrc}`);
+    console.log(`[PizzaImage]   Origin: ${window.location.origin}`);
+  }
+
   if (!normalizedSrc || hasError) {
+    if (normalizedSrc) {
+      console.error(`[PizzaImage] ❌ Erreur chargement image: ${normalizedSrc}`);
+    } else {
+      console.warn(`[PizzaImage] ⚠️  Pas de source pour "${alt}"`);
+    }
     return (
       <div className={`w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-100 to-red-100 ${className}`}>
         {fallback || <span className="text-6xl md:text-7xl">🍕</span>}
@@ -31,10 +44,15 @@ export function PizzaImage({ src, alt, className = "", fallback }: PizzaImagePro
       src={normalizedSrc}
       alt={alt}
       className={`w-full h-full object-cover hover:scale-105 transition-transform duration-300 ${className}`}
-      onLoad={() => setIsLoading(false)}
-      onError={() => {
+      onLoad={() => {
+        setIsLoading(false);
+        console.log(`[PizzaImage] ✅ Image chargée avec succès: ${normalizedSrc}`);
+      }}
+      onError={(e) => {
         setIsLoading(false);
         setHasError(true);
+        console.error(`[PizzaImage] ❌ Erreur chargement image: ${normalizedSrc}`);
+        console.error(`[PizzaImage]   Event:`, e);
       }}
       loading="lazy"
     />

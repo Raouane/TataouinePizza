@@ -57,6 +57,20 @@ const defaultForm: RestaurantFormData = {
   password: "",
 };
 
+// Fonction utilitaire pour normaliser les chemins d'image
+const normalizeImagePath = (path: string) => {
+  if (!path) return "";
+  // Convertir les chemins Windows en chemins Unix
+  let normalized = path.replace(/\\/g, '/');
+  // Supprimer le préfixe client/public si présent
+  normalized = normalized.replace(/^.*client\/public\//, '/');
+  // S'assurer qu'il commence par /
+  if (!normalized.startsWith('/')) {
+    normalized = '/' + normalized;
+  }
+  return normalized;
+};
+
 export function EditRestaurantDialog({ open, onOpenChange, restaurant, onSubmit, onCancel }: EditRestaurantDialogProps) {
   const [form, setForm] = useState<RestaurantFormData>(defaultForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -106,12 +120,44 @@ export function EditRestaurantDialog({ open, onOpenChange, restaurant, onSubmit,
         form.closedDay !== "none" ? form.closedDay : null
       );
 
+      // ✅ Normaliser l'imageUrl : convertir les chemins Windows en URLs relatives
+      let normalizedImageUrl = form.imageUrl.trim();
+      
+      console.log(`[EditRestaurant] 🔄 Normalisation imageUrl: ${normalizedImageUrl}`);
+      
+      // Si c'est un chemin Windows (contient \ ou C:\), le convertir en URL relative
+      if (normalizedImageUrl.includes('\\') || normalizedImageUrl.match(/^[A-Z]:\\/i)) {
+        console.log(`[EditRestaurant] 🔄 Détection chemin Windows, conversion en URL relative...`);
+        
+        // Extraire le nom du fichier
+        const fileName = normalizedImageUrl.split('\\').pop() || normalizedImageUrl.split('/').pop() || '';
+        
+        // Si le chemin contient "images", extraire la partie relative
+        const imagesIndex = normalizedImageUrl.toLowerCase().indexOf('images');
+        if (imagesIndex !== -1) {
+          const relativePath = normalizedImageUrl.substring(imagesIndex);
+          normalizedImageUrl = '/' + relativePath.replace(/\\/g, '/');
+        } else if (fileName) {
+          // Sinon, utiliser juste le nom du fichier à la racine
+          normalizedImageUrl = `/${fileName}`;
+        } else {
+          normalizedImageUrl = '';
+        }
+        
+        console.log(`[EditRestaurant] ✅ URL normalisée: ${normalizedImageUrl}`);
+      }
+      
+      // S'assurer que l'URL commence par / pour les chemins relatifs
+      if (normalizedImageUrl && !normalizedImageUrl.startsWith('/') && !normalizedImageUrl.startsWith('http://') && !normalizedImageUrl.startsWith('https://')) {
+        normalizedImageUrl = '/' + normalizedImageUrl;
+      }
+
       const restaurantData: any = {
         name: form.name,
         phone: form.phone,
         address: form.address,
         description: form.description,
-        imageUrl: form.imageUrl,
+        imageUrl: normalizedImageUrl || undefined,
         categories: form.categories,
         deliveryTime: form.deliveryTime,
         minOrder: form.minOrder,
@@ -195,8 +241,60 @@ export function EditRestaurantDialog({ open, onOpenChange, restaurant, onSubmit,
             <Input
               value={form.imageUrl}
               onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-              placeholder="https://..."
+              placeholder="/logo.jpeg, /images/restaurants/... ou /images/products/..."
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              💡 Vous pouvez utiliser :
+              <br />
+              ✅ Les images de produits (/images/products/...) sont autorisées pour les restaurants
+              <br />
+              ✅ Les chemins Windows seront automatiquement convertis
+            </p>
+            <ul className="text-xs text-muted-foreground mt-1 ml-4 list-disc space-y-1">
+              <li>Coller un chemin Windows (ex: C:\Users\...\logo.png) - sera automatiquement converti</li>
+              <li>Utiliser un chemin relatif (ex: /logo.jpeg, /images/restaurants/nom.jpg ou /images/products/nom.png)</li>
+              <li>✅ <strong>Les images de produits sont autorisées</strong> (ex: /images/products/4fromage.png)</li>
+              <li>Utiliser une URL externe (ex: https://images.unsplash.com/...)</li>
+            </ul>
+            {/* Aperçu de l'image */}
+            {form.imageUrl && form.imageUrl.trim() !== "" && (() => {
+              // Utiliser la même fonction de normalisation que pour la sauvegarde
+              const previewUrl = normalizeImagePath(form.imageUrl);
+              
+              return (
+                <div className="mt-2">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Aperçu:</Label>
+                  <div className="relative w-full h-32 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                    <img
+                      src={previewUrl}
+                      alt="Aperçu"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        console.error(`[EditRestaurant] ❌ Erreur chargement image: ${previewUrl}`);
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        const parent = (e.target as HTMLImageElement).parentElement;
+                        if (parent) {
+                          parent.innerHTML = `<div class="w-full h-full flex items-center justify-center text-gray-400 text-sm">
+                            <div class="text-center">
+                              <p>Image invalide</p>
+                              <p class="text-xs mt-1">URL: ${previewUrl}</p>
+                            </div>
+                          </div>`;
+                        }
+                      }}
+                      onLoad={() => {
+                        console.log(`[EditRestaurant] ✅ Image chargée avec succès: ${previewUrl}`);
+                      }}
+                    />
+                  </div>
+                  {previewUrl !== form.imageUrl && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      💡 URL normalisée pour l'aperçu: {previewUrl}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
           <div>
             <Label>Catégories de produits *</Label>

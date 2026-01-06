@@ -17,6 +17,8 @@ interface RestaurantsTabProps {
   onUpdate: (id: string, data: Partial<Restaurant>) => Promise<void>;
   onDelete: (restaurant: Restaurant) => void;
   onToggleVisibility: (restaurantId: string, currentVisibility: boolean) => Promise<void>;
+  // ✅ NOUVEAU : Callback pour voir les produits d'un restaurant
+  onViewProducts?: (restaurantId: string) => void;
 }
 
 export function RestaurantsTab({
@@ -33,6 +35,7 @@ export function RestaurantsTab({
   onUpdate,
   onDelete,
   onToggleVisibility,
+  onViewProducts,
 }: RestaurantsTabProps) {
   return (
     <div className="space-y-4">
@@ -57,6 +60,7 @@ export function RestaurantsTab({
               onEdit={onOpenEditDialog}
               onDelete={() => onDelete(restaurant)}
               onToggleVisibility={onToggleVisibility}
+              onViewProducts={onViewProducts}
             />
           ))}
           {restaurants.length === 0 && (

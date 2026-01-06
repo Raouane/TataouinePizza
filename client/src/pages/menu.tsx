@@ -75,17 +75,30 @@ export default function Menu() {
           
           if (menuRes.ok) {
             const menuData = await menuRes.json();
-            if (DEBUG_MENU) {
-              console.log(`[Menu] ${menuData.length} produits chargés pour le restaurant ${restaurantId}`);
-              const withImages = menuData.filter((p: Pizza) => p.imageUrl && p.imageUrl.trim() !== '').length;
-              const withoutImages = menuData.length - withImages;
-              console.log(`[Menu] 📊 RÉSUMÉ: ${withImages} avec images, ${withoutImages} sans images`);
-            }
+            console.log(`\n[Menu Frontend] 🍕 ========================================`);
+            console.log(`[Menu Frontend] 📦 ${menuData.length} produits reçus de l'API`);
+            
+            const withImages = menuData.filter((p: Pizza) => p.imageUrl && p.imageUrl.trim() !== '').length;
+            const withoutImages = menuData.length - withImages;
+            
+            console.log(`[Menu Frontend] ✅ Avec images: ${withImages}`);
+            console.log(`[Menu Frontend] ❌ Sans images: ${withoutImages}`);
+            
+            // Afficher les 5 premiers produits avec leurs URLs
+            menuData.slice(0, 5).forEach((p: Pizza, idx: number) => {
+              console.log(`[Menu Frontend] ${idx + 1}. "${p.name}"`);
+              console.log(`[Menu Frontend]    imageUrl: ${p.imageUrl || 'NULL'}`);
+              if (p.imageUrl) {
+                const fullUrl = `${window.location.origin}${p.imageUrl.startsWith('/') ? '' : '/'}${p.imageUrl}`;
+                console.log(`[Menu Frontend]    URL complète: ${fullUrl}`);
+              }
+            });
+            
+            console.log(`[Menu Frontend] 🍕 ========================================\n`);
+            
             setPizzas(menuData);
           } else {
-            if (DEBUG_MENU) {
-              console.error(`[Menu] Erreur lors du chargement du menu: ${menuRes.status} ${menuRes.statusText}`);
-            }
+            console.error(`[Menu Frontend] ❌ Erreur lors du chargement du menu: ${menuRes.status} ${menuRes.statusText}`);
           }
         }
       } catch (error) {

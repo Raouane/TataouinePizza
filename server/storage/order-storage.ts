@@ -555,6 +555,27 @@ export class OrderStorage extends BaseStorage {
   }
 
   async updateOrderStatus(id: string, status: string): Promise<Order> {
+    // ✅ LOGS DE DIAGNOSTIC - Récupérer l'ancien statut AVANT la mise à jour
+    const oldOrder = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+    const oldStatus = oldOrder[0]?.status || 'unknown';
+    const oldDriverId = oldOrder[0]?.driverId || null;
+    
+    console.log(`\n[ORDER STATUS] 🔄 ========================================`);
+    console.log(`[ORDER STATUS] 🔄 CHANGEMENT DE STATUT`);
+    console.log(`[ORDER STATUS]    Order ID: ${id}`);
+    console.log(`[ORDER STATUS]    Ancien statut: ${oldStatus}`);
+    console.log(`[ORDER STATUS]    Nouveau statut: ${status}`);
+    console.log(`[ORDER STATUS]    Driver ID (avant): ${oldDriverId || 'NULL'}`);
+    
+    // Stack trace pour voir d'où vient l'appel (limité aux 3 premières lignes)
+    const stack = new Error().stack;
+    const stackLines = stack?.split('\n').slice(1, 4) || [];
+    console.log(`[ORDER STATUS]    Appelé depuis:`);
+    stackLines.forEach((line, idx) => {
+      console.log(`[ORDER STATUS]      ${idx + 1}. ${line.trim()}`);
+    });
+    console.log(`[ORDER STATUS] 🔄 ========================================\n`);
+    
     await db.update(orders).set({ status: status as any, updatedAt: new Date() }).where(eq(orders.id, id));
     const result = await db.select().from(orders).where(eq(orders.id, id));
     if (!result || !result[0]) {
@@ -562,6 +583,20 @@ export class OrderStorage extends BaseStorage {
     }
     
     const updatedOrder = result[0];
+    
+    // ✅ LOGS DE DIAGNOSTIC - Vérifier le statut APRÈS la mise à jour
+    console.log(`[ORDER STATUS] ✅ Statut mis à jour avec succès`);
+    console.log(`[ORDER STATUS]    Statut final en DB: ${updatedOrder.status}`);
+    console.log(`[ORDER STATUS]    Driver ID (après): ${updatedOrder.driverId || 'NULL'}`);
+    
+    // ⚠️ ALERTE si le statut passe directement à "delivered" sans passer par "delivery"
+    if (status === 'delivered' && oldStatus !== 'delivery' && oldStatus !== 'delivered') {
+      console.error(`\n[ORDER STATUS] ⚠️⚠️⚠️ ALERTE: STATUT PASSE DIRECTEMENT À "delivered" ⚠️⚠️⚠️`);
+      console.error(`[ORDER STATUS]    Ancien statut: ${oldStatus}`);
+      console.error(`[ORDER STATUS]    Nouveau statut: ${status}`);
+      console.error(`[ORDER STATUS]    ⚠️ Le statut devrait passer par "delivery" avant "delivered" !`);
+      console.error(`[ORDER STATUS] ⚠️⚠️⚠️ ========================================\n`);
+    }
     
     // ✅ NOUVEAU : Mettre à jour le message Telegram selon le statut
     if (updatedOrder.driverId) {

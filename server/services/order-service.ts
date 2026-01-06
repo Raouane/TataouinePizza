@@ -34,19 +34,37 @@ export class OrderService {
     newStatus: OrderStatus | string,
     actor: OrderActor
   ): Promise<Order> {
+    console.log(`\n[OrderService] 🔄 ========================================`);
+    console.log(`[OrderService] 🔄 MISE À JOUR STATUT VIA OrderService`);
+    console.log(`[OrderService]    Order ID: ${orderId}`);
+    console.log(`[OrderService]    Nouveau statut: ${newStatus}`);
+    console.log(`[OrderService]    Acteur: ${actor.type}${actor.id ? ` (ID: ${actor.id})` : ''}`);
+    
     // 1. Vérifier l'existence de la commande
     const order = await storage.getOrderById(orderId);
     if (!order) {
+      console.log(`[OrderService] ❌ Commande non trouvée`);
+      console.log(`[OrderService] ========================================\n`);
       throw errorHandler.notFound("Order not found");
     }
 
+    console.log(`[OrderService] ✅ Commande trouvée`);
+    console.log(`[OrderService]    Statut actuel: ${order.status}`);
+    console.log(`[OrderService]    Driver ID: ${order.driverId || 'NULL'}`);
+
     // 2. Valider la transition selon le rôle
     const currentStatus = order.status || OrderStatus.PENDING;
+    console.log(`[OrderService]    Validation transition: ${currentStatus} → ${newStatus} (acteur: ${actor.type})`);
+    
     if (!canTransitionTo(currentStatus, newStatus, actor.type)) {
+      console.log(`[OrderService] ❌ Transition invalide`);
+      console.log(`[OrderService] ========================================\n`);
       throw errorHandler.badRequest(
         `Invalid status transition: cannot change from '${currentStatus}' to '${newStatus}' as ${actor.type}`
       );
     }
+
+    console.log(`[OrderService] ✅ Transition validée`);
 
     // 3. Vérifier l'appartenance (si nécessaire)
     if (actor.type === "restaurant") {
@@ -68,13 +86,27 @@ export class OrderService {
     }
 
     // 4. Mettre à jour le statut
+    console.log(`[OrderService]    Appel storage.updateOrderStatus...`);
     const updatedOrder = await storage.updateOrderStatus(orderId, newStatus);
+
+    console.log(`[OrderService] ✅ Statut mis à jour`);
+    console.log(`[OrderService]    Statut final: ${updatedOrder.status}`);
+    
+    // ⚠️ ALERTE si le statut passe directement à "delivered" sans passer par "delivery"
+    if (newStatus === 'delivered' && currentStatus !== 'delivery' && currentStatus !== 'delivered') {
+      console.error(`\n[OrderService] ⚠️⚠️⚠️ ALERTE: STATUT PASSE DIRECTEMENT À "delivered" ⚠️⚠️⚠️`);
+      console.error(`[OrderService]    Ancien statut: ${currentStatus}`);
+      console.error(`[OrderService]    Nouveau statut: ${newStatus}`);
+      console.error(`[OrderService]    ⚠️ Le statut devrait passer par "delivery" avant "delivered" !`);
+      console.error(`[OrderService] ⚠️⚠️⚠️ ========================================\n`);
+    }
 
     // 5. Déclencher les webhooks si nécessaire (non-bloquant)
     this.triggerWebhooks(updatedOrder, newStatus as OrderStatus).catch((error) => {
       console.error("[OrderService] Erreur webhook (non-bloquant):", error);
     });
 
+    console.log(`[OrderService] ========================================\n`);
     return updatedOrder;
   }
 

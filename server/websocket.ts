@@ -283,8 +283,27 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
 
   // Envoyer des notifications Telegram à tous les livreurs disponibles
   try {
-    console.log("[WebSocket] 📞 Envoi notification Telegram pour commande:", orderData.orderId);
+    console.log("\n[WebSocket] 📞 ========================================");
+    console.log("[WebSocket] 📞 ENVOI NOTIFICATION TELEGRAM");
+    console.log("[WebSocket]    Order ID:", orderData.orderId);
+    console.log("[WebSocket]    Restaurant:", orderData.restaurantName);
+    console.log("[WebSocket]    Client:", orderData.customerName);
+    console.log("[WebSocket]    Prix:", orderData.totalPrice);
+    console.log("[WebSocket]    Adresse:", orderData.address);
+    
     const { telegramService } = await import('./services/telegram-service.js');
+    
+    // ✅ Vérifier si le bot Telegram est configuré
+    if (!telegramService.isReady()) {
+      console.error("[WebSocket] ❌❌❌ BOT TELEGRAM NON CONFIGURÉ ❌❌❌");
+      console.error("[WebSocket]    Vérifiez que TELEGRAM_BOT_TOKEN est défini dans .env");
+      console.error("[WebSocket] ========================================\n");
+      await alertAdministrationNoDriversAvailable(orderData);
+      return notifiedCount;
+    }
+    
+    console.log("[WebSocket] ✅ Bot Telegram configuré, envoi des notifications...");
+    
     const telegramCount = await telegramService.sendToAllAvailableDrivers(
       orderData.orderId,
       orderData.restaurantName,
@@ -292,10 +311,13 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
       orderData.totalPrice,
       orderData.address
     );
-    console.log(`[WebSocket] 📱 ${telegramCount} notification(s) Telegram envoyée(s)`);
+    
+    console.log(`[WebSocket] 📱 Résultat: ${telegramCount} notification(s) Telegram envoyée(s)`);
+    console.log("[WebSocket] ========================================\n");
     
     // Démarrer le timer Round Robin si un livreur a été notifié
     if (telegramCount > 0) {
+      console.log("[WebSocket] ✅ Timer Round Robin démarré");
       startRoundRobinTimer(
         orderData.orderId,
         orderData.restaurantName,
@@ -304,12 +326,15 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
         orderData.address
       );
     } else {
+      console.warn("[WebSocket] ⚠️ Aucun livreur notifié - alerte administration");
       // Aucun livreur disponible - alerter l'administration
       await alertAdministrationNoDriversAvailable(orderData);
     }
   } catch (telegramError: any) {
-    console.error('[WebSocket] ❌ Erreur envoi Telegram:', telegramError);
-    console.error('[WebSocket] ❌ Stack:', telegramError.stack);
+    console.error('\n[WebSocket] ❌❌❌ ERREUR ENVOI TELEGRAM ❌❌❌');
+    console.error('[WebSocket]    Erreur:', telegramError.message);
+    console.error('[WebSocket]    Stack:', telegramError.stack);
+    console.error("[WebSocket] ========================================\n");
     // Alerter l'administration même en cas d'erreur
     await alertAdministrationNoDriversAvailable(orderData);
   }

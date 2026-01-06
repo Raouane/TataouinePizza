@@ -142,9 +142,25 @@ export class DriverStorage extends BaseStorage {
   // Uses .returning() to ensure atomicity: UPDATE returns the row only if it was actually updated
   async acceptOrderByDriver(orderId: string, driverId: string): Promise<Order | null> {
     try {
+      console.log(`\n[ACCEPT ORDER] 🎯 ========================================`);
+      console.log(`[ACCEPT ORDER] 🎯 ACCEPTATION COMMANDE PAR LIVREUR`);
+      console.log(`[ACCEPT ORDER]    Order ID: ${orderId}`);
+      console.log(`[ACCEPT ORDER]    Driver ID: ${driverId}`);
+      
+      // Vérifier le statut actuel AVANT la mise à jour
+      const currentOrder = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+      if (currentOrder[0]) {
+        console.log(`[ACCEPT ORDER]    Statut AVANT acceptation: ${currentOrder[0].status}`);
+        console.log(`[ACCEPT ORDER]    Driver ID AVANT: ${currentOrder[0].driverId || 'NULL'}`);
+      } else {
+        console.log(`[ACCEPT ORDER] ⚠️ Commande non trouvée dans la DB`);
+      }
+      
       // ✅ SIMPLIFICATION : Quand le livreur accepte, passer directement à "delivery"
       // Accept if order is received, accepted or ready AND not assigned to anyone
       // Le statut passe directement à "delivery" (en livraison)
+      console.log(`[ACCEPT ORDER]    Tentative de mise à jour vers statut: "delivery"`);
+      
       const result = await db.update(orders)
         .set({ 
           driverId,
@@ -158,8 +174,23 @@ export class DriverStorage extends BaseStorage {
       
       // If result is empty, the WHERE conditions were not met (order already assigned or wrong status)
       if (!result || result.length === 0) {
+        console.log(`[ACCEPT ORDER] ❌ Échec: conditions WHERE non remplies`);
+        console.log(`[ACCEPT ORDER]    La commande est peut-être déjà assignée ou le statut est invalide`);
+        console.log(`[ACCEPT ORDER] ========================================\n`);
         return null;
       }
+      
+      console.log(`[ACCEPT ORDER] ✅ Statut APRÈS acceptation: ${result[0].status}`);
+      console.log(`[ACCEPT ORDER] ✅ Driver ID APRÈS: ${result[0].driverId}`);
+      console.log(`[ACCEPT ORDER]    ⚠️ Vérification: le statut devrait être "delivery"`);
+      
+      if (result[0].status !== 'delivery') {
+        console.error(`[ACCEPT ORDER] ⚠️⚠️⚠️ ERREUR: Le statut n'est pas "delivery" !`);
+        console.error(`[ACCEPT ORDER]    Statut obtenu: ${result[0].status}`);
+        console.error(`[ACCEPT ORDER]    Statut attendu: "delivery"`);
+      }
+      
+      console.log(`[ACCEPT ORDER] ========================================\n`);
       
       // ✅ NOUVEAU : Mettre à jour le message Telegram pour afficher "EN COURS DE LIVRAISON"
       import("../services/telegram-message-updater.js").then(({ updateTelegramMessageToDelivery }) => {

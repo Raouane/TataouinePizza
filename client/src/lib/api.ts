@@ -360,6 +360,15 @@ export async function updateRestaurant(
   const result = await res.json();
   console.log("[API] Restaurant mis à jour retourné:", result);
   console.log("[API] isOpen dans la réponse:", result.isOpen, "type:", typeof result.isOpen);
+  console.log("[API] ✅ ImageUrl dans la réponse du serveur:", result.imageUrl || 'NULL');
+  
+  // ⚠️ Vérifier si l'imageUrl a bien été sauvegardée
+  if (data.imageUrl && result.imageUrl !== data.imageUrl) {
+    console.warn(`[API] ⚠️ ATTENTION: ImageUrl différente !`);
+    console.warn(`[API]    Envoyé: ${data.imageUrl}`);
+    console.warn(`[API]    Reçu: ${result.imageUrl || 'NULL'}`);
+  }
+  
   return result;
 }
 

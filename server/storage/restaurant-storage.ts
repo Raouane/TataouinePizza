@@ -174,6 +174,14 @@ export class RestaurantStorage extends BaseStorage {
     this.log('debug', 'updateRestaurant - ID', id);
     this.log('debug', 'updateRestaurant - Données à mettre à jour', data);
     
+    // ✅ LOGS DE DIAGNOSTIC pour imageUrl
+    console.log(`\n[RestaurantStorage] 🔄 ========================================`);
+    console.log(`[RestaurantStorage] 🔄 MISE À JOUR RESTAURANT ${id}`);
+    console.log(`[RestaurantStorage]    imageUrl reçu: ${data.imageUrl || 'NULL/UNDEFINED'}`);
+    console.log(`[RestaurantStorage]    Type: ${typeof data.imageUrl}`);
+    console.log(`[RestaurantStorage]    !== undefined: ${data.imageUrl !== undefined}`);
+    console.log(`[RestaurantStorage]    !== null: ${data.imageUrl !== null}`);
+    
     // Préparer les données pour la mise à jour
     const updateData: Partial<Restaurant> = {
       updatedAt: new Date()
@@ -191,7 +199,12 @@ export class RestaurantStorage extends BaseStorage {
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.address !== undefined) updateData.address = data.address;
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
+    if (data.imageUrl !== undefined) {
+      updateData.imageUrl = data.imageUrl;
+      console.log(`[RestaurantStorage] ✅ imageUrl ajouté à updateData: ${updateData.imageUrl}`);
+    } else {
+      console.log(`[RestaurantStorage] ⚠️ imageUrl NON ajouté (undefined)`);
+    }
     if (data.categories !== undefined) {
       updateData.categories = Array.isArray(data.categories) ? JSON.stringify(data.categories) : data.categories;
     }
@@ -219,10 +232,14 @@ export class RestaurantStorage extends BaseStorage {
     
     // Utiliser Drizzle pour la mise à jour des autres champs (sans isOpen)
     if (Object.keys(updateData).length > 1) { // Plus que juste updatedAt
+      console.log(`[RestaurantStorage] 🔄 Exécution UPDATE Drizzle avec:`, JSON.stringify(updateData, null, 2));
       await db.update(restaurants)
         .set(updateData)
         .where(eq(restaurants.id, id));
       this.log('debug', 'updateRestaurant - Mise à jour Drizzle effectuée');
+      console.log(`[RestaurantStorage] ✅ UPDATE Drizzle exécuté`);
+    } else {
+      console.log(`[RestaurantStorage] ⚠️ UPDATE Drizzle SKIPPÉ (seulement updatedAt)`);
     }
     
     // Récupérer le restaurant mis à jour
@@ -230,6 +247,10 @@ export class RestaurantStorage extends BaseStorage {
     if (!result) {
       throw new Error("Failed to retrieve updated restaurant");
     }
+    
+    console.log(`[RestaurantStorage] ✅ Restaurant récupéré après UPDATE`);
+    console.log(`[RestaurantStorage]    imageUrl dans le résultat: ${result.imageUrl || 'NULL'}`);
+    console.log(`[RestaurantStorage] ========================================\n`);
     
     this.log('debug', 'updateRestaurant - Restaurant récupéré', { isOpen: result.isOpen, type: typeof result.isOpen });
     return result;

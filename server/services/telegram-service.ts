@@ -538,10 +538,27 @@ class TelegramService {
     restaurantName: string,
     driverId?: string
   ): Promise<boolean> {
+    console.log(`\n[Telegram] 📨 ========================================`);
+    console.log(`[Telegram] 📨 ENVOI NOTIFICATION INDIVIDUELLE`);
+    console.log(`[Telegram]    Driver Telegram ID: ${driverTelegramId}`);
+    console.log(`[Telegram]    Driver ID: ${driverId || 'N/A'}`);
+    console.log(`[Telegram]    Order ID: ${orderId}`);
+    
     if (!this.isConfigured) {
-      console.error('[Telegram] ❌ Bot non configuré');
+      console.error('[Telegram] ❌❌❌ BOT NON CONFIGURÉ ❌❌❌');
+      console.error('[Telegram]    TELEGRAM_BOT_TOKEN manquant');
+      console.log(`[Telegram] ========================================\n`);
       return false;
     }
+    
+    if (!driverTelegramId || driverTelegramId.trim() === '') {
+      console.error('[Telegram] ❌❌❌ TELEGRAM ID MANQUANT ❌❌❌');
+      console.error('[Telegram]    Le livreur n\'a pas de telegramId');
+      console.log(`[Telegram] ========================================\n`);
+      return false;
+    }
+    
+    console.log(`[Telegram] ✅ Configuration OK, envoi du message...`);
 
     const DRIVER_COMMISSION_RATE = 0.15; // 15% commission
     const gain = (Number(totalPrice) * DRIVER_COMMISSION_RATE).toFixed(2);
@@ -614,7 +631,9 @@ ${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
       ]
     };
 
-    console.log(`[Telegram] 📤 Envoi message avec boutons inline à livreur ${driverTelegramId} (avec sonnerie)`);
+    console.log(`[Telegram] 📤 Envoi message avec boutons inline à ${driverTelegramId} (avec sonnerie)`);
+    console.log(`[Telegram]    URL Accept: ${acceptUrl}`);
+    console.log(`[Telegram]    URL Refuse: ${refuseUrl}`);
     
     // Message avec boutons inline et sonnerie activée
     const result = await this.sendMessage(driverTelegramId, message, {
@@ -623,9 +642,19 @@ ${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
       replyMarkup: inlineKeyboard
     });
 
-    if (result.success && result.messageId && driverId) {
-      console.log(`[Telegram] ✅ Message envoyé: ${result.messageId || 'N/A'}`);
-      
+    if (!result.success || !result.messageId) {
+      console.error(`[Telegram] ❌ Échec envoi message`);
+      console.error(`[Telegram]    Erreur: ${result.error || 'Inconnue'}`);
+      console.log(`[Telegram] ========================================\n`);
+      return false;
+    }
+
+    console.log(`[Telegram] ✅ Message envoyé avec succès !`);
+    console.log(`[Telegram]    Message ID: ${result.messageId}`);
+    console.log(`[Telegram]    Sonnerie: OUI`);
+
+    // Sauvegarder le messageId si driverId est fourni
+    if (driverId) {
       // ✅ SOLUTION 3 : Identifier les duplicatas et programmer leur suppression
       try {
         const { storage } = await import("../storage.js");
@@ -659,12 +688,10 @@ ${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
         console.error(`[Telegram] ⚠️ Erreur sauvegarde messageId (non-bloquant):`, storageError);
         // Ne pas bloquer si la sauvegarde échoue
       }
-      
-      return true;
-    } else {
-      console.error(`[Telegram] ❌ Erreur envoi:`, result.error);
-      return false;
     }
+    
+    console.log(`[Telegram] ========================================\n`);
+    return true;
   }
 
   async sendConfirmation(chatId: string, message: string): Promise<boolean> {
@@ -679,19 +706,43 @@ ${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
     totalPrice: string,
     address: string
   ): Promise<number> {
+    console.log(`\n[Telegram] 🔍 ========================================`);
+    console.log(`[Telegram] 🔍 ENVOI NOTIFICATIONS À TOUS LES LIVREURS`);
+    console.log(`[Telegram]    Order ID: ${orderId}`);
+    console.log(`[Telegram]    Restaurant: ${restaurantName}`);
+    console.log(`[Telegram]    Client: ${customerName}`);
+    
     if (!this.isConfigured) {
-      console.error('[Telegram] ❌ Bot non configuré');
+      console.error('[Telegram] ❌❌❌ BOT NON CONFIGURÉ ❌❌❌');
+      console.error('[Telegram]    TELEGRAM_BOT_TOKEN manquant dans .env');
+      console.error(`[Telegram] ========================================\n`);
       return 0;
     }
 
+    console.log(`[Telegram] ✅ Bot Telegram configuré (token: ${this.botToken?.substring(0, 10)}...)`);
+
     try {
       const allDrivers = await storage.getAllDrivers();
+      console.log(`[Telegram] 📋 ${allDrivers.length} livreur(s) total trouvé(s) dans la DB`);
+      
+      // Afficher tous les livreurs pour diagnostic
+      allDrivers.forEach((driver, idx) => {
+        console.log(`[Telegram]    ${idx + 1}. ${driver.name} - Status: ${driver.status} - Telegram ID: ${driver.telegramId || '❌ MANQUANT'}`);
+      });
+      
       // Inclure les livreurs "available" ET "on_delivery" qui ont Telegram
       const driversWithTelegram = allDrivers.filter(d => 
         (d.status === 'available' || d.status === 'on_delivery') && d.telegramId
       );
 
       console.log(`[Telegram] 🔍 ${driversWithTelegram.length} livreur(s) avec Telegram trouvé(s) (available ou on_delivery)`);
+      
+      if (driversWithTelegram.length === 0) {
+        console.warn(`[Telegram] ⚠️ Aucun livreur avec Telegram ID trouvé !`);
+        console.warn(`[Telegram]    Vérifiez que les livreurs ont un telegramId dans la base de données`);
+        console.log(`[Telegram] ========================================\n`);
+        return 0;
+      }
 
       const MAX_ACTIVE_ORDERS_PER_DRIVER = 2;
       const driversWithOrderCheck = await Promise.all(
@@ -720,14 +771,26 @@ ${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
       console.log(`[Telegram] 🔍 ${trulyAvailableDrivers.length} livreur(s) disponible(s) (available ou on_delivery avec < ${MAX_ACTIVE_ORDERS_PER_DRIVER} commande(s))`);
 
       if (trulyAvailableDrivers.length === 0) {
-        console.log('[Telegram] ⚠️ Aucun livreur disponible avec Telegram');
+        console.warn('[Telegram] ⚠️ Aucun livreur disponible avec Telegram');
+        console.warn('[Telegram]    Raisons possibles:');
+        console.warn('[Telegram]      - Tous les livreurs ont déjà 2 commandes actives');
+        console.warn('[Telegram]      - Aucun livreur n\'est en statut "available" ou "on_delivery"');
+        console.log(`[Telegram] ========================================\n`);
         return 0;
       }
 
+      console.log(`[Telegram] 📤 Envoi de ${trulyAvailableDrivers.length} notification(s)...`);
+
       // ✅ MODIFIÉ : Envoyer à TOUS les livreurs disponibles (pas seulement le premier)
       let successCount = 0;
+      let failureCount = 0;
+      
       for (const driver of trulyAvailableDrivers) {
-        console.log(`[Telegram] 📤 Envoi notification à ${driver.name} (${driver.telegramId})`);
+        console.log(`\n[Telegram] 📤 Envoi notification à ${driver.name}`);
+        console.log(`[Telegram]    Telegram ID: ${driver.telegramId}`);
+        console.log(`[Telegram]    Driver ID: ${driver.id}`);
+        console.log(`[Telegram]    Status: ${driver.status}`);
+        
         const success = await this.sendOrderNotification(
           driver.telegramId!,
           orderId,
@@ -737,15 +800,22 @@ ${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
           restaurantName,
           driver.id
         );
+        
         if (success) {
           successCount++;
           console.log(`[Telegram] ✅ Notification envoyée avec succès à ${driver.name}`);
         } else {
-          console.log(`[Telegram] ❌ Échec envoi notification à ${driver.name}`);
+          failureCount++;
+          console.error(`[Telegram] ❌ Échec envoi notification à ${driver.name}`);
         }
       }
 
-      console.log(`[Telegram] ✅ ${successCount}/${trulyAvailableDrivers.length} notification(s) Telegram envoyée(s) avec succès`);
+      console.log(`\n[Telegram] 📊 RÉSUMÉ:`);
+      console.log(`[Telegram]    ✅ Succès: ${successCount}`);
+      console.log(`[Telegram]    ❌ Échecs: ${failureCount}`);
+      console.log(`[Telegram]    📋 Total: ${trulyAvailableDrivers.length}`);
+      console.log(`[Telegram] ========================================\n`);
+      
       return successCount;
     } catch (error: any) {
       console.error('[Telegram] ❌ Erreur envoi aux livreurs:', error);

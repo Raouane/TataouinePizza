@@ -153,6 +153,15 @@ app.use((req, res, next) => {
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
+  // Log toutes les requêtes API pour diagnostiquer
+  if (path.startsWith("/api")) {
+    console.log(`\n[API REQUEST] 🔵 ${req.method} ${path}`);
+    console.log(`[API REQUEST]    URL complète: ${req.originalUrl || req.url}`);
+    if (path.includes('/menu')) {
+      console.log(`[API REQUEST]    ⚠️  REQUÊTE MENU DÉTECTÉE - Cela devrait déclencher les logs du menu!`);
+    }
+  }
+
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
     capturedJsonResponse = bodyJson;
@@ -169,6 +178,17 @@ app.use((req, res, next) => {
         logLine += ` :: ${jsonString.slice(0, 500)}${jsonString.length > 500 ? "..." : ""}`;
       }
 
+      console.log(`[API RESPONSE] ✅ ${req.method} ${path} ${res.statusCode} in ${duration}ms`);
+      if (path.includes('/menu') && capturedJsonResponse) {
+        const isArray = Array.isArray(capturedJsonResponse);
+        const count = isArray ? capturedJsonResponse.length : (capturedJsonResponse ? 1 : 0);
+        console.log(`[API RESPONSE]    Menu: ${count} produit(s) retourné(s)`);
+        if (isArray && capturedJsonResponse.length > 0) {
+          const firstProduct = capturedJsonResponse[0];
+          console.log(`[API RESPONSE]    Premier produit: "${firstProduct.name}"`);
+          console.log(`[API RESPONSE]    Premier produit imageUrl: ${firstProduct.imageUrl || 'NULL'}`);
+        }
+      }
       log(logLine, "api");
     }
   });

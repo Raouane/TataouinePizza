@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2, Eye, EyeOff } from "lucide-react";
+import { Edit, Trash2, Eye, EyeOff, Package } from "lucide-react";
 import { parseRestaurantCategories } from "@/lib/admin-helpers";
 import { isRestaurantOpen } from "@/lib/restaurant-status";
 import type { Restaurant } from "@/lib/api";
@@ -10,6 +10,8 @@ interface RestaurantAdminCardProps {
   onEdit: (restaurant: Restaurant) => void;
   onDelete: () => void;
   onToggleVisibility: (restaurantId: string, currentVisibility: boolean) => Promise<void>;
+  // ✅ NOUVEAU : Callback pour voir les produits du restaurant
+  onViewProducts?: (restaurantId: string) => void;
 }
 
 export function RestaurantAdminCard({
@@ -17,6 +19,7 @@ export function RestaurantAdminCard({
   onEdit,
   onDelete,
   onToggleVisibility,
+  onViewProducts,
 }: RestaurantAdminCardProps) {
   const categoriesArray = parseRestaurantCategories(restaurant.categories);
   const actuallyOpen = isRestaurantOpen(restaurant);
@@ -81,6 +84,20 @@ export function RestaurantAdminCard({
           </span>
         )}
       </div>
+      {/* ✅ NOUVEAU : Bouton pour voir les produits du restaurant */}
+      {onViewProducts && (
+        <div className="mt-3 pt-3 border-t">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onViewProducts(restaurant.id)}
+            className="w-full"
+          >
+            <Package className="w-4 h-4 mr-2" />
+            Voir les produits
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }

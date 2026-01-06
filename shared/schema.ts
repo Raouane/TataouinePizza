@@ -321,6 +321,18 @@ export const restaurantLoginSchema = z.object({
   password: z.string().min(6, "Mot de passe min 6 caractères").max(100, "Le mot de passe est trop long"),
 });
 
+// Utility to normalize image paths (Windows paths to relative URLs)
+// ✅ AUTORISE les images de produits (/images/products/...) pour les restaurants aussi
+const normalizeImagePath = (path: string) => {
+  if (!path) return "";
+  let normalized = path.replace(/\\/g, '/'); // Convert Windows paths to Unix
+  normalized = normalized.replace(/^.*client\/public\//, '/'); // Remove client/public prefix
+  if (!normalized.startsWith('/')) {
+    normalized = '/' + normalized;
+  }
+  return normalized;
+};
+
 // Update Schemas (PATCH) - tous les champs optionnels
 export const updateRestaurantSchema = z.object({
   name: nameSchema.optional(),
@@ -328,6 +340,28 @@ export const updateRestaurantSchema = z.object({
   address: addressSchema.optional(),
   isOpen: z.coerce.boolean().optional(),
   openingHours: z.string().nullable().optional(),
+  // ✅ Accepter les URLs complètes (http/https) ET les chemins relatifs (commençant par /)
+  // ✅ AUTORISE les images de produits (/images/products/...) pour les restaurants aussi
+  imageUrl: z.preprocess(
+    (val) => {
+      // Si la valeur est undefined, la retourner telle quelle (pour que .optional() fonctionne)
+      if (val === undefined) return undefined;
+      // Si c'est null, retourner null
+      if (val === null) return null;
+      // Si c'est une chaîne vide, retourner null
+      if (typeof val === 'string' && val.trim() === '') return null;
+      // Sinon, normaliser le chemin
+      const normalized = normalizeImagePath(String(val));
+      // Si la normalisation retourne une chaîne vide, retourner null
+      return normalized || null;
+    },
+    z.union([
+      z.string().refine(val => val.startsWith('/') || val.startsWith('http://') || val.startsWith('https://'), {
+        message: "L'URL de l'image doit être un chemin relatif (/...) ou une URL complète (http(s)://...)",
+      }),
+      z.null(),
+    ]).optional()
+  ),
   deliveryTime: z.coerce.number().int().min(10).max(120).optional(),
   minOrder: z.coerce.number().nonnegative().optional(),
   rating: z.coerce.number().min(0).max(5).optional(),
@@ -345,7 +379,13 @@ export const updatePizzaSchema = z.object({
   description: z.string().nullable().optional(),
   productType: z.enum(["pizza", "burger", "salade", "drink", "dessert", "other"]).optional(),
   category: z.string().min(1, "Catégorie requise").optional(),
-  imageUrl: z.string().url().nullable().optional(),
+  // ✅ Accepter les URLs complètes (http/https) ET les chemins relatifs (commençant par /)
+  imageUrl: z.string()
+    .transform(val => normalizeImagePath(val)) // Normalize path on input
+    .refine(val => val.startsWith('/') || val.startsWith('http://') || val.startsWith('https://'), {
+      message: "L'URL de l'image doit être un chemin relatif (/...) ou une URL complète (http(s)://...)",
+    })
+    .nullable().optional(),
   available: z.coerce.boolean().optional(),
   prices: z.array(z.object({
     size: z.enum(["small", "medium", "large"]),

@@ -213,12 +213,24 @@ export function registerDriverOrdersRoutes(app: Express): void {
       if (!status) throw errorHandler.badRequest("Status required");
       
       const driverId = getAuthenticatedDriverId(req);
+      const orderId = req.params.id;
+      
+      console.log(`\n[Driver Route] 🔄 ========================================`);
+      console.log(`[Driver Route] 🔄 MISE À JOUR STATUT VIA ROUTE DRIVER`);
+      console.log(`[Driver Route]    Order ID: ${orderId}`);
+      console.log(`[Driver Route]    Driver ID: ${driverId}`);
+      console.log(`[Driver Route]    Nouveau statut demandé: ${status}`);
+      console.log(`[Driver Route]    Route: PATCH /api/driver/orders/:id/status`);
       
       const updatedOrder = await OrderService.updateStatus(
-        req.params.id,
+        orderId,
         status,
         { type: "driver", id: driverId }
       );
+      
+      console.log(`[Driver Route] ✅ Statut mis à jour avec succès`);
+      console.log(`[Driver Route]    Statut final: ${updatedOrder.status}`);
+      console.log(`[Driver Route] ========================================\n`);
       
       // Si la commande est marquée comme "delivered", remettre le livreur en "available"
       if (status === "delivered") {

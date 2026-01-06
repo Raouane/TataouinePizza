@@ -4,10 +4,14 @@ import { Pool } from "pg";
 import PgTypes from "pg-types";
 import dns from "dns";
 
-// ✅ FIX ULTIME : Désactiver la vérification SSL au niveau Node.js si NODE_TLS_REJECT_UNAUTHORIZED=0
-// Cette variable d'environnement peut être définie sur Render pour forcer l'acceptation des certificats
-if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
+// ✅ FIX ULTIME : Désactiver la vérification SSL au niveau Node.js pour Supabase
+// FORCER la désactivation pour éviter les erreurs de certificats auto-signés
+if (process.env.DATABASE_URL?.includes('supabase')) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  console.log("[DB] ⚠️ NODE_TLS_REJECT_UNAUTHORIZED=0 FORCÉ pour Supabase - Vérification SSL désactivée au niveau Node.js");
+}
+// Aussi vérifier si c'est déjà défini
+if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
   console.log("[DB] ⚠️ NODE_TLS_REJECT_UNAUTHORIZED=0 détecté - Vérification SSL désactivée au niveau Node.js");
 }
 
@@ -98,6 +102,12 @@ const poolConfig: any = {
 // Même si sslmode est déjà dans l'URL, on doit configurer rejectUnauthorized dans l'objet Pool
 console.log("[DB] 🔍 Détection connexion - isSupabase:", isSupabase, "isRender:", isRender, "PGSSLMODE:", process.env.PGSSLMODE);
 
+// ✅ PRIORITÉ 1 : FORCER PGSSLMODE=no-verify pour Supabase si non défini
+if (isSupabase && !process.env.PGSSLMODE) {
+  process.env.PGSSLMODE = 'no-verify';
+  console.log("[DB] 🔧 PGSSLMODE=no-verify FORCÉ pour Supabase");
+}
+
 // ✅ PRIORITÉ 1 : Si PGSSLMODE=no-verify est défini, l'utiliser pour TOUTES les connexions
 if (process.env.PGSSLMODE === 'no-verify') {
   poolConfig.ssl = {
@@ -143,10 +153,20 @@ console.log("[DB] 🔍 ConnectionString length:", connectionString.length);
 console.log("[DB] 🔍 ConnectionString contient 'postgresql://':", connectionString.startsWith('postgresql://'));
 console.log("[DB] 🔍 ConnectionString contient '@':", connectionString.includes('@'));
 
+// ✅ FIX CRITIQUE : Vérifier une dernière fois que SSL est configuré avant de créer le Pool
+if (isSupabase && !poolConfig.ssl) {
+  poolConfig.ssl = {
+    rejectUnauthorized: false,
+  };
+  console.log("[DB] 🔧 SSL FORCÉ juste avant création du Pool (dernière vérification)");
+}
+
 const pool = new Pool(poolConfig);
 
 // ✅ FIX : Vérifier que la configuration SSL est bien appliquée
 console.log("[DB] 🔍 Configuration Pool finale - SSL:", poolConfig.ssl ? JSON.stringify(poolConfig.ssl) : "NON CONFIGURÉ");
+console.log("[DB] 🔍 NODE_TLS_REJECT_UNAUTHORIZED:", process.env.NODE_TLS_REJECT_UNAUTHORIZED);
+console.log("[DB] 🔍 PGSSLMODE:", process.env.PGSSLMODE);
 
 // Test de connexion
 pool.on("error", (err) => {

@@ -21,7 +21,10 @@ export function registerPizzasRoutes(app: Express): void {
   app.get("/api/pizzas", async (req: Request, res: Response) => {
     try {
       const searchQuery = req.query.search as string | undefined;
+      console.log(`[API] GET /api/pizzas - search: "${searchQuery}"`);
+      
       let allPizzas = await storage.getAllPizzas();
+      console.log(`[API] ${allPizzas.length} pizzas récupérées`);
       
       if (searchQuery && searchQuery.trim().length > 0) {
         const query = searchQuery.toLowerCase();
@@ -30,17 +33,30 @@ export function registerPizzasRoutes(app: Express): void {
           pizza.description?.toLowerCase().includes(query) ||
           pizza.category?.toLowerCase().includes(query)
         );
+        console.log(`[API] ${allPizzas.length} pizzas après filtrage`);
       }
       
       const pizzasWithPrices = await Promise.all(
         allPizzas.map(async (pizza) => {
-          const prices = await storage.getPizzaPrices(pizza.id);
-          return { ...pizza, prices };
+          try {
+            const prices = await storage.getPizzaPrices(pizza.id);
+            return { ...pizza, prices };
+          } catch (priceError: any) {
+            console.error(`[API] Erreur récupération prix pour ${pizza.id}:`, priceError.message);
+            return { ...pizza, prices: [] };
+          }
         })
       );
+      
+      console.log(`[API] ✅ Retour de ${pizzasWithPrices.length} pizzas avec prix`);
       res.json(pizzasWithPrices);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch pizzas" });
+    } catch (error: any) {
+      console.error("[API] ❌ Erreur GET /api/pizzas:", error);
+      console.error("[API] Stack:", error.stack);
+      res.status(500).json({ 
+        error: "Failed to fetch pizzas",
+        message: error.message || "Unknown error"
+      });
     }
   });
 

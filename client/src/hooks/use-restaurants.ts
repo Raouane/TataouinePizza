@@ -64,12 +64,28 @@ export function useRestaurants(token: string | null) {
   }) => {
     if (!token) throw new Error("Non authentifié");
     
+    console.log(`[useRestaurants] 🔄 Mise à jour restaurant ${id}`);
+    console.log(`[useRestaurants]    Données envoyées:`, JSON.stringify(data, null, 2));
+    
     try {
       const updated = await updateRestaurant(id, data, token);
-      setRestaurants(prev => prev.map(r => r.id === id ? updated : r));
+      
+      console.log(`[useRestaurants] ✅ Restaurant mis à jour reçu du serveur`);
+      console.log(`[useRestaurants]    ImageUrl dans la réponse: ${updated.imageUrl || 'NULL'}`);
+      
+      // Mettre à jour l'état local avec les données du serveur
+      setRestaurants(prev => {
+        const newRestaurants = prev.map(r => r.id === id ? updated : r);
+        console.log(`[useRestaurants] ✅ État local mis à jour`);
+        const updatedRestaurant = newRestaurants.find(r => r.id === id);
+        console.log(`[useRestaurants]    ImageUrl dans l'état local: ${updatedRestaurant?.imageUrl || 'NULL'}`);
+        return newRestaurants;
+      });
+      
       toast.success("Restaurant modifié avec succès!");
       return updated;
     } catch (err: any) {
+      console.error(`[useRestaurants] ❌ Erreur:`, err);
       toast.error(err.message || "Erreur lors de la modification");
       throw err;
     }

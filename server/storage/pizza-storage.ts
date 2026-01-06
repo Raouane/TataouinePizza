@@ -1,6 +1,6 @@
 import { db } from "../db.js";
 import { pizzas, pizzaPrices, type Pizza, type PizzaPrice, type InsertPizzaPrice, insertPizzaPriceSchema } from "../../shared/schema.js";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import type { z } from "zod";
 import { BaseStorage } from "./base-storage.js";
@@ -11,8 +11,17 @@ import { BaseStorage } from "./base-storage.js";
  */
 export class PizzaStorage extends BaseStorage {
   async getAllPizzas(): Promise<Pizza[]> {
-    // Ne retourner que les produits disponibles (available = true)
-    return await db.select().from(pizzas).where(eq(pizzas.available, true));
+    try {
+      // Ne retourner que les produits disponibles (available = true ou NULL considéré comme disponible)
+      // Utiliser sql pour gérer les valeurs NULL
+      return await db.select()
+        .from(pizzas)
+        .where(sql`${pizzas.available} IS NULL OR ${pizzas.available} = true`);
+    } catch (error: any) {
+      this.log('error', 'Erreur getAllPizzas', error);
+      // En cas d'erreur, retourner un tableau vide plutôt que de planter
+      return [];
+    }
   }
 
   async getPizzaById(id: string): Promise<Pizza | undefined> {
