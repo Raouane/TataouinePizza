@@ -23,6 +23,7 @@ import { getAuthenticatedAdminId } from "../middleware/auth-helpers";
 import { OrderService } from "../services/order-service";
 import { notifyDriversOfNewOrder } from "../websocket";
 import { sendN8nWebhook } from "../webhooks/n8n-webhook";
+import { calculateDeliveryFeeFromCoords, type Coordinates } from "@shared/distance-utils";
 import { z } from "zod";
 
 // Fonction validate améliorée qui retourne les erreurs Zod
@@ -173,7 +174,6 @@ export function registerAdminCrudRoutes(app: Express): void {
       }
       
       // Calculer les frais de livraison dynamiques basés sur la distance GPS
-      const { calculateDeliveryFeeFromCoords, type Coordinates } = require("@shared/distance-utils");
       const restaurantCoords: Coordinates | null = restaurant.lat && restaurant.lng
         ? { lat: Number(restaurant.lat), lng: Number(restaurant.lng) }
         : null;
