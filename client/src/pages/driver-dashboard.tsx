@@ -2144,13 +2144,13 @@ export default function DriverDashboard() {
                     )}
 
                     <div className="bg-blue-50 rounded-lg p-3 space-y-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2 text-blue-700 font-medium text-sm">
-                          <Navigation className="w-4 h-4" />
-                          Livrer à:
+                          <Navigation className="w-4 h-4 flex-shrink-0" />
+                          <span className="whitespace-nowrap">Livrer à:</span>
                         </div>
-                        {/* ✅ MODIFIÉ : Boutons d'action directs (sans modal) */}
-                        <div className="flex items-center gap-1">
+                        {/* ✅ MODIFIÉ : Boutons d'action directs (sans modal) - Amélioration mobile */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
                           <Button
                             variant="ghost"
                             size="sm"
@@ -2173,9 +2173,9 @@ export default function DriverDashboard() {
                                 window.open(url, '_blank');
                               }
                             }}
-                            className="h-7 text-xs px-2"
+                            className="h-8 text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap"
                           >
-                            <MapPin className="w-3 h-3 mr-1" />
+                            <MapPin className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                             Navigation
                           </Button>
                           <Button
@@ -2184,9 +2184,9 @@ export default function DriverDashboard() {
                             onClick={() => {
                               window.open(`tel:${order.phone}`, '_self');
                             }}
-                            className="h-7 text-xs px-2"
+                            className="h-8 text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap"
                           >
-                            <Phone className="w-3 h-3 mr-1" />
+                            <Phone className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                             Appeler
                           </Button>
                         </div>
