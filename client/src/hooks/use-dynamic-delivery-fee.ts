@@ -5,7 +5,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useCart } from '@/lib/cart';
 import { getOnboarding } from '@/pages/onboarding';
-import { calculateDistance, calculateDeliveryFee, type Coordinates } from '@/lib/distance-utils';
+import { calculateDistance, calculateDeliveryFee, MAX_DELIVERY_FEE, type Coordinates } from '@/lib/distance-utils';
 import type { Restaurant } from '@/features/restaurant/restaurant.types';
 
 interface RestaurantWithCoords extends Restaurant {
@@ -167,7 +167,7 @@ export function useDynamicDeliveryFee() {
   // Fonction pour obtenir les frais de livraison d'un restaurant
   const getDeliveryFee = (restaurantId: string): number => {
     const feeInfo = deliveryFees.get(restaurantId);
-    return feeInfo?.fee ?? 2.0; // Frais par défaut
+    return feeInfo?.fee ?? MAX_DELIVERY_FEE; // Frais maximum par défaut
   };
 
   // Fonction pour obtenir la distance d'un restaurant

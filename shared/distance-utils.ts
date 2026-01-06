@@ -80,6 +80,11 @@ export function calculateDeliveryFee(distanceKm: number): number {
 }
 
 /**
+ * Frais de livraison maximum appliqué quand les coordonnées GPS ne sont pas disponibles
+ */
+export const MAX_DELIVERY_FEE = 30.0;
+
+/**
  * Calcule les frais de livraison entre un restaurant et un client
  * @param restaurantCoords Coordonnées du restaurant
  * @param customerCoords Coordonnées du client
@@ -89,9 +94,9 @@ export function calculateDeliveryFeeFromCoords(
   restaurantCoords: Coordinates | null | undefined,
   customerCoords: Coordinates | null | undefined
 ): number {
-  // Si les coordonnées ne sont pas disponibles, retourner le frais minimum
+  // Si les coordonnées ne sont pas disponibles, retourner le frais maximum
   if (!restaurantCoords || !customerCoords) {
-    return 2.0;
+    return MAX_DELIVERY_FEE;
   }
 
   const distance = calculateDistance(restaurantCoords, customerCoords);

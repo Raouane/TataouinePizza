@@ -74,9 +74,42 @@ export async function geocodeAddress(address: string): Promise<GeocodeResult | n
  */
 export async function geocodeAddressInTataouine(address: string): Promise<GeocodeResult | null> {
   // Si l'adresse ne contient pas déjà "Tataouine", l'ajouter
-  const normalizedAddress = address.toLowerCase();
-  if (!normalizedAddress.includes('tataouine') && !normalizedAddress.includes('تطاوين')) {
-    return geocodeAddress(`${address}, Tataouine, Tunisie`);
+  const normalizedAddress = address.toLowerCase().trim();
+  
+  // Si l'adresse est très courte (moins de 3 caractères), elle n'est probablement pas valide
+  if (normalizedAddress.length < 3) {
+    console.warn('[Geocoding] ⚠️ Adresse trop courte pour géocoder:', address);
+    return null;
   }
-  return geocodeAddress(address);
+  
+  // Construire l'adresse complète avec Tataouine si nécessaire
+  let fullAddress = address.trim();
+  if (!normalizedAddress.includes('tataouine') && !normalizedAddress.includes('تطاوين')) {
+    fullAddress = `${address}, Tataouine, Tunisie`;
+  }
+  
+  console.log('[Geocoding] 🔍 Tentative de géocodage:', { original: address, full: fullAddress });
+  
+  const result = await geocodeAddress(fullAddress);
+  
+  if (result) {
+    console.log('[Geocoding] ✅ Géocodage réussi:', {
+      address: result.displayName,
+      lat: result.lat,
+      lng: result.lng
+    });
+  } else {
+    console.warn('[Geocoding] ⚠️ Géocodage échoué pour:', fullAddress);
+    // Essayer une recherche plus large si la première tentative échoue
+    if (!normalizedAddress.includes('tataouine') && !normalizedAddress.includes('تطاوين')) {
+      console.log('[Geocoding] 🔄 Tentative avec recherche plus large...');
+      const broaderResult = await geocodeAddress(`Tataouine, ${address}, Tunisie`);
+      if (broaderResult) {
+        console.log('[Geocoding] ✅ Géocodage réussi avec recherche large:', broaderResult.displayName);
+        return broaderResult;
+      }
+    }
+  }
+  
+  return result;
 }

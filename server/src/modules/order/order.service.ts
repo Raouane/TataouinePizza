@@ -23,11 +23,29 @@ export class OrderService {
    * Crée une nouvelle commande avec validation complète
    */
   static async createOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
+    console.log(`[OrderService] 📥 Réception commande:`, {
+      restaurantId: input.restaurantId,
+      customerName: input.customerName,
+      phone: input.phone,
+      address: input.address,
+      customerLat: input.customerLat,
+      customerLng: input.customerLng,
+      hasCoords: !!(input.customerLat && input.customerLng),
+      itemsCount: input.items.length
+    });
+    
     // 1. Vérifier que le restaurant existe
     const restaurant = await storage.getRestaurantById(input.restaurantId);
     if (!restaurant) {
       throw new Error("Restaurant not found");
     }
+    
+    console.log(`[OrderService] 🏪 Restaurant trouvé:`, {
+      name: restaurant.name,
+      lat: restaurant.lat,
+      lng: restaurant.lng,
+      hasCoords: !!(restaurant.lat && restaurant.lng)
+    });
 
     // 2. Vérifier que le restaurant est ouvert
     if (!isRestaurantOpenNow(restaurant)) {

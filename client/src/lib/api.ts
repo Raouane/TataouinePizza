@@ -93,7 +93,11 @@ export async function createOrder(data: {
     restaurantId: data.restaurantId,
     itemsCount: data.items.length,
     customerName: data.customerName,
-    phone: data.phone
+    phone: data.phone,
+    address: data.address,
+    customerLat: data.customerLat,
+    customerLng: data.customerLng,
+    hasCoords: !!(data.customerLat && data.customerLng)
   });
   
   try {

@@ -17,7 +17,7 @@ import { AddressPicker } from "@/components/address-picker";
 import { toast as sonnerToast } from "sonner";
 import { isRestaurantOpen as checkNewOpeningHours, parseOpeningHoursSchedule, formatOpeningHours } from "@shared/openingHours";
 import { getRestaurantCloseReason } from "@/lib/restaurant-status";
-import { calculateDistance, calculateDeliveryFee, formatDistance, formatDeliveryTime, type Coordinates } from "@/lib/distance-utils";
+import { calculateDistance, calculateDeliveryFee, formatDistance, formatDeliveryTime, MAX_DELIVERY_FEE, type Coordinates } from "@/lib/distance-utils";
 import { useDynamicDeliveryFee } from "@/hooks/use-dynamic-delivery-fee";
 import { geocodeAddressInTataouine } from "@/lib/geocoding-utils";
 import { debounce } from "@/lib/debounce";
@@ -43,7 +43,9 @@ type SavedAddress = {
   isDefault?: boolean;
 };
 
-const DELIVERY_FEE_DEFAULT = 2.00; // Prix de livraison par défaut en TND
+import { MAX_DELIVERY_FEE } from '@/lib/distance-utils';
+
+const DELIVERY_FEE_DEFAULT = MAX_DELIVERY_FEE; // Prix de livraison maximum par défaut en TND
 
 export default function CartPage() {
   // Feature flags pour les méthodes de paiement (synchronisés avec Profile.tsx)
@@ -421,7 +423,24 @@ export default function CartPage() {
             window.dispatchEvent(new Event('onboarding-updated'));
           } else {
             console.warn('[Cart] ⚠️ Impossible de géocoder l\'adresse:', addressText);
-            console.warn('[Cart]    Les frais de livraison utiliseront le minimum (2.00 TND)');
+            console.warn('[Cart]    Zone non livrable - L\'utilisateur sera informé');
+            
+            // Informer le client que la zone n'est pas livrable
+            sonnerToast.error(
+              language === 'ar' 
+                ? "❌ هذه المنطقة غير قابلة للتوصيل حالياً"
+                : language === 'en'
+                ? "❌ This area is not yet deliverable"
+                : "❌ Cette zone n'est pas encore livrable",
+              {
+                description: language === 'ar'
+                  ? "💡 Utilisez 'Choisir sur la carte' pour sélectionner une adresse dans une zone livrable"
+                  : language === 'en'
+                  ? "💡 Use 'Choose on map' to select an address in a deliverable area"
+                  : "💡 Utilisez 'Choisir sur la carte' pour sélectionner une adresse dans une zone livrable",
+                duration: 6000,
+              }
+            );
           }
         } catch (error) {
           console.error('[Cart] ❌ Erreur lors du géocodage:', error);
@@ -468,8 +487,104 @@ export default function CartPage() {
       }
     }
     
+    // ✅ NOUVEAU : S'assurer que l'adresse est géocodée avant de créer la commande
+    let finalLat: number | null = null;
+    let finalLng: number | null = null;
+    
+    // Récupérer les coordonnées depuis onboarding (mises à jour par le géocodage)
+    const currentOnboarding = getOnboarding();
+    if (currentOnboarding?.lat && currentOnboarding?.lng) {
+      finalLat = typeof currentOnboarding.lat === 'number' ? currentOnboarding.lat : parseFloat(String(currentOnboarding.lat));
+      finalLng = typeof currentOnboarding.lng === 'number' ? currentOnboarding.lng : parseFloat(String(currentOnboarding.lng));
+      console.log('[Cart] 📍 Coordonnées trouvées dans onboarding:', { lat: finalLat, lng: finalLng });
+    } else if (mapCoords) {
+      // Fallback: utiliser mapCoords si disponibles
+      finalLat = mapCoords.lat;
+      finalLng = mapCoords.lng;
+      console.log('[Cart] 📍 Coordonnées trouvées dans mapCoords:', { lat: finalLat, lng: finalLng });
+    } else if (finalAddress && finalAddress.length >= 3) {
+      // Dernier recours: géocoder l'adresse maintenant si pas encore fait
+      console.log('[Cart] 🔍 Géocodage de dernière minute pour:', finalAddress);
+      console.log('[Cart]    Adresse complète à géocoder:', finalAddress);
+      try {
+        const geocodeResult = await geocodeAddressInTataouine(finalAddress);
+        if (geocodeResult) {
+          finalLat = geocodeResult.lat;
+          finalLng = geocodeResult.lng;
+          console.log('[Cart] ✅ Adresse géocodée au dernier moment:', { 
+            lat: finalLat, 
+            lng: finalLng,
+            displayName: geocodeResult.displayName
+          });
+          
+          // Mettre à jour onboarding pour les prochaines fois
+          const updatedOnboarding = {
+            ...(currentOnboarding || {}),
+            address: finalAddress,
+            lat: finalLat,
+            lng: finalLng,
+          };
+          localStorage.setItem('tp_onboarding', JSON.stringify(updatedOnboarding));
+          console.log('[Cart] ✅ Onboarding mis à jour avec coordonnées de dernière minute');
+          
+          // Forcer la mise à jour du hook de frais de livraison
+          window.dispatchEvent(new Event('onboarding-updated'));
+        } else {
+          console.warn('[Cart] ⚠️ Impossible de géocoder l\'adresse:', finalAddress);
+          console.warn('[Cart]    Zone non livrable - Commande bloquée');
+          
+          // Informer le client que la zone n'est pas livrable
+          sonnerToast.error(
+            language === 'ar'
+              ? "❌ هذه المنطقة غير قابلة للتوصيل حالياً"
+              : language === 'en'
+              ? "❌ This area is not yet deliverable"
+              : "❌ Cette zone n'est pas encore livrable",
+            {
+              description: language === 'ar'
+                ? "💡 Utilisez 'Choisir sur la carte' pour sélectionner une adresse dans une zone livrable"
+                : language === 'en'
+                ? "💡 Use 'Choose on map' to select an address in a deliverable area"
+                : "💡 Utilisez 'Choisir sur la carte' pour sélectionner une adresse dans une zone livrable",
+              duration: 8000,
+            }
+          );
+          
+          // Retourner sans créer la commande
+          return;
+        }
+      } catch (error) {
+        console.error('[Cart] ❌ Erreur lors du géocodage de dernière minute:', error);
+      }
+    }
+    
+    if (!finalLat || !finalLng) {
+      console.warn('[Cart] ⚠️ Pas de coordonnées GPS disponibles - Zone non livrable');
+      
+      // Empêcher la création de commande et informer le client
+      sonnerToast.error(
+        language === 'ar'
+          ? "❌ هذه المنطقة غير قابلة للتوصيل حالياً"
+          : language === 'en'
+          ? "❌ This area is not yet deliverable"
+          : "❌ Cette zone n'est pas encore livrable",
+        {
+          description: language === 'ar'
+            ? "💡 Utilisez 'Choisir sur la carte' pour sélectionner une adresse dans une zone livrable"
+            : language === 'en'
+            ? "💡 Use 'Choose on map' to select an address in a deliverable area"
+            : "💡 Utilisez 'Choisir sur la carte' pour sélectionner une adresse dans une zone livrable",
+          duration: 8000,
+        }
+      );
+      
+      // Retourner sans créer la commande
+      return;
+    }
+    
     // Créer une commande par restaurant
     console.log(`[Cart] Création de ${restaurants.length} commande(s)...`);
+    console.log(`[Cart] 📍 Coordonnées client à envoyer:`, { lat: finalLat, lng: finalLng });
     
     const orderPromises = restaurants.map(async (restaurantCart) => {
       const orderItems = restaurantCart.items.map(item => ({
@@ -480,20 +595,19 @@ export default function CartPage() {
       
       console.log(`[Cart] Commande pour ${restaurantCart.restaurantName || restaurantCart.restaurantId}:`, { 
         restaurantId: restaurantCart.restaurantId, 
-        itemsCount: orderItems.length 
+        itemsCount: orderItems.length,
+        customerLat: finalLat,
+        customerLng: finalLng,
       });
       
-      // ⚠️ VALIDATION GPS DÉSACTIVÉE TEMPORAIREMENT
-      // TODO: Réactiver la validation GPS côté client quand on réactive côté serveur
-      // Pour l'instant, on envoie les coordonnées telles quelles (ou null si absentes)
       return createOrder({
         restaurantId: restaurantCart.restaurantId,
         customerName: name.trim(),
         phone: phone.trim(),
         address: finalAddress,
         addressDetails: finalAddressDetails,
-        customerLat: onboarding?.lat ?? null, // Optionnel
-        customerLng: onboarding?.lng ?? null, // Optionnel
+        customerLat: finalLat,
+        customerLng: finalLng,
         items: orderItems,
       });
     });
@@ -1402,6 +1516,32 @@ export default function CartPage() {
                         <h4 className="font-semibold text-xs md:text-sm text-muted-foreground uppercase">
                             {language === 'ar' ? "معلومات العميل" : language === 'en' ? "Customer Information" : "Informations client"}
                         </h4>
+                        
+                        {/* Avertissement si coordonnées GPS manquantes */}
+                        {!hasCustomerCoords && (
+                            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-3">
+                                <div className="flex items-start gap-2">
+                                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                                    <div className="flex-1">
+                                        <p className="text-xs md:text-sm font-medium text-amber-800 dark:text-amber-200 mb-1">
+                                            {language === 'ar'
+                                                ? "⚠️ العنوان غير دقيق"
+                                                : language === 'en'
+                                                ? "⚠️ Address not precise"
+                                                : "⚠️ Adresse non précise"}
+                                        </p>
+                                        <p className="text-xs text-red-700 dark:text-red-300">
+                                            {language === 'ar'
+                                                ? "❌ هذه المنطقة غير قابلة للتوصيل حالياً. Veuillez utiliser 'Choisir sur la carte' pour sélectionner une adresse dans une zone livrable."
+                                                : language === 'en'
+                                                ? "❌ This area is not yet deliverable. Please use 'Choose on map' to select an address in a deliverable area."
+                                                : "❌ Cette zone n'est pas encore livrable. Veuillez utiliser 'Choisir sur la carte' pour sélectionner une adresse dans une zone livrable."}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        
                         <div className="space-y-2">
                             <div className="flex justify-between items-start gap-2">
                                 <span className="text-xs md:text-sm text-muted-foreground flex-shrink-0">
@@ -1499,6 +1639,17 @@ export default function CartPage() {
                                         <span className="text-[10px] text-muted-foreground mt-0.5">
                                           {formatDistance(distance)}
                                           {estimatedTime && ` • ${estimatedTime}-${estimatedTime + 5} min`}
+                                        </span>
+                                      );
+                                    }
+                                    if (!hasCustomerCoords) {
+                                      return (
+                                        <span className="text-[10px] text-red-600 dark:text-red-400 mt-0.5">
+                                          {language === 'ar'
+                                            ? "❌ Zone non livrable"
+                                            : language === 'en'
+                                            ? "❌ Area not deliverable"
+                                            : "❌ Zone non livrable"}
                                         </span>
                                       );
                                     }

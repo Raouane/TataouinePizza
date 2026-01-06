@@ -9,6 +9,7 @@ export {
   calculateDistance,
   calculateDeliveryFee,
   calculateDeliveryFeeFromCoords,
+  MAX_DELIVERY_FEE,
   type Coordinates,
 } from '@shared/distance-utils';
 
