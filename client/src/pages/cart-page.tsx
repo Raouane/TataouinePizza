@@ -1858,10 +1858,33 @@ export default function CartPage() {
                             >
                                 {language === 'ar' ? "تعديل" : language === 'en' ? "Modify" : "Modifier"}
                             </Button>
+                            {!hasCustomerCoords && (
+                                <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-lg p-3 mb-2">
+                                    <div className="flex items-start gap-2">
+                                        <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                                        <div className="flex-1">
+                                            <p className="text-xs md:text-sm font-medium text-red-800 dark:text-red-200">
+                                                {language === 'ar'
+                                                    ? "❌ هذه المنطقة غير قابلة للتوصيل"
+                                                    : language === 'en'
+                                                    ? "❌ This area is not yet deliverable"
+                                                    : "❌ Cette zone n'est pas encore livrable"}
+                                            </p>
+                                            <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+                                                {language === 'ar'
+                                                    ? "Veuillez utiliser 'Choisir sur la carte' pour sélectionner une adresse dans une zone livrable."
+                                                    : language === 'en'
+                                                    ? "Please use 'Choose on map' to select an address in a deliverable area."
+                                                    : "Veuillez utiliser 'Choisir sur la carte' pour sélectionner une adresse dans une zone livrable."}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             <Button 
                                 className="w-full h-11 md:h-12 text-sm md:text-base rounded-xl shadow-lg shadow-primary/20" 
                                 onClick={handleConfirmOrder}
-                                disabled={checkingActiveOrder || isProcessingPayment}
+                                disabled={checkingActiveOrder || isProcessingPayment || !hasCustomerCoords}
                             >
                                 {checkingActiveOrder ? (
                                   language === 'ar' ? "جارٍ التحقق..." : language === 'en' ? "Checking..." : "Vérification..."
