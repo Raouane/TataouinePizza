@@ -45,8 +45,11 @@ interface AddressPickerProps {
 const DEFAULT_CENTER: [number, number] = [32.9297, 10.4511];
 const DEFAULT_ZOOM = 15;
 
-// Composant de carte lazy loaded
+// Composant de carte lazy loaded avec chargement correct de React
 const MapComponent = lazy(async () => {
+  // S'assurer que React est chargé avant react-leaflet
+  await import("react");
+  await loadLeaflet(); // Charger Leaflet avant react-leaflet
   const reactLeaflet = await import("react-leaflet");
   const { MapContainer, TileLayer, Marker } = reactLeaflet;
 
@@ -131,9 +134,21 @@ export function AddressPicker({
         document.head.appendChild(link);
       });
 
-      // Charger le JS de Leaflet
-      loadLeaflet().then(() => {
+      // Charger le JS de Leaflet avec gestion d'erreur
+      Promise.all([
+        import("react"), // S'assurer que React est chargé
+        loadLeaflet()
+      ]).then(() => {
         setLeafletLoaded(true);
+      }).catch((error) => {
+        console.error('[AddressPicker] Erreur lors du chargement de Leaflet:', error);
+        toast.error(
+          language === 'ar'
+            ? "❌ خطأ في تحميل الخريطة"
+            : language === 'en'
+            ? "❌ Error loading map"
+            : "❌ Erreur lors du chargement de la carte"
+        );
       });
     }
   }, [open]);
