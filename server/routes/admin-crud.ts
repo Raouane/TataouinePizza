@@ -172,9 +172,24 @@ export function registerAdminCrudRoutes(app: Express): void {
         }
       }
       
+      // Calculer les frais de livraison dynamiques basés sur la distance GPS
+      const { calculateDeliveryFeeFromCoords, type Coordinates } = require("@shared/distance-utils");
+      const restaurantCoords: Coordinates | null = restaurant.lat && restaurant.lng
+        ? { lat: Number(restaurant.lat), lng: Number(restaurant.lng) }
+        : null;
+      
+      const customerCoords: Coordinates | null = data.customerLat && data.customerLng
+        ? { lat: Number(data.customerLat), lng: Number(data.customerLng) }
+        : null;
+      
+      const deliveryFee = calculateDeliveryFeeFromCoords(restaurantCoords, customerCoords);
+      console.log(`[ADMIN ORDER] 📍 Calcul frais de livraison:`);
+      console.log(`[ADMIN ORDER]    Restaurant: ${restaurant.name} (${restaurantCoords ? `${restaurantCoords.lat}, ${restaurantCoords.lng}` : 'pas de coordonnées'})`);
+      console.log(`[ADMIN ORDER]    Client: ${customerCoords ? `${customerCoords.lat}, ${customerCoords.lng}` : 'pas de coordonnées'}`);
+      console.log(`[ADMIN ORDER]    Frais calculés: ${deliveryFee} TND`);
+      
       // Pour les commandes spéciales, appliquer uniquement les frais de livraison
       // Pour les commandes normales, ajouter les frais de livraison
-      const deliveryFee = 2.0;
       totalPrice += deliveryFee;
       
       // Status initial pour commande manuelle : "accepted" (prête pour le restaurant)
@@ -377,6 +392,8 @@ export function registerAdminCrudRoutes(app: Express): void {
         minOrder: data.minOrder || "0",
         rating: data.rating || "4.5",
         orderType: data.orderType || "online",
+        lat: data.lat !== undefined ? (typeof data.lat === 'number' ? data.lat.toString() : data.lat) : undefined,
+        lng: data.lng !== undefined ? (typeof data.lng === 'number' ? data.lng.toString() : data.lng) : undefined,
       };
       
       // Ajouter le mot de passe hashé si fourni
@@ -499,6 +516,8 @@ export function registerAdminCrudRoutes(app: Express): void {
       if (updateData.deliveryTime !== undefined) finalUpdateData.deliveryTime = updateData.deliveryTime;
       if (updateData.minOrder !== undefined) finalUpdateData.minOrder = updateData.minOrder.toString();
       if (updateData.rating !== undefined) finalUpdateData.rating = updateData.rating.toString();
+      if (updateData.lat !== undefined) finalUpdateData.lat = typeof updateData.lat === 'number' ? updateData.lat.toString() : updateData.lat;
+      if (updateData.lng !== undefined) finalUpdateData.lng = typeof updateData.lng === 'number' ? updateData.lng.toString() : updateData.lng;
       
       // Gérer le mot de passe : hash si fourni et non vide
       if (updateData.password !== undefined && updateData.password.trim() !== "") {

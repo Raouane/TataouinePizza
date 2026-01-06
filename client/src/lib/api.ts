@@ -264,6 +264,8 @@ export interface Restaurant {
   deliveryTime?: number;
   minOrder?: string | number;
   rating?: string | number;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export async function getAdminRestaurants(token: string): Promise<Restaurant[]> {

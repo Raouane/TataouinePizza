@@ -1,3 +1,30 @@
+/**
+ * ============================================================================
+ * COMPOSANT PIZZA SEARCH RESULT - NAVIGATION VERS MENU AVEC PARAMÈTRES
+ * ============================================================================
+ * 
+ * Composant qui affiche un résultat de recherche de pizza et permet
+ * la navigation vers le menu du restaurant avec highlight du produit.
+ * 
+ * UTILISATION DE LA NAVIGATION:
+ * - Utilise <Link> de wouter pour navigation déclarative
+ * - Route avec paramètre: /menu/:restaurantId
+ * - Query string pour highlight: ?product=pizzaId
+ * - Format: /menu/{restaurantId}?product={pizzaId}
+ * 
+ * EXEMPLE DE NAVIGATION:
+ * - Clic sur une pizza → /menu/123?product=456
+ * - Le composant Menu lit restaurantId via useParams()
+ * - Le query string ?product=456 permet de scroller vers le produit
+ * 
+ * AVANTAGES:
+ * - Navigation sans rechargement de page (SPA)
+ * - URL partageable avec état (restaurant + produit)
+ * - Compatible avec le bouton retour du navigateur
+ * 
+ * ============================================================================
+ */
+
 import { Link } from "wouter";
 import { MapPin } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
@@ -29,6 +56,10 @@ export function PizzaSearchResult({ pizza, restaurant }: PizzaSearchResultProps)
   const price = parseFloat(defaultPrice?.price || "15");
 
   return (
+    // Navigation vers le menu avec paramètres de route et query string
+    // Format: /menu/:restaurantId?product=pizzaId
+    // - restaurantId: paramètre de route (accessible via useParams() dans Menu)
+    // - product: query string (accessible via window.location.search)
     <Link href={`/menu/${pizza.restaurantId}?product=${pizza.id}`} className="block">
       <div className="bg-white rounded-xl md:rounded-2xl shadow-sm hover:shadow-md transition-shadow active:scale-[0.98] cursor-pointer">
         <div className="flex gap-2 md:gap-4 p-3 md:p-4">

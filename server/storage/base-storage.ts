@@ -126,6 +126,8 @@ export abstract class BaseStorage {
       minOrder: row.min_order || "0",
       rating: row.rating || "4.5",
       orderType: row.order_type || "online",
+      lat: row.lat ? (typeof row.lat === 'string' ? parseFloat(row.lat) : row.lat) : null,
+      lng: row.lng ? (typeof row.lng === 'string' ? parseFloat(row.lng) : row.lng) : null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     } as Restaurant;

@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { playAddToCartSound } from '@/lib/sounds';
+import { calculateDeliveryFee, type Coordinates } from '@/lib/distance-utils';
+import { getOnboarding } from '@/pages/onboarding';
 
 export type Pizza = {
   id: string;
@@ -23,6 +25,8 @@ export type RestaurantCart = {
   items: CartItem[];
   subtotal: number;
   deliveryFee: number;
+  distance?: number; // Distance en km
+  restaurantCoords?: Coordinates; // Coordonnées du restaurant
 };
 
 type PendingItem = {
@@ -48,15 +52,44 @@ type CartContextType = {
   confirmAddNewRestaurant: () => void;
 };
 
-const DELIVERY_FEE = 2.00; // Prix de livraison fixe en TND
+const DELIVERY_FEE_DEFAULT = 2.00; // Frais de livraison par défaut en TND
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
+
+/**
+ * Calcule les frais de livraison pour un restaurant basé sur la distance
+ */
+function calculateRestaurantDeliveryFee(
+  restaurantCoords?: Coordinates,
+  customerCoords?: Coordinates
+): number {
+  if (!restaurantCoords || !customerCoords) {
+    return DELIVERY_FEE_DEFAULT;
+  }
+
+  // Importer calculateDistance ici pour éviter les dépendances circulaires
+  const { calculateDistance } = require('@/lib/distance-utils');
+  const distance = calculateDistance(restaurantCoords, customerCoords);
+  return calculateDeliveryFee(distance);
+}
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [restaurants, setRestaurants] = useState<RestaurantCart[]>([]);
   const [pendingItem, setPendingItem] = useState<PendingItem | null>(null);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const { toast } = useToast();
+
+  // Récupérer les coordonnées du client depuis l'onboarding
+  const customerCoords = useMemo(() => {
+    const onboarding = getOnboarding();
+    if (onboarding?.lat && onboarding?.lng) {
+      return {
+        lat: typeof onboarding.lat === 'number' ? onboarding.lat : parseFloat(onboarding.lat),
+        lng: typeof onboarding.lng === 'number' ? onboarding.lng : parseFloat(onboarding.lng),
+      };
+    }
+    return undefined;
+  }, []);
 
   const calculateSubtotal = (items: CartItem[]): number => {
     return items.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -128,12 +161,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
     
     // Premier restaurant → ajouter directement
+    // Note: Les coordonnées du restaurant seront ajoutées depuis cart-page.tsx
     const newRestaurantCart: RestaurantCart = {
       restaurantId: pizza.restaurantId,
       restaurantName: restaurantName || null,
       items: [{ ...pizza, quantity: 1, size }],
       subtotal: pizza.price,
-      deliveryFee: DELIVERY_FEE,
+      deliveryFee: DELIVERY_FEE_DEFAULT, // Sera recalculé dans cart-page.tsx avec les coordonnées
     };
 
     setRestaurants([newRestaurantCart]);
@@ -157,7 +191,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       restaurantName: pendingItem.restaurantName || null,
       items: [{ ...pendingItem.pizza, quantity: 1, size: pendingItem.size }],
       subtotal: pendingItem.pizza.price,
-      deliveryFee: DELIVERY_FEE,
+      deliveryFee: DELIVERY_FEE_DEFAULT, // Sera recalculé dans cart-page.tsx avec les coordonnées
     };
 
     setRestaurants((current) => [...current, newRestaurantCart]);

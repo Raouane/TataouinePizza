@@ -1,3 +1,29 @@
+/**
+ * ============================================================================
+ * COMPOSANT GLOBAL TRACKER WIDGET - NAVIGATION VERS SUIVI DE COMMANDE
+ * ============================================================================
+ * 
+ * Widget flottant qui affiche le suivi de commande en cours et permet
+ * la navigation vers la page de détails.
+ * 
+ * UTILISATION DE LA NAVIGATION:
+ * - Utilise useLocation() de wouter pour navigation programmatique
+ * - setLocation('/success') au clic sur le widget
+ * - Navigation vers la page de succès qui contient le suivi détaillé
+ * 
+ * FONCTIONNEMENT:
+ * 1. Affiche un widget compact avec ETA et statut
+ * 2. Au clic → navigation vers /success via setLocation()
+ * 3. La page /success affiche le suivi complet de la commande
+ * 
+ * INTÉGRATION:
+ * - Utilisé dans Layout.tsx, visible sur toutes les pages (sauf /success)
+ * - Position fixe en bas à droite (mobile et desktop)
+ * - Masqué automatiquement quand pas de commande active
+ * 
+ * ============================================================================
+ */
+
 import { useOrder } from "@/lib/order-context";
 import { useLanguage } from "@/lib/i18n";
 import { motion } from "framer-motion";
@@ -7,7 +33,7 @@ import { useLocation } from "wouter";
 export function GlobalTrackerWidget() {
   const { activeOrder, status, eta, orderData } = useOrder();
   const { t } = useLanguage();
-  const [, setLocation] = useLocation();
+  const [, setLocation] = useLocation(); // Hook wouter pour navigation programmatique
 
   // Debug logs pour production
   if (activeOrder) {
@@ -58,7 +84,7 @@ export function GlobalTrackerWidget() {
     >
       <motion.div
         className="bg-orange-600 text-white rounded-full shadow-lg px-3 py-1.5 cursor-pointer flex items-center gap-2 hover:bg-orange-700 transition-colors w-auto max-w-[200px]"
-        onClick={() => setLocation('/success')}
+        onClick={() => setLocation('/success')} // Navigation programmatique vers la page de succès via wouter
         whileTap={{ scale: 0.98 }}
         whileHover={{ scale: 1.02 }}
       >

@@ -5,6 +5,16 @@ import { useLanguage } from "@/lib/i18n";
 import { getOnboarding, saveOnboarding } from "@/pages/onboarding";
 import type { OnboardingData } from "@/pages/onboarding";
 
+export interface ReverseGeocodeResult {
+  fullAddress: string;
+  street: string;
+  city: string;
+  country: string;
+  displayName: string;
+  houseNumber?: string;
+  postcode?: string;
+}
+
 interface UseOnboardingState {
   name: string;
   phone: string;
@@ -20,6 +30,77 @@ const initialState: UseOnboardingState = {
   addressDetails: "",
   coords: null,
 };
+
+// Fonction utilitaire exportée pour le géocodage inverse complet
+// Peut être utilisée en dehors du hook
+export async function reverseGeocodeFull(lat: number, lng: number): Promise<ReverseGeocodeResult | null> {
+  try {
+    // Utiliser l'API Nominatim d'OpenStreetMap (gratuite)
+    // Ajouter un délai pour respecter la politique d'utilisation (1 requête/seconde)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      {
+        headers: {
+          'User-Agent': 'TataouinePizza/1.0', // Requis par Nominatim
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      console.error('[Geocoding] Erreur HTTP:', response.status, response.statusText);
+      return null;
+    }
+    
+    const data = await response.json();
+    
+    if (!data || !data.address) {
+      return null;
+    }
+    
+    const addr = data.address;
+    
+    // Construire l'adresse complète
+    const streetParts: string[] = [];
+    if (addr.house_number) streetParts.push(addr.house_number);
+    if (addr.road) streetParts.push(addr.road);
+    const street = streetParts.join(' ') || addr.street || '';
+    
+    const city = addr.city || 
+                 addr.town || 
+                 addr.village || 
+                 addr.municipality ||
+                 addr.county ||
+                 '';
+    
+    const country = addr.country || '';
+    const postcode = addr.postcode || '';
+    
+    // Construire l'adresse complète formatée
+    const fullAddressParts: string[] = [];
+    if (street) fullAddressParts.push(street);
+    if (city) fullAddressParts.push(city);
+    if (postcode) fullAddressParts.push(postcode);
+    if (country) fullAddressParts.push(country);
+    
+    const fullAddress = fullAddressParts.join(', ') || data.display_name || '';
+    const displayName = data.display_name || fullAddress;
+    
+    return {
+      fullAddress,
+      street,
+      city,
+      country,
+      displayName,
+      houseNumber: addr.house_number,
+      postcode: postcode || undefined,
+    };
+  } catch (error) {
+    console.error('[Geocoding] Erreur:', error);
+    return null;
+  }
+}
 
 export function useOnboarding() {
   const { language } = useLanguage();
@@ -113,7 +194,7 @@ export function useOnboarding() {
     return true;
   }, []);
 
-  // Géocodage inverse : convertir lat/lng en nom de ville
+  // Géocodage inverse : convertir lat/lng en nom de ville (fonction existante conservée pour compatibilité)
   const reverseGeocode = useCallback(async (lat: number, lng: number): Promise<string | null> => {
     try {
       // Utiliser l'API Nominatim d'OpenStreetMap (gratuite)
@@ -146,6 +227,9 @@ export function useOnboarding() {
       return null;
     }
   }, []);
+
+  // Version interne du hook (utilise la fonction exportée)
+  const reverseGeocodeFullInternal = useCallback(reverseGeocodeFull, []);
 
   // Obtenir la géolocalisation et convertir en nom de ville
   const getLocation = useCallback((): Promise<{ lat: number; lng: number } | null> => {
@@ -189,12 +273,38 @@ export function useOnboarding() {
           setLoading(false);
           resolve(coords);
         },
-        () => {
-          const msg = t(
-            "Impossible de récupérer votre position.",
-            "Unable to retrieve your location.",
-            "تعذر الحصول على موقعك.",
-          );
+        (error) => {
+          let msg: string;
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              msg = t(
+                "Permission de géolocalisation refusée. Veuillez autoriser l'accès à votre position.",
+                "Geolocation permission denied. Please allow access to your location.",
+                "تم رفض إذن تحديد الموقع الجغرافي. يرجى السماح بالوصول إلى موقعك.",
+              );
+              break;
+            case error.POSITION_UNAVAILABLE:
+              msg = t(
+                "Position indisponible. Vérifiez votre connexion GPS.",
+                "Position unavailable. Check your GPS connection.",
+                "الموقع غير متاح. تحقق من اتصال GPS الخاص بك.",
+              );
+              break;
+            case error.TIMEOUT:
+              msg = t(
+                "Délai d'attente dépassé. Veuillez réessayer.",
+                "Request timeout. Please try again.",
+                "انتهت مهلة الطلب. يرجى المحاولة مرة أخرى.",
+              );
+              break;
+            default:
+              msg = t(
+                "Impossible de récupérer votre position.",
+                "Unable to retrieve your location.",
+                "تعذر الحصول على موقعك.",
+              );
+              break;
+          }
           setError(msg);
           setLoading(false);
           resolve(null);
@@ -202,6 +312,7 @@ export function useOnboarding() {
         {
           enableHighAccuracy: true,
           timeout: 10000,
+          maximumAge: 0, // Forcer une nouvelle position, ne pas utiliser le cache
         },
       );
     });
@@ -254,6 +365,7 @@ export function useOnboarding() {
     sendOtpCode,
     verifyOtpCode,
     getLocation,
+    reverseGeocodeFull: reverseGeocodeFullInternal,
     save,
     updateField,
   };

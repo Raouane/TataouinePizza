@@ -17,7 +17,7 @@ export class RestaurantStorage extends BaseStorage {
         SELECT id, name, phone, address, description, image_url, 
                COALESCE(categories::text, NULL) as categories,
                is_open::text as is_open_text, opening_hours, delivery_time, 
-               min_order, rating, order_type, created_at, updated_at 
+               min_order, rating, order_type, lat, lng, created_at, updated_at 
         FROM restaurants ORDER BY name
       `);
       
@@ -52,7 +52,7 @@ export class RestaurantStorage extends BaseStorage {
       const rawResult = await db.execute(sql`
         SELECT id, name, phone, password, address, description, image_url, categories, 
                is_open::text as is_open_text, opening_hours, delivery_time, 
-               min_order, rating, order_type, created_at, updated_at 
+               min_order, rating, order_type, lat, lng, created_at, updated_at 
         FROM restaurants WHERE id = ${id}
       `);
       
@@ -80,7 +80,7 @@ export class RestaurantStorage extends BaseStorage {
       let rawResult = await db.execute(sql`
         SELECT id, name, phone, password, address, description, image_url, categories, 
                is_open::text as is_open_text, opening_hours, delivery_time, 
-               min_order, rating, order_type, created_at, updated_at 
+               min_order, rating, order_type, lat, lng, created_at, updated_at 
         FROM restaurants WHERE phone = ${phone}
       `);
       
@@ -96,7 +96,7 @@ export class RestaurantStorage extends BaseStorage {
         rawResult = await db.execute(sql`
           SELECT id, name, phone, password, address, description, image_url, categories, 
                  is_open::text as is_open_text, opening_hours, delivery_time, 
-                 min_order, rating, order_type, created_at, updated_at 
+                 min_order, rating, order_type, lat, lng, created_at, updated_at 
           FROM restaurants WHERE phone = ${phoneWithoutPrefix}
         `);
         console.log("[STORAGE] 📊 Résultat tentative 2:", {
@@ -112,7 +112,7 @@ export class RestaurantStorage extends BaseStorage {
         rawResult = await db.execute(sql`
           SELECT id, name, phone, password, address, description, image_url, categories, 
                  is_open::text as is_open_text, opening_hours, delivery_time, 
-                 min_order, rating, order_type, created_at, updated_at 
+                 min_order, rating, order_type, lat, lng, created_at, updated_at 
           FROM restaurants WHERE phone = ${phoneWithPrefix}
         `);
         console.log("[STORAGE] 📊 Résultat tentative 3:", {
@@ -214,6 +214,8 @@ export class RestaurantStorage extends BaseStorage {
     if (data.deliveryTime !== undefined) updateData.deliveryTime = data.deliveryTime;
     if (data.minOrder !== undefined) updateData.minOrder = data.minOrder;
     if (data.rating !== undefined) updateData.rating = data.rating;
+    if (data.lat !== undefined) updateData.lat = typeof data.lat === 'string' ? data.lat : data.lat?.toString();
+    if (data.lng !== undefined) updateData.lng = typeof data.lng === 'string' ? data.lng : data.lng?.toString();
     
     // Mettre à jour isOpen AVANT la mise à jour Drizzle pour éviter les conflits
     if (isOpenValue !== undefined) {

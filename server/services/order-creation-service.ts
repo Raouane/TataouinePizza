@@ -17,6 +17,7 @@ import { isRestaurantOpenNow } from "../utils/restaurant-status";
 import { notifyDriversOfNewOrder } from "../websocket";
 import { sendN8nWebhook } from "../webhooks/n8n-webhook";
 import { parseGpsCoordinates } from "../utils/gps-utils";
+import { calculateDeliveryFeeFromCoords, type Coordinates } from "@shared/distance-utils";
 import type { PizzaPrice } from "@shared/schema";
 import type { InsertOrder } from "@shared/schema";
 
@@ -49,7 +50,6 @@ export interface OrderItemDetail {
 }
 
 export class OrderCreationService {
-  private static readonly DELIVERY_FEE = 2.0;
   private static readonly DUPLICATE_WINDOW_SECONDS = 10;
 
   /**
@@ -76,23 +76,43 @@ export class OrderCreationService {
       );
     }
 
-    // 3. Valider et calculer le prix total
-    const { totalPrice, orderItemsDetails, orderItemsData } = await this.validateAndCalculatePrice(
+    // 3. Valider et calculer le prix total (sans frais de livraison)
+    const { totalPrice: subtotal, orderItemsDetails, orderItemsData } = await this.validateAndCalculatePrice(
       input.restaurantId,
       input.items
     );
 
-    // 4. Déterminer le statut initial
+    // 4. Calculer les frais de livraison dynamiques basés sur la distance GPS
+    const restaurantCoords: Coordinates | null = restaurant.lat && restaurant.lng
+      ? { lat: Number(restaurant.lat), lng: Number(restaurant.lng) }
+      : null;
+    
+    const customerCoords: Coordinates | null = input.customerLat && input.customerLng
+      ? { lat: Number(input.customerLat), lng: Number(input.customerLng) }
+      : null;
+    
+    const deliveryFee = calculateDeliveryFeeFromCoords(restaurantCoords, customerCoords);
+    console.log(`[OrderCreationService] 📍 Calcul frais de livraison:`);
+    console.log(`[OrderCreationService]    Restaurant: ${restaurant.name} (${restaurantCoords ? `${restaurantCoords.lat}, ${restaurantCoords.lng}` : 'pas de coordonnées'})`);
+    console.log(`[OrderCreationService]    Client: ${customerCoords ? `${customerCoords.lat}, ${customerCoords.lng}` : 'pas de coordonnées'}`);
+    console.log(`[OrderCreationService]    Frais calculés: ${deliveryFee} TND`);
+    
+    const totalPrice = subtotal + deliveryFee;
+
+    // 5. Déterminer le statut initial
     const initialStatus = this.getInitialStatus();
     
     console.log(`\n[OrderCreationService] 🆕 ========================================`);
     console.log(`[OrderCreationService] 🆕 CRÉATION D'UNE NOUVELLE COMMANDE`);
     console.log(`[OrderCreationService]    Restaurant ID: ${input.restaurantId}`);
     console.log(`[OrderCreationService]    Client: ${input.customerName} (${input.phone})`);
+    console.log(`[OrderCreationService]    Sous-total: ${subtotal} TND`);
+    console.log(`[OrderCreationService]    Frais de livraison: ${deliveryFee} TND`);
+    console.log(`[OrderCreationService]    Total: ${totalPrice} TND`);
     console.log(`[OrderCreationService]    Statut initial déterminé: ${initialStatus}`);
     console.log(`[OrderCreationService]    ⚠️ Le statut devrait être "accepted" ou "ready", JAMAIS "delivered"`);
 
-    // 5. Convertir les coordonnées GPS
+    // 6. Convertir les coordonnées GPS
     const gpsCoords = parseGpsCoordinates({
       customerLat: input.customerLat,
       customerLng: input.customerLng,
@@ -254,8 +274,8 @@ export class OrderCreationService {
       });
     }
 
-    // Ajouter les frais de livraison
-    totalPrice += this.DELIVERY_FEE;
+    // Note: Les frais de livraison sont calculés séparément dans createOrder()
+    // pour avoir accès aux coordonnées GPS du restaurant et du client
 
     return {
       totalPrice: Number(totalPrice.toFixed(2)),

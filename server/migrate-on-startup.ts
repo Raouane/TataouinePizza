@@ -100,6 +100,28 @@ export async function runMigrationsOnStartup() {
     `);
     console.log("[DB] ✅ Colonne order_type vérifiée");
     
+    // Ajouter les colonnes lat et lng si elles n'existent pas
+    await db.execute(sql`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'restaurants' AND column_name = 'lat'
+        ) THEN
+          ALTER TABLE restaurants ADD COLUMN lat NUMERIC(10, 7);
+          RAISE NOTICE 'Colonne lat ajoutée à restaurants';
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'restaurants' AND column_name = 'lng'
+        ) THEN
+          ALTER TABLE restaurants ADD COLUMN lng NUMERIC(10, 7);
+          RAISE NOTICE 'Colonne lng ajoutée à restaurants';
+        END IF;
+      END $$;
+    `);
+    console.log("[DB] ✅ Colonnes lat et lng vérifiées pour restaurants");
+    
     // Ajouter la colonne categories si elle n'existe pas et migrer category vers categories
     await db.execute(sql`
       DO $$ 

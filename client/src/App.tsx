@@ -1,3 +1,102 @@
+/**
+ * ============================================================================
+ * SYSTÈME DE NAVIGATION DE LA PWA - TATAOUINE PIZZA
+ * ============================================================================
+ * 
+ * Ce fichier contient le système de routage principal de l'application PWA.
+ * 
+ * BIBLIOTHÈQUE DE ROUTAGE UTILISÉE: Wouter
+ * - Wouter est une bibliothèque de routage légère pour React (alternative à React Router)
+ * - Documentation: https://github.com/molefrog/wouter
+ * - Avantages: Plus léger que React Router, API simple, compatible avec les PWA
+ * 
+ * ARCHITECTURE DE NAVIGATION:
+ * 
+ * 1. ROUTES PUBLIQUES (sans Layout):
+ *    - /onboarding : Page d'onboarding pour nouveaux utilisateurs
+ *    - /admin : Redirection automatique vers /admin/login ou /admin/dashboard
+ *    - /admin/login : Connexion administrateur
+ *    - /admin/dashboard : Tableau de bord administrateur
+ *    - /driver/login : Connexion livreur
+ *    - /driver/auto-login : Connexion automatique livreur (via lien externe)
+ *    - /driver/dashboard : Tableau de bord livreur
+ *    - /restaurant/login : Connexion restaurant
+ *    - /restaurant/dashboard : Tableau de bord restaurant
+ * 
+ * 2. ROUTES PROTÉGÉES (avec Layout - barre de navigation):
+ *    - / : Page d'accueil (Home)
+ *    - /menu : Redirection vers / (MenuRedirect)
+ *    - /menu/:restaurantId : Menu d'un restaurant spécifique
+ *    - /cart : Page du panier
+ *    - /success : Page de succès de commande
+ *    - /history : Historique des commandes
+ *    - /profile : Profil utilisateur
+ * 
+ * 3. PROTECTION PAR ONBOARDING:
+ *    - Toutes les routes protégées vérifient si l'utilisateur a complété l'onboarding
+ *    - Si non complété → redirection vers /onboarding
+ *    - L'onboarding peut être désactivé via la variable d'environnement ENABLE_ONBOARDING
+ * 
+ * 4. COMPOSANTS DE NAVIGATION:
+ *    - Layout: Fournit la barre de navigation (header + bottom nav mobile)
+ *    - ScrollToTop: Scroll automatique en haut lors des changements de route
+ *    - MenuRedirect: Redirige /menu vers /
+ *    - AdminRedirect: Redirige /admin selon l'état d'authentification
+ * 
+ * UTILISATION DE LA NAVIGATION DANS L'APPLICATION:
+ * 
+ * A. Navigation déclarative (liens):
+ *    - Utiliser le composant <Link href="/path"> de wouter
+ *    - Exemple: <Link href="/cart">Panier</Link>
+ *    - Utilisé dans: Layout, composants de navigation, cartes de produits
+ * 
+ * B. Navigation programmatique (redirections):
+ *    - Utiliser le hook useLocation() de wouter
+ *    - const [, setLocation] = useLocation();
+ *    - setLocation("/path"); pour naviguer
+ *    - Utilisé dans: Formulaires, redirections après actions, authentification
+ * 
+ * C. Lecture de la route actuelle:
+ *    - const [location] = useLocation();
+ *    - Utilisé pour: Détecter la page active, conditionner l'affichage
+ * 
+ * D. Paramètres de route:
+ *    - Utiliser useParams() de wouter pour /menu/:restaurantId
+ *    - const { restaurantId } = useParams();
+ * 
+ * EXEMPLES D'UTILISATION DANS LE CODEBASE:
+ * 
+ * 1. Layout (client/src/components/layout.tsx):
+ *    - Navigation principale avec <Link> pour les liens
+ *    - useLocation() pour détecter la page active et styler les liens
+ *    - Navigation mobile en bas d'écran
+ * 
+ * 2. Pages (ex: cart-page.tsx, order-success.tsx):
+ *    - setLocation("/success") après validation de commande
+ *    - setLocation("/menu") pour retour au menu
+ * 
+ * 3. Authentification (admin-login.tsx, driver-login.tsx):
+ *    - setLocation("/admin/dashboard") après connexion réussie
+ *    - Redirection selon l'état d'authentification
+ * 
+ * 4. Composants (pizza-search-result.tsx):
+ *    - <Link href={`/menu/${restaurantId}?product=${productId}`}>
+ *    - Navigation avec paramètres de route et query strings
+ * 
+ * 5. Global Tracker (global-tracker.tsx):
+ *    - setLocation('/success') au clic sur le widget de suivi
+ * 
+ * NOTES IMPORTANTES:
+ * 
+ * - Wouter utilise le History API du navigateur (pas de rechargement de page)
+ * - Compatible avec les PWA (fonctionne hors ligne si configuré)
+ * - Les routes sont gérées côté client (SPA - Single Page Application)
+ * - Le manifest.json définit start_url: "/" pour l'installation PWA
+ * - Les shortcuts PWA pointent vers /history pour accès rapide
+ * 
+ * ============================================================================
+ */
+
 import { useEffect, useState } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
@@ -29,11 +128,24 @@ import OnboardingPage, { getOnboarding } from "@/pages/onboarding";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { isOnboardingEnabled, shouldSkipOnboarding } from "@/lib/onboarding-config";
 
+/**
+ * Hook personnalisé pour vérifier l'état de l'onboarding avec réactivité
+ * 
+ * UTILISATION DE LA NAVIGATION:
+ * - Utilise useLocation() de wouter pour détecter la route actuelle
+ * - Évite les redirections infinies en vérifiant si on est déjà sur /onboarding
+ * - Écoute les changements du localStorage pour synchroniser entre onglets
+ * 
+ * LOGIQUE:
+ * - Si onboarding désactivé → retourne toujours true (accès direct)
+ * - Si sur /onboarding → retourne false (évite les redirections)
+ * - Sinon → vérifie localStorage pour l'état d'onboarding
+ */
 // Hook pour vérifier l'onboarding avec réactivité
 // ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG
 function useOnboarding() {
   const onboardingEnabled = isOnboardingEnabled();
-  const [location] = useLocation();
+  const [location] = useLocation(); // Lecture de la route actuelle via wouter
   
   // Si l'onboarding est désactivé, toujours retourner true (accès direct)
   // MAIS ne pas rediriger si on est déjà sur /onboarding
@@ -98,38 +210,92 @@ function useOnboarding() {
   return isOnboarded;
 }
 
+/**
+ * Composant de redirection pour la route /menu
+ * 
+ * NAVIGATION:
+ * - Utilise setLocation() de wouter pour rediriger programmatiquement
+ * - Redirige automatiquement /menu vers / (page d'accueil)
+ * - Utilisé car /menu sans restaurantId n'a pas de sens
+ */
 function MenuRedirect() {
-  const [, setLocation] = useLocation();
+  const [, setLocation] = useLocation(); // Hook wouter pour navigation programmatique
   useEffect(() => {
-    setLocation("/");
+    setLocation("/"); // Redirection vers la page d'accueil
   }, [setLocation]);
   return null;
 }
 
+/**
+ * Composant de redirection intelligente pour /admin
+ * 
+ * NAVIGATION CONDITIONNELLE:
+ * - Utilise setLocation() de wouter pour rediriger selon l'état d'authentification
+ * - Si token présent → redirige vers /admin/dashboard
+ * - Si pas de token → redirige vers /admin/login
+ * - Évite d'avoir une page vide sur /admin
+ */
 function AdminRedirect() {
-  const [, setLocation] = useLocation();
+  const [, setLocation] = useLocation(); // Hook wouter pour navigation programmatique
   const token = localStorage.getItem("adminToken");
   
   useEffect(() => {
     if (token) {
-      setLocation("/admin/dashboard");
+      setLocation("/admin/dashboard"); // Navigation vers dashboard si authentifié
     } else {
-      setLocation("/admin/login");
+      setLocation("/admin/login"); // Navigation vers login si non authentifié
     }
   }, [token, setLocation]);
   
   return null;
 }
 
+/**
+ * Composant Router principal - Définit toutes les routes de l'application
+ * 
+ * ARCHITECTURE DE ROUTAGE AVEC WOUTER:
+ * 
+ * 1. <Switch>: Composant wouter qui rend la première route correspondante
+ * 2. <Route path="...">: Définit une route avec son chemin
+ * 3. Routes imbriquées: Les routes protégées sont dans un <Layout>
+ * 
+ * STRUCTURE:
+ * 
+ * Routes publiques (sans Layout):
+ * - Routes d'authentification et d'administration
+ * - Accessibles sans barre de navigation
+ * 
+ * Routes protégées (avec Layout):
+ * - Routes utilisateur avec barre de navigation
+ * - Protection par onboarding (redirection si non complété)
+ * - Layout fournit: Header, Bottom Nav (mobile), Footer
+ * 
+ * PROTECTION PAR ONBOARDING:
+ * - Toutes les routes protégées vérifient isOnboarded
+ * - Si false → affiche OnboardingPage
+ * - Si true → affiche le composant de la route
+ * 
+ * PARAMÈTRES DE ROUTE:
+ * - /menu/:restaurantId utilise useParams() dans le composant Menu
+ * - Les query strings (?product=123) sont accessibles via window.location.search
+ */
 function Router() {
-  const isOnboarded = useOnboarding();
+  const isOnboarded = useOnboarding(); // Vérifie l'état d'onboarding
 
   return (
     <Switch>
+      {/* ============================================
+          ROUTES PUBLIQUES (sans Layout)
+          ============================================ */}
+      
       {/* Route onboarding toujours accessible (même si désactivé, pour accès manuel) */}
       {/* ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG */}
       <Route path="/onboarding" component={OnboardingPage} />
+      
+      {/* Redirection intelligente /admin → /admin/login ou /admin/dashboard */}
       <Route path="/admin" component={AdminRedirect} />
+      
+      {/* Routes d'authentification et administration */}
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
       <Route path="/driver/login" component={DriverLogin} />
@@ -137,47 +303,67 @@ function Router() {
       <Route path="/driver/dashboard" component={DriverDashboard} />
       <Route path="/restaurant/login" component={RestaurantLogin} />
       <Route path="/restaurant/dashboard" component={RestaurantDashboard} />
+      
+      {/* ============================================
+          ROUTES PROTÉGÉES (avec Layout)
+          ============================================ */}
       <Route>
         <Layout>
           <Switch>
             {/* ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG */}
             {/* Si onboarding désactivé, isOnboarded = true → accès direct à Home */}
+            
+            {/* Route racine - Page d'accueil */}
             <Route
               path="/"
               component={() => (isOnboarded ? <Home /> : <OnboardingPage />)}
             />
+            
+            {/* Route /menu sans restaurantId → redirection vers / */}
             <Route
               path="/menu"
               component={() => (isOnboarded ? <MenuRedirect /> : <OnboardingPage />)}
             />
+            
+            {/* Route menu avec paramètre restaurantId (ex: /menu/123) */}
             <Route
               path="/menu/:restaurantId"
               component={() => (isOnboarded ? <Menu /> : <OnboardingPage />)}
             />
+            
+            {/* Page panier */}
             <Route
               path="/cart"
               component={() =>
                 isOnboarded ? <CartPage /> : <OnboardingPage />
               }
             />
+            
+            {/* Page de succès de commande */}
             <Route
               path="/success"
               component={() =>
                 isOnboarded ? <OrderSuccess /> : <OnboardingPage />
               }
             />
+            
+            {/* Historique des commandes */}
             <Route
               path="/history"
               component={() =>
                 isOnboarded ? <OrderHistory /> : <OnboardingPage />
               }
             />
+            
+            {/* Profil utilisateur */}
             <Route
               path="/profile"
               component={() =>
                 isOnboarded ? <Profile /> : <OnboardingPage />
               }
             />
+            
+            {/* Route 404 - Page non trouvée (doit être en dernier) */}
             <Route component={NotFound} />
           </Switch>
         </Layout>

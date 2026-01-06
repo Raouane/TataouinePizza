@@ -43,6 +43,8 @@ export const restaurants = pgTable("restaurants", {
   minOrder: numeric("min_order", { precision: 10, scale: 2 }).default("0"),
   rating: numeric("rating", { precision: 2, scale: 1 }).default("4.5"),
   orderType: text("order_type"), // "online" (default), "phone_call", "coming_soon"
+  lat: numeric("lat", { precision: 10, scale: 7 }), // Coordonnées GPS latitude
+  lng: numeric("lng", { precision: 10, scale: 7 }), // Coordonnées GPS longitude
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

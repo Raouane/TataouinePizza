@@ -16,6 +16,8 @@ export interface Restaurant {
   deliveryTime?: number;
   rating?: string;
   reviewCount?: number;
+  lat?: number | null;
+  lng?: number | null;
   computedStatus?: {
     isOpen: boolean;
     reason?: 'toggle' | 'hours' | 'closedDay';

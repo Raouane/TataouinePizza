@@ -61,6 +61,8 @@ export function registerRestaurantsRoutes(app: Express): void {
           deliveryTime: restaurant.deliveryTime || 30,
           minOrder: restaurant.minOrder || "0",
           rating: restaurant.rating || "4.5",
+          lat: restaurant.lat ? (typeof restaurant.lat === 'number' ? restaurant.lat : parseFloat(String(restaurant.lat))) : null,
+          lng: restaurant.lng ? (typeof restaurant.lng === 'number' ? restaurant.lng : parseFloat(String(restaurant.lng))) : null,
           createdAt: restaurant.createdAt,
           updatedAt: restaurant.updatedAt,
           computedStatus: status

@@ -7,14 +7,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Trash2, Plus, Minus, ArrowRight, MapPin, Phone, CheckCircle2, ChevronLeft, User, Store, AlertTriangle, Star, CreditCard, Banknote } from "lucide-react";
+import { Trash2, Plus, Minus, ArrowRight, MapPin, Phone, CheckCircle2, ChevronLeft, User, Store, AlertTriangle, Star, CreditCard, Banknote, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "@/lib/i18n";
 import { getOnboarding } from "@/pages/onboarding";
+import { AddressPicker } from "@/components/address-picker";
+import { toast as sonnerToast } from "sonner";
 import { isRestaurantOpen as checkNewOpeningHours, parseOpeningHoursSchedule, formatOpeningHours } from "@shared/openingHours";
 import { getRestaurantCloseReason } from "@/lib/restaurant-status";
+import { calculateDistance, calculateDeliveryFee, formatDistance, formatDeliveryTime, type Coordinates } from "@/lib/distance-utils";
+import { useDynamicDeliveryFee } from "@/hooks/use-dynamic-delivery-fee";
+import { geocodeAddressInTataouine } from "@/lib/geocoding-utils";
+import { debounce } from "@/lib/debounce";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,7 +43,7 @@ type SavedAddress = {
   isDefault?: boolean;
 };
 
-const DELIVERY_FEE = 2.00; // Prix de livraison fixe en TND
+const DELIVERY_FEE_DEFAULT = 2.00; // Prix de livraison par défaut en TND
 
 export default function CartPage() {
   // Feature flags pour les méthodes de paiement (synchronisés avec Profile.tsx)
@@ -45,11 +51,14 @@ export default function CartPage() {
   const stripeEnabled = false; // Paiement international (EUR/USD) - DÉSACTIVÉ
   const flouciEnabled = false; // Paiement local tunisien (TND) - DÉSACTIVÉ
 
-  const { restaurants, removeItem, updateQuantity, total, clearCart, clearRestaurant } = useCart();
+  const { restaurants, removeItem, updateQuantity, total: cartTotal, clearCart, clearRestaurant } = useCart();
   const { startOrder, activeOrder, orderId } = useOrder();
   // ✅ FIX : Utiliser useMemo pour stabiliser onboarding et éviter les boucles infinies
   const onboarding = useMemo(() => getOnboarding(), []);
   const hasPhoneFromOnboarding = !!onboarding?.phone;
+  
+  // Hook pour calculer les frais de livraison dynamiques
+  const { getDeliveryFee, getDistance, getDeliveryInfo, loading: loadingDeliveryFee, hasCustomerCoords } = useDynamicDeliveryFee();
   const [step, setStep] = useState<Step>("cart");
   const [phone, setPhone] = useState(onboarding?.phone || "");
   const [name, setName] = useState(onboarding?.name || "");
@@ -70,6 +79,11 @@ export default function CartPage() {
   const [addressDetails, setAddressDetails] = useState(onboarding?.addressDetails || "");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [showAddressPicker, setShowAddressPicker] = useState(false);
+  const [mapCoords, setMapCoords] = useState<{ lat: number; lng: number } | null>(
+    onboarding?.lat && onboarding?.lng ? { lat: onboarding.lat, lng: onboarding.lng } : null
+  );
+  const [isGeocodingAddress, setIsGeocodingAddress] = useState(false);
 
   // ✅ MODIFIÉ : Charger uniquement name et phone, nettoyer les anciennes clés
   useEffect(() => {
@@ -218,8 +232,20 @@ export default function CartPage() {
     checkActiveOrders();
   }, [phone]);
 
-  // Total global (déjà calculé dans le contexte)
-  const totalWithDelivery = total;
+  // Calculer le total avec les frais de livraison dynamiques
+  const totalWithDelivery = useMemo(() => {
+    let subtotal = 0;
+    let deliveryFees = 0;
+    
+    restaurants.forEach((restaurant) => {
+      subtotal += restaurant.subtotal;
+      // Utiliser les frais dynamiques si disponibles, sinon les frais par défaut du panier
+      const dynamicFee = getDeliveryFee(restaurant.restaurantId);
+      deliveryFees += dynamicFee;
+    });
+    
+    return subtotal + deliveryFees;
+  }, [restaurants, getDeliveryFee]);
   
   // Calculer le nombre total d'items
   const totalItems = restaurants.reduce((sum, r) => sum + r.items.length, 0);
@@ -360,6 +386,52 @@ export default function CartPage() {
     return limitedAddresses;
   };
 
+  // Géocodage automatique de l'adresse saisie manuellement (avec debounce)
+  const debouncedGeocode = useMemo(
+    () =>
+      debounce(async (addressText: string) => {
+        if (!addressText || addressText.length < 5) {
+          return;
+        }
+
+        setIsGeocodingAddress(true);
+        try {
+          console.log('[Cart] 🔍 Géocodage de l\'adresse:', addressText);
+          const result = await geocodeAddressInTataouine(addressText);
+          if (result) {
+            console.log('[Cart] ✅ Adresse géocodée avec succès:');
+            console.log('[Cart]    Nom complet:', result.displayName);
+            console.log('[Cart]    Coordonnées:', result.lat, result.lng);
+            console.log('[Cart]    Adresse:', result.address);
+            
+            setMapCoords({ lat: result.lat, lng: result.lng });
+            // Mettre à jour l'onboarding avec les nouvelles coordonnées
+            const currentOnboarding = getOnboarding();
+            const updatedOnboarding = {
+              ...(currentOnboarding || {}),
+              address: addressText,
+              lat: result.lat,
+              lng: result.lng,
+            };
+            localStorage.setItem('tp_onboarding', JSON.stringify(updatedOnboarding));
+            console.log('[Cart] ✅ Onboarding mis à jour avec les nouvelles coordonnées');
+            
+            // Forcer la mise à jour du hook de frais de livraison
+            // En déclenchant un événement personnalisé
+            window.dispatchEvent(new Event('onboarding-updated'));
+          } else {
+            console.warn('[Cart] ⚠️ Impossible de géocoder l\'adresse:', addressText);
+            console.warn('[Cart]    Les frais de livraison utiliseront le minimum (2.00 TND)');
+          }
+        } catch (error) {
+          console.error('[Cart] ❌ Erreur lors du géocodage:', error);
+        } finally {
+          setIsGeocodingAddress(false);
+        }
+      }, 1500), // Attendre 1.5 secondes après la dernière frappe
+    [onboarding]
+  );
+
   // ✅ NOUVEAU : Handler pour gérer la saisie manuelle d'adresse
   const handleAddressInputChange = (value: string) => {
     setAddress(value);
@@ -371,6 +443,11 @@ export default function CartPage() {
       if (selectedAddr && selectedAddr.street.trim().toLowerCase() !== value.trim().toLowerCase()) {
         setSelectedAddressId(null);
       }
+    }
+    
+    // Déclencher le géocodage automatique
+    if (value.trim().length >= 5) {
+      debouncedGeocode(value.trim());
     }
   };
 
@@ -1011,11 +1088,11 @@ export default function CartPage() {
                               </div>
                               <div className="flex justify-between text-sm">
                                 <span className="text-gray-600">{t('cart.deliveryFee')}</span>
-                                <span className="font-medium">{restaurantCart.deliveryFee.toFixed(2)} {t('common.currency')}</span>
+                                <span className="font-medium">{restaurantCart.deliveryFee.toFixed(3)} {t('common.currency')}</span>
                               </div>
                               <div className="flex justify-between font-bold pt-2 border-t">
                                 <span>{t('cart.restaurantTotal')}</span>
-                                <span className="text-orange-500">{(restaurantCart.subtotal + restaurantCart.deliveryFee).toFixed(2)} {t('common.currency')}</span>
+                                <span className="text-orange-500">{(restaurantCart.subtotal + restaurantCart.deliveryFee).toFixed(3)} {t('common.currency')}</span>
                               </div>
                             </div>
                           </div>
@@ -1218,19 +1295,38 @@ export default function CartPage() {
                     {/* Champ adresse principal */}
                     <div className="space-y-3 md:space-y-4">
                         <div className="space-y-2">
-                            <Label className="text-sm md:text-base">
-                              {savedAddresses.length > 0 
-                                ? (language === 'ar' ? "أو إدخال عنوان جديد" : language === 'en' ? "Or enter a new address" : "Ou saisir une nouvelle adresse")
-                                : t('cart.address.street')
-                              }
-                            </Label>
-                            <Input 
-                                placeholder={t('cart.address.street.ph')}
-                                value={address}
-                                onChange={(e) => handleAddressInputChange(e.target.value)}
-                                autoFocus={savedAddresses.length === 0}
-                                className="text-sm md:text-base"
-                            />
+                            <div className="flex items-center justify-between">
+                                <Label className="text-sm md:text-base">
+                                  {savedAddresses.length > 0 
+                                    ? (language === 'ar' ? "أو إدخال عنوان جديد" : language === 'en' ? "Or enter a new address" : "Ou saisir une nouvelle adresse")
+                                    : t('cart.address.street')
+                                  }
+                                </Label>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setShowAddressPicker(true)}
+                                  className="text-xs"
+                                >
+                                  <MapPin className={`h-3 w-3 ${isRtl ? 'ml-1' : 'mr-1'}`} />
+                                  {language === 'ar' ? "اختر على الخريطة" : language === 'en' ? "Choose on map" : "Choisir sur la carte"}
+                                </Button>
+                            </div>
+                            <div className="relative">
+                                <Input 
+                                    placeholder={t('cart.address.street.ph')}
+                                    value={address}
+                                    onChange={(e) => handleAddressInputChange(e.target.value)}
+                                    autoFocus={savedAddresses.length === 0}
+                                    className={isGeocodingAddress ? "pr-10" : ""}
+                                />
+                                {isGeocodingAddress && (
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                    </div>
+                                )}
+                            </div>
                         </div>
                         <div className="space-y-2">
                             <Label className="text-sm md:text-base">{t('cart.address.details')}</Label>
@@ -1242,6 +1338,44 @@ export default function CartPage() {
                             />
                         </div>
                     </div>
+
+                    {/* Modal AddressPicker */}
+                    <AddressPicker
+                        open={showAddressPicker}
+                        onOpenChange={setShowAddressPicker}
+                        initialCoords={mapCoords}
+                        onAddressSelected={(selectedAddress) => {
+                            // Mettre à jour l'adresse avec les données de la carte
+                            setAddress(selectedAddress.fullAddress || selectedAddress.street);
+                            setAddressDetails(
+                                selectedAddress.street && selectedAddress.city
+                                    ? `${selectedAddress.street}, ${selectedAddress.city}`
+                                    : selectedAddress.fullAddress
+                            );
+                            // Sauvegarder les coordonnées
+                            setMapCoords(selectedAddress.coords);
+                            // Optionnellement, sauvegarder dans onboarding
+                            if (onboarding) {
+                                const updatedOnboarding = {
+                                    ...onboarding,
+                                    address: selectedAddress.fullAddress || selectedAddress.street,
+                                    addressDetails: selectedAddress.street && selectedAddress.city
+                                        ? `${selectedAddress.street}, ${selectedAddress.city}`
+                                        : selectedAddress.fullAddress,
+                                    lat: selectedAddress.coords.lat,
+                                    lng: selectedAddress.coords.lng,
+                                };
+                                localStorage.setItem('tp_onboarding', JSON.stringify(updatedOnboarding));
+                            }
+                            sonnerToast.success(
+                                language === 'ar'
+                                    ? "تم تحديث العنوان من الخريطة"
+                                    : language === 'en'
+                                    ? "Address updated from map"
+                                    : "Adresse mise à jour depuis la carte"
+                            );
+                        }}
+                    />
                 </motion.div>
             )}
 
@@ -1354,12 +1488,40 @@ export default function CartPage() {
                                 <span className="font-medium">{restaurantCart.subtotal.toFixed(2)} {t('common.currency')}</span>
                               </div>
                               <div className="flex justify-between items-center text-xs md:text-sm">
-                                <span className="text-muted-foreground">{t('cart.deliveryFee')}</span>
-                                <span className="font-medium">{restaurantCart.deliveryFee.toFixed(2)} {t('common.currency')}</span>
+                                <div className="flex flex-col">
+                                  <span className="text-muted-foreground">{t('cart.deliveryFee')}</span>
+                                  {(() => {
+                                    const distance = getDistance(restaurantCart.restaurantId);
+                                    const deliveryInfo = getDeliveryInfo(restaurantCart.restaurantId);
+                                    if (distance !== undefined && hasCustomerCoords) {
+                                      const estimatedTime = deliveryInfo ? Math.ceil(15 + (distance / 30) * 60) : undefined;
+                                      return (
+                                        <span className="text-[10px] text-muted-foreground mt-0.5">
+                                          {formatDistance(distance)}
+                                          {estimatedTime && ` • ${estimatedTime}-${estimatedTime + 5} min`}
+                                        </span>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                </div>
+                                <span className="font-medium">
+                                  {loadingDeliveryFee ? (
+                                    <span className="text-muted-foreground">...</span>
+                                  ) : (
+                                    `${getDeliveryFee(restaurantCart.restaurantId).toFixed(3)} ${t('common.currency')}`
+                                  )}
+                                </span>
                               </div>
                               <div className="flex justify-between items-center font-bold pt-1 border-t">
                                 <span className="text-sm">{t('cart.restaurantTotal')}</span>
-                                <span className="text-orange-500">{(restaurantCart.subtotal + restaurantCart.deliveryFee).toFixed(2)} {t('common.currency')}</span>
+                                <span className="text-orange-500">
+                                  {loadingDeliveryFee ? (
+                                    <span className="text-muted-foreground">...</span>
+                                  ) : (
+                                    `${(restaurantCart.subtotal + getDeliveryFee(restaurantCart.restaurantId)).toFixed(3)} ${t('common.currency')}`
+                                  )}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -1496,22 +1658,16 @@ export default function CartPage() {
 
                     {/* Total global */}
                     <div className="border-t pt-3 md:pt-4 space-y-2">
-                        <div className="flex justify-between items-center text-base md:text-lg font-bold">
-                            <span>
-                                {language === 'ar' ? "المجموع الكلي" : language === 'en' ? "Total" : "Total"}
-                            </span>
-                            <span className="text-primary">{totalWithDelivery.toFixed(2)} {t('common.currency')}</span>
-                        </div>
                         {restaurants.length > 1 && (
-                          <p className="text-xs text-muted-foreground mt-2">
+                          <p className="text-xs text-muted-foreground mb-2">
                             {t('cart.multiRestaurant.totalNote')}
                           </p>
                         )}
-                        <div className="flex justify-between items-center pt-2 border-t">
+                        <div className="flex justify-between items-center pt-2">
                             <span className="text-base md:text-lg font-semibold">
                                 {language === 'ar' ? "المجموع الكلي" : language === 'en' ? "Total" : "Total"}
                             </span>
-                            <span className="text-xl md:text-2xl font-bold text-primary">{totalWithDelivery.toFixed(2)} {t('common.currency')}</span>
+                            <span className="text-xl md:text-2xl font-bold text-primary">{totalWithDelivery.toFixed(3)} {t('common.currency')}</span>
                         </div>
                     </div>
                 </motion.div>
@@ -1526,7 +1682,7 @@ export default function CartPage() {
                     <>
                         <div className="flex justify-between items-center mb-3 md:mb-4">
                             <span className="text-sm md:text-base text-muted-foreground">{t('cart.total')}</span>
-                            <span className="text-xl md:text-2xl font-bold font-serif">{total.toFixed(2)} TND</span>
+                            <span className="text-xl md:text-2xl font-bold font-serif">{totalWithDelivery.toFixed(3)} {t('common.currency')}</span>
                         </div>
                         <Button 
                             className="w-full h-11 md:h-12 text-base md:text-lg rounded-xl shadow-lg shadow-primary/20" 
@@ -1541,7 +1697,7 @@ export default function CartPage() {
                     <div className="space-y-3">
                         <div className="flex justify-between items-center">
                             <span className="text-sm md:text-base text-muted-foreground">{t('cart.total')}</span>
-                            <span className="text-xl md:text-2xl font-bold font-serif">{totalWithDelivery.toFixed(2)} {t('common.currency')}</span>
+                            <span className="text-xl md:text-2xl font-bold font-serif">{totalWithDelivery.toFixed(3)} {t('common.currency')}</span>
                         </div>
                         <div className="flex flex-col gap-2 md:gap-3">
                             <Button 

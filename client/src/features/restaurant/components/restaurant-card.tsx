@@ -1,11 +1,13 @@
 import { Link } from "wouter";
-import { Star, Bike } from "lucide-react";
+import { Star, Bike, MapPin } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { ImageWithFallback } from "@/components/image-with-fallback";
 import { parseRestaurantCategories } from "@/lib/restaurant-helpers";
 import { getRestaurantCloseReason, parseOpeningHours } from "@/lib/restaurant-status";
 import { isRestaurantOpen as checkNewOpeningHours, parseOpeningHoursSchedule, formatOpeningHours, getMinutesUntilOpening, getMinutesUntilClosing } from "@shared/openingHours";
 import { useMemo } from "react";
+import { calculateDistance, calculateDeliveryFee, formatDistance } from "@/lib/distance-utils";
+import { getOnboarding } from "@/pages/onboarding";
 import type { Restaurant } from "../restaurant.types";
 
 interface RestaurantCardProps {
@@ -63,6 +65,29 @@ export function RestaurantCard({ restaurant, getCategoryLabel }: RestaurantCardP
     if (!isActuallyOpen || isTemporarilyClosed || !schedule) return null;
     return getMinutesUntilClosing(schedule);
   }, [schedule, isActuallyOpen, isTemporarilyClosed]);
+  
+  // Calculer la distance et les frais de livraison si les coordonnées sont disponibles
+  const distanceInfo = useMemo(() => {
+    const onboarding = getOnboarding();
+    if (!onboarding?.lat || !onboarding?.lng || !restaurant.lat || !restaurant.lng) {
+      return null;
+    }
+    
+    const customerCoords = {
+      lat: typeof onboarding.lat === 'number' ? onboarding.lat : parseFloat(String(onboarding.lat)),
+      lng: typeof onboarding.lng === 'number' ? onboarding.lng : parseFloat(String(onboarding.lng)),
+    };
+    
+    const restaurantCoords = {
+      lat: typeof restaurant.lat === 'number' ? restaurant.lat : parseFloat(String(restaurant.lat)),
+      lng: typeof restaurant.lng === 'number' ? restaurant.lng : parseFloat(String(restaurant.lng)),
+    };
+    
+    const distance = calculateDistance(restaurantCoords, customerCoords);
+    const deliveryFee = calculateDeliveryFee(distance);
+    
+    return { distance, deliveryFee };
+  }, [restaurant.lat, restaurant.lng]);
   
   // Déterminer le badge et sa couleur
   const badgeConfig = useMemo(() => {
@@ -251,10 +276,20 @@ export function RestaurantCard({ restaurant, getCategoryLabel }: RestaurantCardP
             </div>
           )}
           
-          {/* Delivery Price */}
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <Bike className="w-4 h-4" />
-            <span className="font-medium">2.5 {t('common.currency')}</span>
+          {/* Delivery Price and Distance */}
+          <div className="flex items-center justify-between text-sm text-gray-700">
+            <div className="flex items-center gap-2">
+              <Bike className="w-4 h-4" />
+              <span className="font-medium">
+                {distanceInfo ? `${distanceInfo.deliveryFee.toFixed(3)} ${t('common.currency')}` : `2.000 ${t('common.currency')}`}
+              </span>
+            </div>
+            {distanceInfo && (
+              <div className="flex items-center gap-1 text-xs text-gray-500">
+                <MapPin className="w-3 h-3" />
+                <span>{formatDistance(distanceInfo.distance)}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

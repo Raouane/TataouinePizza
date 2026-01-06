@@ -8,6 +8,7 @@ import { OrderService as LegacyOrderService } from "../../../services/order-serv
 import { storage } from "../../../storage";
 import { isRestaurantOpenNow } from "../../../utils/restaurant-status";
 import { sendN8nWebhook } from "../../../webhooks/n8n-webhook";
+import { calculateDeliveryFeeFromCoords, type Coordinates } from "@shared/distance-utils";
 import type { 
   CreateOrderInput, 
   CreateOrderResult, 
@@ -74,8 +75,21 @@ export class OrderService {
       });
     }
 
-    // 5. Ajouter les frais de livraison
-    const deliveryFee = 2.0;
+    // 5. Calculer les frais de livraison dynamiques basés sur la distance GPS
+    const restaurantCoords: Coordinates | null = restaurant.lat && restaurant.lng
+      ? { lat: Number(restaurant.lat), lng: Number(restaurant.lng) }
+      : null;
+    
+    const customerCoords: Coordinates | null = input.customerLat && input.customerLng
+      ? { lat: Number(input.customerLat), lng: Number(input.customerLng) }
+      : null;
+    
+    const deliveryFee = calculateDeliveryFeeFromCoords(restaurantCoords, customerCoords);
+    console.log(`[OrderService] 📍 Calcul frais de livraison:`);
+    console.log(`[OrderService]    Restaurant: ${restaurant.name} (${restaurantCoords ? `${restaurantCoords.lat}, ${restaurantCoords.lng}` : 'pas de coordonnées'})`);
+    console.log(`[OrderService]    Client: ${customerCoords ? `${customerCoords.lat}, ${customerCoords.lng}` : 'pas de coordonnées'}`);
+    console.log(`[OrderService]    Frais calculés: ${deliveryFee} TND`);
+    
     totalPrice += deliveryFee;
 
     // 6. Déterminer le statut initial
