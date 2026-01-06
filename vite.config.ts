@@ -43,6 +43,26 @@ export default defineConfig({
     emptyOutDir: true,
     // S'assurer que les fichiers publics sont copiés
     copyPublicDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          // Séparer Leaflet dans son propre chunk (chargé uniquement quand nécessaire)
+          if (id.includes("leaflet") || id.includes("react-leaflet")) {
+            return "leaflet";
+          }
+          // Séparer les dépendances UI lourdes
+          if (id.includes("node_modules")) {
+            // Séparer les grandes bibliothèques
+            if (id.includes("@radix-ui") || id.includes("framer-motion")) {
+              return "ui-libs";
+            }
+            // Autres dépendances node_modules
+            return "vendor";
+          }
+        },
+      },
+    },
+    chunkSizeWarningLimit: 1000, // Augmenter la limite à 1MB pour éviter les warnings
   },
   server: {
     host: "0.0.0.0",

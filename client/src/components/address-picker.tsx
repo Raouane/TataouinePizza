@@ -112,9 +112,26 @@ export function AddressPicker({
   const [geocoding, setGeocoding] = useState(false);
   const [leafletLoaded, setLeafletLoaded] = useState(false);
 
-  // Charger Leaflet au montage
+  // Charger Leaflet et son CSS dynamiquement quand le modal s'ouvre
   useEffect(() => {
     if (open) {
+      let cssLoaded = false;
+      
+      // Charger le CSS de Leaflet dynamiquement via import
+      import("leaflet/dist/leaflet.css").then(() => {
+        cssLoaded = true;
+      }).catch((err) => {
+        console.warn("[AddressPicker] Erreur chargement CSS Leaflet:", err);
+        // Fallback: charger depuis CDN si l'import échoue
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        link.integrity = "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=";
+        link.crossOrigin = "";
+        document.head.appendChild(link);
+      });
+
+      // Charger le JS de Leaflet
       loadLeaflet().then(() => {
         setLeafletLoaded(true);
       });

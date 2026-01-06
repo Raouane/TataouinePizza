@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "leaflet/dist/leaflet.css";
+/* Leaflet CSS chargé dynamiquement dans address-picker.tsx */
 
 @custom-variant dark (&:is(.dark *));
 
