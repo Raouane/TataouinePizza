@@ -12,33 +12,19 @@ import { useLanguage } from "@/lib/i18n";
 import { reverseGeocodeFull, type ReverseGeocodeResult } from "@/hooks/use-onboarding";
 import { toast } from "sonner";
 
-// Import dynamique de L (pour les icônes Leaflet)
-let L: any = null;
-let ReactLeaflet: any = null;
+// ✅ IMPORT STATIQUE pour garantir que React est dans le même contexte
+// Cela augmente le bundle initial mais garantit la compatibilité avec React 19
+import L from "leaflet";
+import { MapContainer, TileLayer, Marker } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 
-const loadLeaflet = async () => {
-  if (!L) {
-    L = await import("leaflet");
-    // Fix pour les icônes Leaflet en production
-    delete (L as any).Icon.Default.prototype._getIconUrl;
-    L.Icon.Default.mergeOptions({
-      iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
-      iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
-      shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
-    });
-  }
-  return L;
-};
-
-const loadReactLeaflet = async () => {
-  if (!ReactLeaflet) {
-    // Charger React d'abord pour s'assurer qu'il est disponible
-    await import("react");
-    await loadLeaflet();
-    ReactLeaflet = await import("react-leaflet");
-  }
-  return ReactLeaflet;
-};
+// Fix pour les icônes Leaflet en production
+delete (L as any).Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
+  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
+});
 
 interface AddressPickerProps {
   open: boolean;
@@ -57,7 +43,7 @@ interface AddressPickerProps {
 const DEFAULT_CENTER: [number, number] = [32.9297, 10.4511];
 const DEFAULT_ZOOM = 15;
 
-// Composant de carte chargé dynamiquement (sans lazy pour éviter les problèmes avec React 19)
+// Composant de carte avec imports statiques (garantit la compatibilité React 19)
 interface MapComponentProps {
   center: [number, number];
   zoom: number;
@@ -67,30 +53,6 @@ interface MapComponentProps {
 }
 
 const MapComponent = ({ center, zoom, onMarkerDragEnd, markerPosition, onMapClick }: MapComponentProps) => {
-  const [MapContainer, setMapContainer] = useState<any>(null);
-  const [TileLayer, setTileLayer] = useState<any>(null);
-  const [Marker, setMarker] = useState<any>(null);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    loadReactLeaflet().then((reactLeaflet) => {
-      setMapContainer(() => reactLeaflet.MapContainer);
-      setTileLayer(() => reactLeaflet.TileLayer);
-      setMarker(() => reactLeaflet.Marker);
-      setLoaded(true);
-    }).catch((error) => {
-      console.error('[MapComponent] Erreur chargement react-leaflet:', error);
-    });
-  }, []);
-
-  if (!loaded || !MapContainer || !TileLayer || !Marker) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
   const handleMapClick = (e: any) => {
     onMapClick(e.latlng.lat, e.latlng.lng);
   };
@@ -135,45 +97,6 @@ export function AddressPicker({
   const [address, setAddress] = useState<ReverseGeocodeResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
-  const [leafletLoaded, setLeafletLoaded] = useState(false);
-
-  // Charger Leaflet et son CSS dynamiquement quand le modal s'ouvre
-  useEffect(() => {
-    if (open) {
-      let cssLoaded = false;
-      
-      // Charger le CSS de Leaflet dynamiquement via import
-      import("leaflet/dist/leaflet.css").then(() => {
-        cssLoaded = true;
-      }).catch((err) => {
-        console.warn("[AddressPicker] Erreur chargement CSS Leaflet:", err);
-        // Fallback: charger depuis CDN si l'import échoue
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-        link.integrity = "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=";
-        link.crossOrigin = "";
-        document.head.appendChild(link);
-      });
-
-      // Charger le JS de Leaflet avec gestion d'erreur
-      Promise.all([
-        import("react"), // S'assurer que React est chargé
-        loadLeaflet()
-      ]).then(() => {
-        setLeafletLoaded(true);
-      }).catch((error) => {
-        console.error('[AddressPicker] Erreur lors du chargement de Leaflet:', error);
-        toast.error(
-          language === 'ar'
-            ? "❌ خطأ في تحميل الخريطة"
-            : language === 'en'
-            ? "❌ Error loading map"
-            : "❌ Erreur lors du chargement de la carte"
-        );
-      });
-    }
-  }, [open]);
 
   // Initialiser la position du marqueur
   useEffect(() => {
@@ -277,6 +200,17 @@ export function AddressPicker({
     []
   );
 
+  // Gérer le clic sur la carte
+  const handleMapClick = useCallback(
+    (lat: number, lng: number) => {
+      const newPosition: [number, number] = [lat, lng];
+      setMarkerPosition(newPosition);
+      setMapCenter(newPosition);
+      handleGeocode(lat, lng);
+    },
+    [handleGeocode]
+  );
+
   // Gérer le déplacement du marqueur avec debounce
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const handleMarkerDragEnd = useCallback(
@@ -375,19 +309,13 @@ export function AddressPicker({
 
           {/* Carte Leaflet */}
           <div className="relative w-full h-[400px] rounded-lg overflow-hidden border">
-            {!leafletLoaded ? (
-              <div className="flex items-center justify-center h-full">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              <MapComponent
-                center={mapCenter}
-                zoom={DEFAULT_ZOOM}
-                onMarkerDragEnd={handleMarkerDragEnd}
-                markerPosition={markerPosition}
-                onMapClick={handleMapClick}
-              />
-            )}
+            <MapComponent
+              center={mapCenter}
+              zoom={DEFAULT_ZOOM}
+              onMarkerDragEnd={handleMarkerDragEnd}
+              markerPosition={markerPosition}
+              onMapClick={handleMapClick}
+            />
           </div>
 
           {/* Affichage de l'adresse */}
