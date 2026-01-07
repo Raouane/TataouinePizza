@@ -3,7 +3,7 @@
 
 // Cache basique pour assets statiques (PRIORITÉ 3 - Cache Minimum)
 // ⚠️ INCREMENTER cette version pour forcer le rechargement après correction Leaflet/React
-const CACHE_NAME = 'tataouine-pizza-v2';
+const CACHE_NAME = 'tataouine-pizza-v3';
 const STATIC_ASSETS = [
   // Ne pas inclure '/' ou '/index.html' pour éviter le cache des hash
   '/driver',
