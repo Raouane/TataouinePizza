@@ -235,19 +235,22 @@ export default function CartPage() {
   }, [phone]);
 
   // Calculer le total avec les frais de livraison dynamiques
+  // ⚠️ À l'étape "cart", ne pas inclure les frais de livraison (ils seront calculés après la sélection de l'adresse)
   const totalWithDelivery = useMemo(() => {
     let subtotal = 0;
     let deliveryFees = 0;
     
     restaurants.forEach((restaurant) => {
       subtotal += restaurant.subtotal;
-      // Utiliser les frais dynamiques si disponibles, sinon les frais par défaut du panier
-      const dynamicFee = getDeliveryFee(restaurant.restaurantId);
-      deliveryFees += dynamicFee;
+      // Ne calculer les frais de livraison qu'après l'étape cart (quand l'adresse est sélectionnée)
+      if (step !== "cart") {
+        const dynamicFee = getDeliveryFee(restaurant.restaurantId);
+        deliveryFees += dynamicFee;
+      }
     });
     
     return subtotal + deliveryFees;
-  }, [restaurants, getDeliveryFee]);
+  }, [restaurants, getDeliveryFee, step]);
   
   // Calculer le nombre total d'items
   const totalItems = restaurants.reduce((sum, r) => sum + r.items.length, 0);
@@ -1200,14 +1203,26 @@ export default function CartPage() {
                                 <span className="text-gray-600">{t('cart.subtotal')}</span>
                                 <span className="font-medium">{restaurantCart.subtotal.toFixed(2)} {t('common.currency')}</span>
                               </div>
-                              <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">{t('cart.deliveryFee')}</span>
-                                <span className="font-medium">{restaurantCart.deliveryFee.toFixed(3)} {t('common.currency')}</span>
-                              </div>
-                              <div className="flex justify-between font-bold pt-2 border-t">
-                                <span>{t('cart.restaurantTotal')}</span>
-                                <span className="text-orange-500">{(restaurantCart.subtotal + restaurantCart.deliveryFee).toFixed(3)} {t('common.currency')}</span>
-                              </div>
+                              {/* Ne pas afficher les frais de livraison à l'étape cart - ils seront calculés après la sélection de l'adresse */}
+                              {step !== "cart" && (
+                                <>
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-gray-600">{t('cart.deliveryFee')}</span>
+                                    <span className="font-medium">{restaurantCart.deliveryFee.toFixed(3)} {t('common.currency')}</span>
+                                  </div>
+                                  <div className="flex justify-between font-bold pt-2 border-t">
+                                    <span>{t('cart.restaurantTotal')}</span>
+                                    <span className="text-orange-500">{(restaurantCart.subtotal + restaurantCart.deliveryFee).toFixed(3)} {t('common.currency')}</span>
+                                  </div>
+                                </>
+                              )}
+                              {/* À l'étape cart, afficher uniquement le sous-total comme total */}
+                              {step === "cart" && (
+                                <div className="flex justify-between font-bold pt-2 border-t">
+                                  <span>{t('cart.subtotal')}</span>
+                                  <span className="text-orange-500">{restaurantCart.subtotal.toFixed(2)} {t('common.currency')}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -1816,7 +1831,10 @@ export default function CartPage() {
                         )}
                         <div className="flex justify-between items-center pt-2">
                             <span className="text-base md:text-lg font-semibold">
-                                {language === 'ar' ? "المجموع الكلي" : language === 'en' ? "Total" : "Total"}
+                                {step === "cart" 
+                                  ? (language === 'ar' ? "المجموع الفرعي" : language === 'en' ? "Subtotal" : "Sous-total")
+                                  : (language === 'ar' ? "المجموع الكلي" : language === 'en' ? "Total" : "Total")
+                                }
                             </span>
                             <span className="text-xl md:text-2xl font-bold text-primary">{totalWithDelivery.toFixed(3)} {t('common.currency')}</span>
                         </div>
@@ -1832,7 +1850,12 @@ export default function CartPage() {
                 {step !== "summary" && (
                     <>
                         <div className="flex justify-between items-center mb-3 md:mb-4">
-                            <span className="text-sm md:text-base text-muted-foreground">{t('cart.total')}</span>
+                            <span className="text-sm md:text-base text-muted-foreground">
+                                {step === "cart" 
+                                  ? (language === 'ar' ? "المجموع الفرعي" : language === 'en' ? "Subtotal" : "Sous-total")
+                                  : t('cart.total')
+                                }
+                            </span>
                             <span className="text-xl md:text-2xl font-bold font-serif">{totalWithDelivery.toFixed(3)} {t('common.currency')}</span>
                         </div>
                         <Button 
