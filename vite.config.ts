@@ -28,9 +28,18 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+      // Force la résolution vers une seule instance physique de React
+      // CRUCIAL pour éviter que react-leaflet crée sa propre bulle isolée
+      "react": path.resolve(import.meta.dirname, "node_modules/react"),
+      "react-dom": path.resolve(import.meta.dirname, "node_modules/react-dom"),
+      "react-leaflet": path.resolve(import.meta.dirname, "node_modules/react-leaflet"),
     },
     // Forcer la déduplication de React pour éviter les conflits avec react-leaflet
     dedupe: ["react", "react-dom"],
+  },
+  // Empêche Vite de pré-optimiser Leaflet de façon isolée
+  optimizeDeps: {
+    include: ["react", "react-dom", "react-leaflet", "leaflet"],
   },
   css: {
     postcss: {
