@@ -380,21 +380,13 @@ export function AddressPicker({
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
             ) : (
-              <Suspense
-                fallback={
-                  <div className="flex items-center justify-center h-full">
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  </div>
-                }
-              >
-                <MapComponent
-                  center={mapCenter}
-                  zoom={DEFAULT_ZOOM}
-                  onMarkerDragEnd={handleMarkerDragEnd}
-                  markerPosition={markerPosition}
-                  onMapClick={handleMarkerDragEnd}
-                />
-              </Suspense>
+              <MapComponent
+                center={mapCenter}
+                zoom={DEFAULT_ZOOM}
+                onMarkerDragEnd={handleMarkerDragEnd}
+                markerPosition={markerPosition}
+                onMapClick={handleMapClick}
+              />
             )}
           </div>
 
