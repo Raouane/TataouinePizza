@@ -57,17 +57,22 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
-          // Séparer Leaflet dans son propre chunk (chargé uniquement quand nécessaire)
-          if (id.includes("leaflet") || id.includes("react-leaflet")) {
-            return "leaflet";
+          // ⚠️ NE PAS séparer react-leaflet dans un chunk isolé
+          // Cela cause l'erreur createContext car React n'est pas dans le même contexte
+          // react-leaflet doit rester avec React dans le bundle principal ou vendor
+          
+          // Séparer uniquement leaflet pur (sans react-leaflet) si nécessaire
+          if (id.includes("node_modules/leaflet") && !id.includes("react-leaflet")) {
+            return "leaflet-core";
           }
+          
           // Séparer les dépendances UI lourdes
           if (id.includes("node_modules")) {
             // Séparer les grandes bibliothèques
             if (id.includes("@radix-ui") || id.includes("framer-motion")) {
               return "ui-libs";
             }
-            // Autres dépendances node_modules
+            // react-leaflet et autres dépendances restent dans vendor (avec React)
             return "vendor";
           }
         },
