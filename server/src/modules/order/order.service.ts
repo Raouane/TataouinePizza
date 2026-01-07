@@ -8,7 +8,7 @@ import { OrderService as LegacyOrderService } from "../../../services/order-serv
 import { storage } from "../../../storage";
 import { isRestaurantOpenNow } from "../../../utils/restaurant-status";
 import { sendN8nWebhook } from "../../../webhooks/n8n-webhook";
-import { calculateDeliveryFeeFromCoords, type Coordinates } from "@shared/distance-utils";
+import { calculateDeliveryFeeFromCoords, isDeliverableZone, MAX_DELIVERY_DISTANCE_KM, type Coordinates } from "@shared/distance-utils";
 import type { 
   CreateOrderInput, 
   CreateOrderResult, 
@@ -102,6 +102,19 @@ export class OrderService {
       ? { lat: Number(input.customerLat), lng: Number(input.customerLng) }
       : null;
     
+    // Vérifier si la zone est livrable avant de calculer les frais
+    if (restaurantCoords && customerCoords) {
+      const isDeliverable = isDeliverableZone(restaurantCoords, customerCoords, MAX_DELIVERY_DISTANCE_KM);
+      if (!isDeliverable) {
+        const { calculateDistance } = require("@shared/distance-utils");
+        const distance = calculateDistance(restaurantCoords, customerCoords);
+        console.log(`[OrderService] ❌ Zone non livrable: Distance ${distance.toFixed(2)} km > ${MAX_DELIVERY_DISTANCE_KM} km`);
+        throw new Error(
+          `Cette zone est hors de notre zone de livraison. La distance de ${distance.toFixed(1)} km dépasse la limite de ${MAX_DELIVERY_DISTANCE_KM} km.`
+        );
+      }
+    }
+
     const deliveryFee = calculateDeliveryFeeFromCoords(restaurantCoords, customerCoords);
     console.log(`[OrderService] 📍 Calcul frais de livraison:`);
     console.log(`[OrderService]    Restaurant: ${restaurant.name} (${restaurantCoords ? `${restaurantCoords.lat}, ${restaurantCoords.lng}` : 'pas de coordonnées'})`);

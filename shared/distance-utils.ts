@@ -85,6 +85,33 @@ export function calculateDeliveryFee(distanceKm: number): number {
 export const MAX_DELIVERY_FEE = 30.0;
 
 /**
+ * Distance maximale de livraison en kilomètres
+ * Au-delà de cette distance, la zone n'est pas livrable
+ */
+export const MAX_DELIVERY_DISTANCE_KM = 30.0;
+
+/**
+ * Vérifie si une zone est livrable en fonction de la distance
+ * @param restaurantCoords Coordonnées du restaurant
+ * @param customerCoords Coordonnées du client
+ * @param maxDistanceKm Distance maximale autorisée (par défaut MAX_DELIVERY_DISTANCE_KM)
+ * @returns true si la zone est livrable, false sinon
+ */
+export function isDeliverableZone(
+  restaurantCoords: Coordinates | null | undefined,
+  customerCoords: Coordinates | null | undefined,
+  maxDistanceKm: number = MAX_DELIVERY_DISTANCE_KM
+): boolean {
+  // Si les coordonnées ne sont pas disponibles, la zone n'est pas livrable
+  if (!restaurantCoords || !customerCoords) {
+    return false;
+  }
+
+  const distance = calculateDistance(restaurantCoords, customerCoords);
+  return distance <= maxDistanceKm;
+}
+
+/**
  * Calcule les frais de livraison entre un restaurant et un client
  * @param restaurantCoords Coordonnées du restaurant
  * @param customerCoords Coordonnées du client

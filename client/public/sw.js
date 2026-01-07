@@ -3,8 +3,8 @@
 
 // Cache basique pour assets statiques (PRIORITÉ 3 - Cache Minimum)
 // ⚠️ INCREMENTER cette version pour forcer le rechargement après correction Leaflet/React
-// v5: react-leaflet inclus dans vendor chunk au lieu d'un chunk isolé pour éviter erreur createContext
-const CACHE_NAME = 'tataouine-pizza-v5';
+// v7: Correction définitive - Masquage des frais de livraison à l'étape panier (force rechargement)
+const CACHE_NAME = 'tataouine-pizza-v7';
 const STATIC_ASSETS = [
   // Ne pas inclure '/' ou '/index.html' pour éviter le cache des hash
   '/driver',

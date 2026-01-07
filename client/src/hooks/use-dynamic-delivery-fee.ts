@@ -5,7 +5,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useCart } from '@/lib/cart';
 import { getOnboarding } from '@/pages/onboarding';
-import { calculateDistance, calculateDeliveryFee, MAX_DELIVERY_FEE, type Coordinates } from '@/lib/distance-utils';
+import { calculateDistance, calculateDeliveryFee, MAX_DELIVERY_FEE, isDeliverableZone, type Coordinates } from '@/lib/distance-utils';
 import type { Restaurant } from '@/features/restaurant/restaurant.types';
 
 interface RestaurantWithCoords extends Restaurant {
@@ -18,6 +18,7 @@ interface DeliveryFeeInfo {
   distance: number;
   fee: number;
   restaurantCoords?: Coordinates;
+  isDeliverable: boolean;
 }
 
 export function useDynamicDeliveryFee() {
@@ -144,17 +145,20 @@ export function useDynamicDeliveryFee() {
 
         const distance = calculateDistance(restaurantCoords, customerCoords);
         const fee = calculateDeliveryFee(distance);
+        const deliverable = isDeliverableZone(restaurantCoords, customerCoords);
 
         console.log(`[DeliveryFee] 🏪 Restaurant: ${restaurant.name}`);
         console.log(`[DeliveryFee]    Coordonnées: ${restaurantCoords.lat}, ${restaurantCoords.lng}`);
         console.log(`[DeliveryFee]    Distance: ${distance} km`);
         console.log(`[DeliveryFee]    Frais: ${fee} TND`);
+        console.log(`[DeliveryFee]    Zone livrable: ${deliverable ? '✅ Oui' : '❌ Non'}`);
 
         fees.set(cartRestaurant.restaurantId, {
           restaurantId: cartRestaurant.restaurantId,
           distance,
           fee,
           restaurantCoords,
+          isDeliverable: deliverable,
         });
       } else {
         console.warn(`[DeliveryFee] ⚠️ Restaurant ${restaurant?.name || cartRestaurant.restaurantId} n'a pas de coordonnées`);
@@ -181,6 +185,24 @@ export function useDynamicDeliveryFee() {
     return deliveryFees.get(restaurantId);
   };
 
+  // Vérifier si toutes les zones sont livrables
+  const allZonesDeliverable = useMemo(() => {
+    if (cartRestaurants.length === 0) return true;
+    return cartRestaurants.every((cartRestaurant) => {
+      const feeInfo = deliveryFees.get(cartRestaurant.restaurantId);
+      return feeInfo?.isDeliverable ?? false;
+    });
+  }, [cartRestaurants, deliveryFees]);
+
+  // Vérifier si au moins une zone n'est pas livrable
+  const hasUndeliverableZone = useMemo(() => {
+    if (cartRestaurants.length === 0) return false;
+    return cartRestaurants.some((cartRestaurant) => {
+      const feeInfo = deliveryFees.get(cartRestaurant.restaurantId);
+      return feeInfo && !feeInfo.isDeliverable;
+    });
+  }, [cartRestaurants, deliveryFees]);
+
   return {
     deliveryFees,
     getDeliveryFee,
@@ -188,5 +210,7 @@ export function useDynamicDeliveryFee() {
     getDeliveryInfo,
     loading,
     hasCustomerCoords: !!customerCoords,
+    allZonesDeliverable,
+    hasUndeliverableZone,
   };
 }

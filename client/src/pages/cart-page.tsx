@@ -60,7 +60,7 @@ export default function CartPage() {
   const hasPhoneFromOnboarding = !!onboarding?.phone;
   
   // Hook pour calculer les frais de livraison dynamiques
-  const { getDeliveryFee, getDistance, getDeliveryInfo, loading: loadingDeliveryFee, hasCustomerCoords } = useDynamicDeliveryFee();
+  const { getDeliveryFee, getDistance, getDeliveryInfo, loading: loadingDeliveryFee, hasCustomerCoords, allZonesDeliverable, hasUndeliverableZone } = useDynamicDeliveryFee();
   const [step, setStep] = useState<Step>("cart");
   const [phone, setPhone] = useState(onboarding?.phone || "");
   const [name, setName] = useState(onboarding?.name || "");
@@ -233,6 +233,56 @@ export default function CartPage() {
 
     checkActiveOrders();
   }, [phone]);
+
+  // Afficher un toast automatique quand la zone devient non livrable
+  const prevUndeliverableZoneRef = useRef(false);
+  const prevCustomerCoordsRef = useRef<string | null>(null);
+  useEffect(() => {
+    // Vérifier si les coordonnées ont changé
+    const currentOnboarding = getOnboarding();
+    const currentCoordsKey = currentOnboarding?.lat && currentOnboarding?.lng 
+      ? `${currentOnboarding.lat}-${currentOnboarding.lng}` 
+      : null;
+    
+    // Afficher le toast seulement si :
+    // 1. La zone est non livrable
+    // 2. On a des coordonnées client
+    // 3. Soit c'est la première fois qu'on détecte une zone non livrable, soit les coordonnées ont changé
+    const coordsChanged = currentCoordsKey !== prevCustomerCoordsRef.current;
+    
+    if (hasUndeliverableZone && hasCustomerCoords && (coordsChanged || !prevUndeliverableZoneRef.current)) {
+      // Trouver le restaurant avec la distance la plus grande
+      let maxDistance = 0;
+      restaurants.forEach((restaurantCart) => {
+        const deliveryInfo = getDeliveryInfo(restaurantCart.restaurantId);
+        if (deliveryInfo && !deliveryInfo.isDeliverable && deliveryInfo.distance > maxDistance) {
+          maxDistance = deliveryInfo.distance;
+        }
+      });
+
+      if (maxDistance > 0) {
+        console.log('[Cart] 🚨 Zone non livrable détectée, affichage du toast:', { maxDistance });
+        sonnerToast.error(
+          language === 'ar'
+            ? "❌ هذه المنطقة خارج نطاق التوصيل"
+            : language === 'en'
+            ? "❌ This area is outside our delivery zone"
+            : "❌ Cette zone est hors de notre zone de livraison",
+          {
+            description: language === 'ar'
+              ? `المسافة ${maxDistance.toFixed(1)} كم بعيدة جداً. الحد الأقصى للتوصيل هو 30 كم.`
+              : language === 'en'
+              ? `Distance ${maxDistance.toFixed(1)} km is too far. Maximum delivery distance is 30 km.`
+              : `La distance de ${maxDistance.toFixed(1)} km est trop importante. La distance maximale de livraison est de 30 km.`,
+            duration: 10000,
+          }
+        );
+      }
+    }
+    
+    prevUndeliverableZoneRef.current = hasUndeliverableZone;
+    prevCustomerCoordsRef.current = currentCoordsKey;
+  }, [hasUndeliverableZone, hasCustomerCoords, restaurants, getDeliveryInfo, language]);
 
   // Calculer le total avec les frais de livraison dynamiques
   // ⚠️ À l'étape "cart", ne pas inclure les frais de livraison (ils seront calculés après la sélection de l'adresse)
@@ -584,6 +634,41 @@ export default function CartPage() {
       // Retourner sans créer la commande
       return;
     }
+
+    // ✅ NOUVEAU : Vérifier si la zone est livrable (distance maximale)
+    if (hasUndeliverableZone) {
+      console.warn('[Cart] ⚠️ Zone non livrable - Distance trop importante');
+      
+      // Trouver le restaurant avec la distance la plus grande
+      let maxDistance = 0;
+      let restaurantName = '';
+      restaurants.forEach((restaurantCart) => {
+        const deliveryInfo = getDeliveryInfo(restaurantCart.restaurantId);
+        if (deliveryInfo && !deliveryInfo.isDeliverable && deliveryInfo.distance > maxDistance) {
+          maxDistance = deliveryInfo.distance;
+          restaurantName = restaurantCart.restaurantName || '';
+        }
+      });
+
+      sonnerToast.error(
+        language === 'ar'
+          ? "❌ هذه المنطقة خارج نطاق التوصيل"
+          : language === 'en'
+          ? "❌ This area is outside our delivery zone"
+          : "❌ Cette zone est hors de notre zone de livraison",
+        {
+          description: language === 'ar'
+            ? `المسافة ${maxDistance.toFixed(1)} كم بعيدة جداً. الحد الأقصى للتوصيل هو 30 كم.`
+            : language === 'en'
+            ? `Distance ${maxDistance.toFixed(1)} km is too far. Maximum delivery distance is 30 km.`
+            : `La distance de ${maxDistance.toFixed(1)} km est trop importante. La distance maximale de livraison est de 30 km.`,
+          duration: 10000,
+        }
+      );
+      
+      // Retourner sans créer la commande
+      return;
+    }
     
     // Créer une commande par restaurant
     console.log(`[Cart] Création de ${restaurants.length} commande(s)...`);
@@ -685,10 +770,36 @@ export default function CartPage() {
   };
 
   // Fonction pour sélectionner une adresse existante
-  const handleSelectAddress = (addr: SavedAddress) => {
+  const handleSelectAddress = async (addr: SavedAddress) => {
     setSelectedAddressId(addr.id);
     setAddress(addr.street);
     setAddressDetails(addr.details || "");
+    
+    // Géocoder l'adresse pour obtenir les coordonnées et mettre à jour les frais de livraison
+    const addressToGeocode = addr.details ? `${addr.street}, ${addr.details}` : addr.street;
+    try {
+      const result = await geocodeAddressInTataouine(addressToGeocode);
+      if (result) {
+        setMapCoords({ lat: result.lat, lng: result.lng });
+        // Mettre à jour l'onboarding avec les nouvelles coordonnées
+        const currentOnboarding = getOnboarding();
+        const updatedOnboarding = {
+          ...(currentOnboarding || {}),
+          address: addr.street,
+          addressDetails: addr.details || "",
+          lat: result.lat,
+          lng: result.lng,
+        };
+        localStorage.setItem('tp_onboarding', JSON.stringify(updatedOnboarding));
+        // Déclencher l'événement pour notifier le hook useDynamicDeliveryFee
+        window.dispatchEvent(new Event('onboarding-updated'));
+        console.log('[Cart] ✅ Adresse sauvegardée géocodée et coordonnées mises à jour');
+      } else {
+        console.warn('[Cart] ⚠️ Impossible de géocoder l\'adresse sauvegardée:', addressToGeocode);
+      }
+    } catch (error) {
+      console.error('[Cart] ❌ Erreur lors du géocodage de l\'adresse sauvegardée:', error);
+    }
   };
 
   // Fonction pour définir une adresse par défaut
@@ -1115,6 +1226,39 @@ export default function CartPage() {
                     className="flex flex-col h-full"
                 >
                     <div className="p-4 md:p-6 space-y-6 md:space-y-8 overflow-y-auto flex-1">
+                        {/* Avertissement si zone non livrable - Étape cart */}
+                        {hasUndeliverableZone && hasCustomerCoords && (
+                          <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl p-3 md:p-4 space-y-2">
+                            <div className="flex items-start gap-2">
+                              <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                              <div className="flex-1">
+                                <h4 className="font-semibold text-sm md:text-base text-red-900 dark:text-red-200 mb-1">
+                                  {language === 'ar'
+                                    ? "❌ هذه المنطقة خارج نطاق التوصيل"
+                                    : language === 'en'
+                                    ? "❌ This area is outside our delivery zone"
+                                    : "❌ Cette zone est hors de notre zone de livraison"}
+                                </h4>
+                                <p className="text-xs md:text-sm text-red-800 dark:text-red-300">
+                                  {(() => {
+                                    let maxDistance = 0;
+                                    restaurants.forEach((restaurantCart) => {
+                                      const deliveryInfo = getDeliveryInfo(restaurantCart.restaurantId);
+                                      if (deliveryInfo && !deliveryInfo.isDeliverable && deliveryInfo.distance > maxDistance) {
+                                        maxDistance = deliveryInfo.distance;
+                                      }
+                                    });
+                                    return language === 'ar'
+                                      ? `المسافة ${maxDistance.toFixed(1)} كم بعيدة جداً. الحد الأقصى للتوصيل هو 30 كم. يرجى اختيار عنوان أقرب عند الانتقال إلى خطوة العنوان.`
+                                      : language === 'en'
+                                      ? `Distance ${maxDistance.toFixed(1)} km is too far. Maximum delivery distance is 30 km. Please choose a closer address when proceeding to the address step.`
+                                      : `La distance de ${maxDistance.toFixed(1)} km est trop importante. La distance maximale de livraison est de 30 km. Veuillez choisir une adresse plus proche lors de l'étape adresse.`;
+                                  })()}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         {restaurants.map((restaurantCart) => (
                           <div key={restaurantCart.restaurantId} className="space-y-4 pb-6 border-b last:border-0 last:pb-0">
                             {/* Header du restaurant */}
@@ -1208,11 +1352,23 @@ export default function CartPage() {
                                 <>
                                   <div className="flex justify-between text-sm">
                                     <span className="text-gray-600">{t('cart.deliveryFee')}</span>
-                                    <span className="font-medium">{restaurantCart.deliveryFee.toFixed(3)} {t('common.currency')}</span>
+                                    <span className="font-medium">
+                                      {loadingDeliveryFee ? (
+                                        <span className="text-muted-foreground">...</span>
+                                      ) : (
+                                        `${getDeliveryFee(restaurantCart.restaurantId).toFixed(3)} ${t('common.currency')}`
+                                      )}
+                                    </span>
                                   </div>
                                   <div className="flex justify-between font-bold pt-2 border-t">
                                     <span>{t('cart.restaurantTotal')}</span>
-                                    <span className="text-orange-500">{(restaurantCart.subtotal + restaurantCart.deliveryFee).toFixed(3)} {t('common.currency')}</span>
+                                    <span className="text-orange-500">
+                                      {loadingDeliveryFee ? (
+                                        <span className="text-muted-foreground">...</span>
+                                      ) : (
+                                        `${(restaurantCart.subtotal + getDeliveryFee(restaurantCart.restaurantId)).toFixed(3)} ${t('common.currency')}`
+                                      )}
+                                    </span>
                                   </div>
                                 </>
                               )}
@@ -1291,6 +1447,40 @@ export default function CartPage() {
                             <p className="text-xs md:text-sm text-muted-foreground">{t('cart.address.subtitle')}</p>
                         </div>
                     </div>
+
+                    {/* Avertissement si zone non livrable - Étape address */}
+                    {hasUndeliverableZone && (
+                      <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl p-3 md:p-4 space-y-2 mb-4 md:mb-6">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-sm md:text-base text-red-900 dark:text-red-200 mb-1">
+                              {language === 'ar'
+                                ? "❌ هذه المنطقة خارج نطاق التوصيل"
+                                : language === 'en'
+                                ? "❌ This area is outside our delivery zone"
+                                : "❌ Cette zone est hors de notre zone de livraison"}
+                            </h4>
+                            <p className="text-xs md:text-sm text-red-800 dark:text-red-300">
+                              {(() => {
+                                let maxDistance = 0;
+                                restaurants.forEach((restaurantCart) => {
+                                  const deliveryInfo = getDeliveryInfo(restaurantCart.restaurantId);
+                                  if (deliveryInfo && !deliveryInfo.isDeliverable && deliveryInfo.distance > maxDistance) {
+                                    maxDistance = deliveryInfo.distance;
+                                  }
+                                });
+                                return language === 'ar'
+                                  ? `المسافة ${maxDistance.toFixed(1)} كم بعيدة جداً. الحد الأقصى للتوصيل هو 30 كم. يرجى اختيار عنوان أقرب.`
+                                  : language === 'en'
+                                  ? `Distance ${maxDistance.toFixed(1)} km is too far. Maximum delivery distance is 30 km. Please choose a closer address.`
+                                  : `La distance de ${maxDistance.toFixed(1)} km est trop importante. La distance maximale de livraison est de 30 km. Veuillez choisir une adresse plus proche.`;
+                              })()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Adresses sauvegardées */}
                     {savedAddresses.length > 0 && (
@@ -1473,6 +1663,21 @@ export default function CartPage() {
                         open={showAddressPicker}
                         onOpenChange={setShowAddressPicker}
                         initialCoords={mapCoords}
+                        restaurantCoords={(() => {
+                          // Récupérer les coordonnées du premier restaurant du panier
+                          if (restaurants.length > 0) {
+                            const restaurantId = restaurants[0].restaurantId;
+                            const deliveryInfo = getDeliveryInfo(restaurantId);
+                            if (deliveryInfo?.restaurantCoords) {
+                              return {
+                                lat: deliveryInfo.restaurantCoords.lat,
+                                lng: deliveryInfo.restaurantCoords.lng,
+                                name: restaurants[0].restaurantName || undefined,
+                              };
+                            }
+                          }
+                          return null;
+                        })()}
                         onAddressSelected={(selectedAddress) => {
                             // Mettre à jour l'adresse avec les données de la carte
                             setAddress(selectedAddress.fullAddress || selectedAddress.street);
@@ -1495,6 +1700,8 @@ export default function CartPage() {
                                     lng: selectedAddress.coords.lng,
                                 };
                                 localStorage.setItem('tp_onboarding', JSON.stringify(updatedOnboarding));
+                                // Déclencher l'événement pour notifier le hook useDynamicDeliveryFee
+                                window.dispatchEvent(new Event('onboarding-updated'));
                             }
                             sonnerToast.success(
                                 language === 'ar'
@@ -1606,6 +1813,40 @@ export default function CartPage() {
                       </div>
                     )}
 
+                    {/* Avertissement si zone non livrable */}
+                    {hasUndeliverableZone && (
+                      <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl p-3 md:p-4 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-sm md:text-base text-red-900 dark:text-red-200 mb-1">
+                              {language === 'ar'
+                                ? "❌ هذه المنطقة خارج نطاق التوصيل"
+                                : language === 'en'
+                                ? "❌ This area is outside our delivery zone"
+                                : "❌ Cette zone est hors de notre zone de livraison"}
+                            </h4>
+                            <p className="text-xs md:text-sm text-red-800 dark:text-red-300">
+                              {(() => {
+                                let maxDistance = 0;
+                                restaurants.forEach((restaurantCart) => {
+                                  const deliveryInfo = getDeliveryInfo(restaurantCart.restaurantId);
+                                  if (deliveryInfo && !deliveryInfo.isDeliverable && deliveryInfo.distance > maxDistance) {
+                                    maxDistance = deliveryInfo.distance;
+                                  }
+                                });
+                                return language === 'ar'
+                                  ? `المسافة ${maxDistance.toFixed(1)} كم بعيدة جداً. الحد الأقصى للتوصيل هو 30 كم. Veuillez choisir une adresse plus proche.`
+                                  : language === 'en'
+                                  ? `Distance ${maxDistance.toFixed(1)} km is too far. Maximum delivery distance is 30 km. Please choose a closer address.`
+                                  : `La distance de ${maxDistance.toFixed(1)} km est trop importante. La distance maximale de livraison est de 30 km. Veuillez choisir une adresse plus proche.`;
+                              })()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Détails de la commande par restaurant */}
                     <div className="bg-muted/50 rounded-xl p-3 md:p-4 space-y-4 md:space-y-6">
                         <h4 className="font-semibold text-xs md:text-sm text-muted-foreground uppercase">
@@ -1665,6 +1906,18 @@ export default function CartPage() {
                                             : language === 'en'
                                             ? "❌ Area not deliverable"
                                             : "❌ Zone non livrable"}
+                                        </span>
+                                      );
+                                    }
+                                    // Afficher un avertissement si la zone n'est pas livrable
+                                    if (deliveryInfo && !deliveryInfo.isDeliverable) {
+                                      return (
+                                        <span className="text-[10px] text-red-600 dark:text-red-400 mt-0.5">
+                                          {language === 'ar'
+                                            ? `❌ خارج النطاق (${deliveryInfo.distance.toFixed(1)} كم > 30 كم)`
+                                            : language === 'en'
+                                            ? `❌ Out of range (${deliveryInfo.distance.toFixed(1)} km > 30 km)`
+                                            : `❌ Hors zone (${deliveryInfo.distance.toFixed(1)} km > 30 km)`}
                                         </span>
                                       );
                                     }
@@ -1904,10 +2157,10 @@ export default function CartPage() {
                                     </div>
                                 </div>
                             )}
-                            <Button 
-                                className="w-full h-11 md:h-12 text-sm md:text-base rounded-xl shadow-lg shadow-primary/20" 
+                            <Button
+                                className="w-full h-11 md:h-12 text-sm md:text-base rounded-xl shadow-lg shadow-primary/20"
                                 onClick={handleConfirmOrder}
-                                disabled={checkingActiveOrder || isProcessingPayment || !hasCustomerCoords}
+                                disabled={checkingActiveOrder || isProcessingPayment || !hasCustomerCoords || hasUndeliverableZone}
                             >
                                 {checkingActiveOrder ? (
                                   language === 'ar' ? "جارٍ التحقق..." : language === 'en' ? "Checking..." : "Vérification..."

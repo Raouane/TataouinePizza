@@ -10,6 +10,8 @@ export {
   calculateDeliveryFee,
   calculateDeliveryFeeFromCoords,
   MAX_DELIVERY_FEE,
+  MAX_DELIVERY_DISTANCE_KM,
+  isDeliverableZone,
   type Coordinates,
 } from '@shared/distance-utils';
 

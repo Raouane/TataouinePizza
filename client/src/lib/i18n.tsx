@@ -95,6 +95,8 @@ const translations: Translations = {
   'cart.error.addressMin': { fr: "L'adresse doit contenir au moins 5 caractères", en: "Address must contain at least 5 characters", ar: "يجب أن يحتوي العنوان على 5 أحرف على الأقل" },
   'cart.error.emptyCart': { fr: "Le panier est vide", en: "Cart is empty", ar: "السلة فارغة" },
   'cart.error.sendOtp': { fr: "Impossible d'envoyer le code", en: "Unable to send code", ar: "تعذر إرسال الرمز" },
+  'cart.error.zoneNotDeliverable': { fr: "Cette zone est hors de notre zone de livraison", en: "This area is outside our delivery zone", ar: "هذه المنطقة خارج نطاق التوصيل" },
+  'cart.error.zoneTooFar': { fr: "La distance est trop importante. La distance maximale de livraison est de 30 km.", en: "Distance is too far. Maximum delivery distance is 30 km.", ar: "المسافة بعيدة جداً. الحد الأقصى للتوصيل هو 30 كم." },
 
   // Success
   'success.title': { fr: "Commande Reçue !", en: "Order Received!", ar: "تم استلام الطلب!" },
@@ -243,6 +245,14 @@ const translations: Translations = {
   'common.save': { fr: "Enregistrer", en: "Save", ar: "حفظ" },
   'common.add': { fr: "Ajouter", en: "Add", ar: "إضافة" },
   'common.addToCart': { fr: "Ajouter au panier", en: "Add to cart", ar: "إضافة إلى السلة" },
+  'common.cancel': { fr: "Annuler", en: "Cancel", ar: "إلغاء" },
+  
+  // Geolocation
+  'geolocation.notSupported': { fr: "La géolocalisation n'est pas supportée par ce navigateur.", en: "Geolocation is not supported by your browser.", ar: "المتصفح لا يدعم تحديد الموقع الجغرافي." },
+  'geolocation.permissionDenied': { fr: "Permission de géolocalisation refusée.", en: "Geolocation permission denied.", ar: "تم رفض إذن تحديد الموقع الجغرافي." },
+  'geolocation.positionUnavailable': { fr: "Position indisponible.", en: "Position unavailable.", ar: "الموقع غير متاح." },
+  'geolocation.timeout': { fr: "Délai d'attente dépassé.", en: "Request timeout.", ar: "انتهت مهلة الطلب." },
+  'geolocation.unknownError': { fr: "Impossible de récupérer votre position.", en: "Unable to retrieve your location.", ar: "تعذر الحصول على موقعك." },
   
   // Menu product
   'menu.product.defaultDescription': { fr: "Délicieux plat préparé avec soin", en: "Delicious dish prepared with care", ar: "طبق لذيذ محضر بعناية" },

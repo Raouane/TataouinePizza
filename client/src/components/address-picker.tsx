@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -7,9 +8,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MapPin, Loader2, Navigation } from "lucide-react";
+import { MapPin, Loader2, Navigation, Search, Store } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { reverseGeocodeFull, type ReverseGeocodeResult } from "@/hooks/use-onboarding";
+import { geocodeAddressInTataouine } from "@/lib/geocoding-utils";
 import { toast } from "sonner";
 
 // ✅ IMPORT STATIQUE pour garantir que React est dans le même contexte
@@ -50,9 +52,20 @@ interface MapComponentProps {
   onMarkerDragEnd: (lat: number, lng: number) => void;
   markerPosition: [number, number];
   onMapClick: (lat: number, lng: number) => void;
+  restaurantCoords?: { lat: number; lng: number; name?: string } | null;
 }
 
-const MapComponent = ({ center, zoom, onMarkerDragEnd, markerPosition, onMapClick }: MapComponentProps) => {
+// Icône personnalisée pour le restaurant (pin rouge) - créée une seule fois
+const restaurantIcon = L.icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+const MapComponent = ({ center, zoom, onMarkerDragEnd, markerPosition, onMapClick, restaurantCoords }: MapComponentProps) => {
   const handleMapClick = (e: any) => {
     onMapClick(e.latlng.lat, e.latlng.lng);
   };
@@ -71,6 +84,15 @@ const MapComponent = ({ center, zoom, onMarkerDragEnd, markerPosition, onMapClic
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      {/* Marqueur pour le restaurant (pin rouge, non déplaçable) */}
+      {restaurantCoords && (
+        <Marker
+          position={[restaurantCoords.lat, restaurantCoords.lng]}
+          icon={restaurantIcon}
+          title={restaurantCoords.name || "Restaurant"}
+        />
+      )}
+      {/* Marqueur pour l'adresse de livraison (pin bleu, déplaçable) */}
       <Marker
         position={markerPosition}
         draggable={true}
@@ -89,6 +111,7 @@ export function AddressPicker({
   open,
   onOpenChange,
   initialCoords,
+  restaurantCoords,
   onAddressSelected,
 }: AddressPickerProps) {
   const { t, language } = useLanguage();
@@ -97,6 +120,8 @@ export function AddressPicker({
   const [address, setAddress] = useState<ReverseGeocodeResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
+  const [searchAddress, setSearchAddress] = useState("");
+  const [searchingAddress, setSearchingAddress] = useState(false);
 
   // Initialiser la position du marqueur
   useEffect(() => {
@@ -117,13 +142,7 @@ export function AddressPicker({
   // Demander la géolocalisation actuelle
   const requestCurrentLocation = useCallback(() => {
     if (!("geolocation" in navigator)) {
-      toast.error(
-        t(
-          "La géolocalisation n'est pas supportée par ce navigateur.",
-          "Geolocation is not supported by your browser.",
-          "المتصفح لا يدعم تحديد الموقع الجغرافي."
-        )
-      );
+      toast.error(t('geolocation.notSupported'));
       return;
     }
 
@@ -140,32 +159,16 @@ export function AddressPicker({
         let msg: string;
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            msg = t(
-              "Permission de géolocalisation refusée.",
-              "Geolocation permission denied.",
-              "تم رفض إذن تحديد الموقع الجغرافي."
-            );
+            msg = t('geolocation.permissionDenied');
             break;
           case error.POSITION_UNAVAILABLE:
-            msg = t(
-              "Position indisponible.",
-              "Position unavailable.",
-              "الموقع غير متاح."
-            );
+            msg = t('geolocation.positionUnavailable');
             break;
           case error.TIMEOUT:
-            msg = t(
-              "Délai d'attente dépassé.",
-              "Request timeout.",
-              "انتهت مهلة الطلب."
-            );
+            msg = t('geolocation.timeout');
             break;
           default:
-            msg = t(
-              "Impossible de récupérer votre position.",
-              "Unable to retrieve your location.",
-              "تعذر الحصول على موقعك."
-            );
+            msg = t('geolocation.unknownError');
             break;
         }
         toast.error(msg);
@@ -228,6 +231,58 @@ export function AddressPicker({
     [handleGeocode]
   );
 
+  // Géocoder une adresse saisie dans le champ de recherche
+  const handleSearchAddress = useCallback(async () => {
+    if (!searchAddress.trim()) {
+      toast.error(
+        language === "ar"
+          ? "يرجى إدخال عنوان"
+          : language === "en"
+          ? "Please enter an address"
+          : "Veuillez entrer une adresse"
+      );
+      return;
+    }
+
+    setSearchingAddress(true);
+    try {
+      const result = await geocodeAddressInTataouine(searchAddress.trim());
+      if (result) {
+        const coords: [number, number] = [result.lat, result.lng];
+        setMapCenter(coords);
+        setMarkerPosition(coords);
+        // Faire le reverse geocoding pour obtenir l'adresse complète
+        await handleGeocode(result.lat, result.lng);
+        toast.success(
+          language === "ar"
+            ? "تم العثور على العنوان"
+            : language === "en"
+            ? "Address found"
+            : "Adresse trouvée"
+        );
+      } else {
+        toast.error(
+          language === "ar"
+            ? "لم يتم العثور على العنوان"
+            : language === "en"
+            ? "Address not found"
+            : "Adresse non trouvée"
+        );
+      }
+    } catch (error) {
+      console.error("[AddressPicker] Erreur de géocodage:", error);
+      toast.error(
+        language === "ar"
+          ? "خطأ في البحث عن العنوان"
+          : language === "en"
+          ? "Error searching for address"
+          : "Erreur lors de la recherche de l'adresse"
+      );
+    } finally {
+      setSearchingAddress(false);
+    }
+  }, [searchAddress, handleGeocode, language]);
+
   // Confirmer la sélection
   const handleConfirm = useCallback(() => {
     if (!address) {
@@ -276,6 +331,44 @@ export function AddressPicker({
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
+          {/* Champ de recherche d'adresse */}
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <Input
+                type="text"
+                placeholder={
+                  language === "ar"
+                    ? "ابحث عن عنوان أو اكتبه..."
+                    : language === "en"
+                    ? "Search or type an address..."
+                    : "Rechercher ou écrire une adresse..."
+                }
+                value={searchAddress}
+                onChange={(e) => setSearchAddress(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleSearchAddress();
+                  }
+                }}
+                className="pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handleSearchAddress}
+                disabled={searchingAddress || !searchAddress.trim()}
+                className="absolute right-0 top-0 h-full px-3"
+              >
+                {searchingAddress ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+
           {/* Bouton de géolocalisation */}
           <div className="flex gap-2">
             <Button
@@ -315,7 +408,33 @@ export function AddressPicker({
               onMarkerDragEnd={handleMarkerDragEnd}
               markerPosition={markerPosition}
               onMapClick={handleMapClick}
+              restaurantCoords={restaurantCoords}
             />
+            {/* Légende */}
+            {restaurantCoords && (
+              <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm p-2 rounded-lg shadow-md text-xs space-y-1 z-[1000]">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                  <span>
+                    {language === "ar"
+                      ? restaurantCoords.name || "المطعم"
+                      : language === "en"
+                      ? restaurantCoords.name || "Restaurant"
+                      : restaurantCoords.name || "Restaurant"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <span>
+                    {language === "ar"
+                      ? "عنوان التوصيل"
+                      : language === "en"
+                      ? "Delivery address"
+                      : "Adresse de livraison"}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Affichage de l'adresse */}
