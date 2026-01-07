@@ -29,6 +29,8 @@ export default defineConfig({
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
     },
+    // Forcer la déduplication de React pour éviter les conflits avec react-leaflet
+    dedupe: ["react", "react-dom"],
   },
   css: {
     postcss: {
