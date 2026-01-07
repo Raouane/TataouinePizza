@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,6 +14,8 @@ import { toast } from "sonner";
 
 // Import dynamique de L (pour les icônes Leaflet)
 let L: any = null;
+let ReactLeaflet: any = null;
+
 const loadLeaflet = async () => {
   if (!L) {
     L = await import("leaflet");
@@ -26,6 +28,16 @@ const loadLeaflet = async () => {
     });
   }
   return L;
+};
+
+const loadReactLeaflet = async () => {
+  if (!ReactLeaflet) {
+    // Charger React d'abord pour s'assurer qu'il est disponible
+    await import("react");
+    await loadLeaflet();
+    ReactLeaflet = await import("react-leaflet");
+  }
+  return ReactLeaflet;
 };
 
 interface AddressPickerProps {
@@ -45,61 +57,71 @@ interface AddressPickerProps {
 const DEFAULT_CENTER: [number, number] = [32.9297, 10.4511];
 const DEFAULT_ZOOM = 15;
 
-// Composant de carte lazy loaded avec chargement correct de React
-const MapComponent = lazy(async () => {
-  // S'assurer que React est chargé avant react-leaflet
-  await import("react");
-  await loadLeaflet(); // Charger Leaflet avant react-leaflet
-  const reactLeaflet = await import("react-leaflet");
-  const { MapContainer, TileLayer, Marker } = reactLeaflet;
+// Composant de carte chargé dynamiquement (sans lazy pour éviter les problèmes avec React 19)
+interface MapComponentProps {
+  center: [number, number];
+  zoom: number;
+  onMarkerDragEnd: (lat: number, lng: number) => void;
+  markerPosition: [number, number];
+  onMapClick: (lat: number, lng: number) => void;
+}
 
-  return {
-    default: ({
-      center,
-      zoom,
-      onMarkerDragEnd,
-      markerPosition,
-      onMapClick,
-    }: {
-      center: [number, number];
-      zoom: number;
-      onMarkerDragEnd: (lat: number, lng: number) => void;
-      markerPosition: [number, number];
-      onMapClick: (lat: number, lng: number) => void;
-    }) => {
-      const handleMapClick = (e: any) => {
-        onMapClick(e.latlng.lat, e.latlng.lng);
-      };
+const MapComponent = ({ center, zoom, onMarkerDragEnd, markerPosition, onMapClick }: MapComponentProps) => {
+  const [MapContainer, setMapContainer] = useState<any>(null);
+  const [TileLayer, setTileLayer] = useState<any>(null);
+  const [Marker, setMarker] = useState<any>(null);
+  const [loaded, setLoaded] = useState(false);
 
-      return (
-        <MapContainer
-          center={center}
-          zoom={zoom}
-          style={{ height: "100%", width: "100%" }}
-          key={`${center[0]}-${center[1]}`}
-          eventHandlers={{
-            click: handleMapClick,
-          }}
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <Marker
-            position={markerPosition}
-            draggable={true}
-            eventHandlers={{
-              dragend: (e: any) => {
-                const { lat, lng } = e.target.getLatLng();
-                onMarkerDragEnd(lat, lng);
-              },
-            }}
-          />
-        </MapContainer>
-      );
-    },
+  useEffect(() => {
+    loadReactLeaflet().then((reactLeaflet) => {
+      setMapContainer(() => reactLeaflet.MapContainer);
+      setTileLayer(() => reactLeaflet.TileLayer);
+      setMarker(() => reactLeaflet.Marker);
+      setLoaded(true);
+    }).catch((error) => {
+      console.error('[MapComponent] Erreur chargement react-leaflet:', error);
+    });
+  }, []);
+
+  if (!loaded || !MapContainer || !TileLayer || !Marker) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const handleMapClick = (e: any) => {
+    onMapClick(e.latlng.lat, e.latlng.lng);
   };
-});
+
+  return (
+    <MapContainer
+      center={center}
+      zoom={zoom}
+      style={{ height: "100%", width: "100%" }}
+      key={`${center[0]}-${center[1]}`}
+      eventHandlers={{
+        click: handleMapClick,
+      }}
+    >
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      <Marker
+        position={markerPosition}
+        draggable={true}
+        eventHandlers={{
+          dragend: (e: any) => {
+            const { lat, lng } = e.target.getLatLng();
+            onMarkerDragEnd(lat, lng);
+          },
+        }}
+      />
+    </MapContainer>
+  );
+};
 
 export function AddressPicker({
   open,
