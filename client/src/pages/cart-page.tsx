@@ -21,6 +21,7 @@ import { calculateDistance, calculateDeliveryFee, formatDistance, formatDelivery
 import { useDynamicDeliveryFee } from "@/hooks/use-dynamic-delivery-fee";
 import { geocodeAddressInTataouine } from "@/lib/geocoding-utils";
 import { debounce } from "@/lib/debounce";
+import { migrateAllAddresses, migrateOnboardingCoords } from "@/lib/migrate-addresses";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -86,6 +87,7 @@ export default function CartPage() {
     onboarding?.lat && onboarding?.lng ? { lat: onboarding.lat, lng: onboarding.lng } : null
   );
   const [isGeocodingAddress, setIsGeocodingAddress] = useState(false);
+  const [geocodingError, setGeocodingError] = useState<string | null>(null);
 
   // ✅ MODIFIÉ : Charger uniquement name et phone, nettoyer les anciennes clés
   useEffect(() => {
@@ -109,6 +111,46 @@ export default function CartPage() {
       console.log('[Cart] ✅ Données client chargées depuis localStorage');
     }
   }, []); // Seulement au montage
+
+  // ✅ NOUVEAU : Migration des adresses au premier chargement (une seule fois)
+  const hasRunMigration = useRef(false);
+  useEffect(() => {
+    if (hasRunMigration.current) return;
+    
+    // Exécuter la migration une seule fois au chargement de la page
+    const runMigration = async () => {
+      hasRunMigration.current = true;
+      console.log('[Cart] 🔄 Exécution de la migration des adresses...');
+      
+      try {
+        // Migrer les coordonnées onboarding
+        await migrateOnboardingCoords();
+        
+        // Migrer toutes les adresses sauvegardées
+        const stats = await migrateAllAddresses();
+        if (stats.removedAddresses > 0) {
+          console.log(`[Cart] ✅ Migration terminée: ${stats.removedAddresses} adresse(s) invalide(s) supprimée(s)`);
+          // Recharger les adresses après migration
+          if (phone && phone.length >= 8) {
+            const saved = localStorage.getItem(`savedAddresses_${phone}`);
+            if (saved) {
+              try {
+                const addresses = JSON.parse(saved) as SavedAddress[];
+                setSavedAddresses(addresses);
+              } catch (e) {
+                console.error("Erreur rechargement adresses après migration:", e);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[Cart] ❌ Erreur lors de la migration:', error);
+      }
+    };
+    
+    // Délai pour ne pas bloquer le chargement initial
+    setTimeout(runMigration, 1000);
+  }, []); // Exécuter une seule fois au montage
 
   // ✅ MODIFIÉ : Charger les adresses sauvegardées + intégrer onboarding si première fois
   // ✅ FIX : Séparer en deux useEffect pour éviter les boucles infinies
@@ -300,6 +342,21 @@ export default function CartPage() {
     });
     
     return subtotal + deliveryFees;
+  }, [restaurants, getDeliveryFee, step]);
+  
+  // Calculer le sous-total des produits (sans frais de livraison)
+  const subtotalProducts = useMemo(() => {
+    return restaurants.reduce((sum, restaurant) => sum + restaurant.subtotal, 0);
+  }, [restaurants]);
+
+  // Calculer le total des frais de livraison
+  const totalDeliveryFees = useMemo(() => {
+    if (step === "cart") {
+      return 0; // Pas de frais à l'étape cart
+    }
+    return restaurants.reduce((sum, restaurant) => {
+      return sum + getDeliveryFee(restaurant.restaurantId);
+    }, 0);
   }, [restaurants, getDeliveryFee, step]);
   
   // Calculer le nombre total d'items
@@ -507,6 +564,11 @@ export default function CartPage() {
   // ✅ NOUVEAU : Handler pour gérer la saisie manuelle d'adresse
   const handleAddressInputChange = (value: string) => {
     setAddress(value);
+    // Réinitialiser l'erreur de géocodage si l'utilisateur modifie l'adresse
+    if (geocodingError) {
+      setGeocodingError(null);
+    }
+    
     // Si l'utilisateur saisit manuellement, désélectionner l'adresse sauvegardée
     // pour préparer l'ajout d'une nouvelle adresse
     if (value.trim() && selectedAddressId) {
@@ -516,7 +578,7 @@ export default function CartPage() {
         setSelectedAddressId(null);
       }
     }
-    
+
     // Déclencher le géocodage automatique
     if (value.trim().length >= 5) {
       debouncedGeocode(value.trim());
@@ -775,6 +837,12 @@ export default function CartPage() {
     setAddress(addr.street);
     setAddressDetails(addr.details || "");
     
+    // Réinitialiser l'erreur précédente
+    setGeocodingError(null);
+    
+    // Marquer le géocodage en cours pour désactiver le bouton pendant le traitement
+    setIsGeocodingAddress(true);
+    
     // Géocoder l'adresse pour obtenir les coordonnées et mettre à jour les frais de livraison
     const addressToGeocode = addr.details ? `${addr.street}, ${addr.details}` : addr.street;
     try {
@@ -791,14 +859,80 @@ export default function CartPage() {
           lng: result.lng,
         };
         localStorage.setItem('tp_onboarding', JSON.stringify(updatedOnboarding));
+        // Mettre à jour immédiatement la clé pour forcer le hook à recalculer
+        const coordsKey = `${result.lat}-${result.lng}`;
+        localStorage.setItem('_lastOnboardingKey', coordsKey);
+        
         // Déclencher l'événement pour notifier le hook useDynamicDeliveryFee
         window.dispatchEvent(new Event('onboarding-updated'));
         console.log('[Cart] ✅ Adresse sauvegardée géocodée et coordonnées mises à jour');
+        
+        // Attendre un court délai pour que le hook recalcule les frais de livraison
+        // avant de réactiver le bouton (le hook vérifie toutes les 200ms)
+        setTimeout(() => {
+          setIsGeocodingAddress(false);
+        }, 300);
       } else {
         console.warn('[Cart] ⚠️ Impossible de géocoder l\'adresse sauvegardée:', addressToGeocode);
+        // Supprimer les coordonnées de l'onboarding si le géocodage échoue
+        const currentOnboarding = getOnboarding();
+        const updatedOnboarding = {
+          ...(currentOnboarding || {}),
+          address: addr.street,
+          addressDetails: addr.details || "",
+        };
+        delete updatedOnboarding.lat;
+        delete updatedOnboarding.lng;
+        localStorage.setItem('tp_onboarding', JSON.stringify(updatedOnboarding));
+        localStorage.removeItem('_lastOnboardingKey');
+        
+        // Afficher un message d'erreur
+        const errorMsg = language === 'ar'
+          ? `تعذر العثور على العنوان "${addr.street}". يرجى استخدام الخريطة لتحديد موقعك أو حذف هذه العنوان وإضافة عنوان جديد.`
+          : language === 'en'
+          ? `Could not find address "${addr.street}". Please use the map to select your location or delete this address and add a new one.`
+          : `Impossible de trouver l'adresse "${addr.street}". Veuillez utiliser la carte pour sélectionner votre emplacement ou supprimer cette adresse et en ajouter une nouvelle.`;
+        setGeocodingError(errorMsg);
+        setIsGeocodingAddress(false);
+        
+        // Afficher un toast pour informer l'utilisateur
+        sonnerToast.error(
+          language === 'ar' ? "❌ تعذر العثور على العنوان" : language === 'en' ? "❌ Address not found" : "❌ Adresse introuvable",
+          {
+            description: errorMsg,
+            duration: 8000,
+          }
+        );
       }
     } catch (error) {
       console.error('[Cart] ❌ Erreur lors du géocodage de l\'adresse sauvegardée:', error);
+      // Supprimer les coordonnées de l'onboarding en cas d'erreur
+      const currentOnboarding = getOnboarding();
+      const updatedOnboarding = {
+        ...(currentOnboarding || {}),
+        address: addr.street,
+        addressDetails: addr.details || "",
+      };
+      delete updatedOnboarding.lat;
+      delete updatedOnboarding.lng;
+      localStorage.setItem('tp_onboarding', JSON.stringify(updatedOnboarding));
+      localStorage.removeItem('_lastOnboardingKey');
+      
+      const errorMsg = language === 'ar'
+        ? `Erreur lors de la recherche de l'adresse "${addr.street}". Veuillez réessayer ou utiliser la carte.`
+        : language === 'en'
+        ? `Error searching for address "${addr.street}". Please try again or use the map.`
+        : `Erreur lors de la recherche de l'adresse "${addr.street}". Veuillez réessayer ou utiliser la carte.`;
+      setGeocodingError(errorMsg);
+      setIsGeocodingAddress(false);
+      
+      sonnerToast.error(
+        language === 'ar' ? "❌ Erreur de géocodage" : language === 'en' ? "❌ Geocoding error" : "❌ Erreur de géocodage",
+        {
+          description: errorMsg,
+          duration: 8000,
+        }
+      );
     }
   };
 
@@ -1227,7 +1361,11 @@ export default function CartPage() {
                 >
                     <div className="p-4 md:p-6 space-y-6 md:space-y-8 overflow-y-auto flex-1">
                         {/* Avertissement si zone non livrable - Étape cart */}
-                        {hasUndeliverableZone && hasCustomerCoords && (
+                        {/* Afficher uniquement après vérification complète : coordonnées disponibles, restaurants chargés, calculs terminés */}
+                        {hasUndeliverableZone && hasCustomerCoords && !loadingDeliveryFee && restaurants.length > 0 && restaurants.every(r => {
+                          const info = getDeliveryInfo(r.restaurantId);
+                          return info !== undefined && info.distance !== undefined;
+                        }) && (
                           <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl p-3 md:p-4 space-y-2">
                             <div className="flex items-start gap-2">
                               <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
@@ -1448,8 +1586,55 @@ export default function CartPage() {
                         </div>
                     </div>
 
+                    {/* Message d'erreur si l'adresse ne peut pas être géocodée */}
+                    {geocodingError && (
+                      <div className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-800 rounded-xl p-3 md:p-4 space-y-2 mb-4 md:mb-6">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-sm md:text-base text-yellow-900 dark:text-yellow-200 mb-1">
+                              {language === 'ar' ? "⚠️ تعذر العثور على العنوان" : language === 'en' ? "⚠️ Address not found" : "⚠️ Adresse introuvable"}
+                            </h4>
+                            <p className="text-xs md:text-sm text-yellow-800 dark:text-yellow-300 mb-2">
+                              {geocodingError}
+                            </p>
+                            <div className="flex flex-wrap gap-2 mt-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowAddressPicker(true)}
+                                className="text-xs"
+                              >
+                                <MapPin className="w-3 h-3 mr-1" />
+                                {language === 'ar' ? "استخدام الخريطة" : language === 'en' ? "Use map" : "Utiliser la carte"}
+                              </Button>
+                              {selectedAddressId && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    handleDeleteAddress(selectedAddressId);
+                                    setGeocodingError(null);
+                                  }}
+                                  className="text-xs text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="w-3 h-3 mr-1" />
+                                  {language === 'ar' ? "حذف العنوان" : language === 'en' ? "Delete address" : "Supprimer l'adresse"}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Avertissement si zone non livrable - Étape address */}
-                    {hasUndeliverableZone && (
+                    {/* IMPORTANT: Le message doit apparaître/disparaître dynamiquement selon l'adresse sélectionnée */}
+                    {/* Afficher uniquement après vérification complète : coordonnées disponibles, restaurants chargés, calculs terminés */}
+                    {!geocodingError && hasUndeliverableZone && hasCustomerCoords && !loadingDeliveryFee && !isGeocodingAddress && restaurants.length > 0 && restaurants.every(r => {
+                      const info = getDeliveryInfo(r.restaurantId);
+                      return info !== undefined && info.distance !== undefined;
+                    }) && (
                       <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl p-3 md:p-4 space-y-2 mb-4 md:mb-6">
                         <div className="flex items-start gap-2">
                           <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
@@ -1489,12 +1674,42 @@ export default function CartPage() {
                           {language === 'ar' ? "العناوين المحفوظة" : language === 'en' ? "Saved Addresses" : "Adresses sauvegardées"}
                         </Label>
                         <div className="space-y-2">
-                          {savedAddresses.map((addr) => (
+                          {savedAddresses.map((addr) => {
+                            // Vérifier si cette adresse est livrable pour afficher un indicateur visuel
+                            const isCurrentAddressSelected = selectedAddressId === addr.id;
+                            
+                            // Vérifier la livrabilité pour tous les restaurants du panier
+                            let isAddressDeliverable = true;
+                            let hasDeliveryInfo = false;
+                            let maxDistance = 0;
+                            
+                            if (isCurrentAddressSelected && restaurants.length > 0) {
+                              restaurants.forEach((restaurantCart) => {
+                                const deliveryInfo = getDeliveryInfo(restaurantCart.restaurantId);
+                                if (deliveryInfo) {
+                                  hasDeliveryInfo = true;
+                                  if (!deliveryInfo.isDeliverable) {
+                                    isAddressDeliverable = false;
+                                    if (deliveryInfo.distance > maxDistance) {
+                                      maxDistance = deliveryInfo.distance;
+                                    }
+                                  }
+                                }
+                              });
+                            }
+                            
+                            const showStatus = isCurrentAddressSelected && hasDeliveryInfo && !loadingDeliveryFee && !isGeocodingAddress;
+                            
+                            return (
                             <div
                               key={addr.id}
                               className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
                                 selectedAddressId === addr.id
-                                  ? 'border-primary bg-primary/5'
+                                  ? showStatus && isAddressDeliverable
+                                    ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                                    : showStatus && !isAddressDeliverable
+                                    ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                                    : 'border-primary bg-primary/5'
                                   : 'border-gray-200 hover:border-gray-300'
                               }`}
                               onClick={() => handleSelectAddress(addr)}
@@ -1512,6 +1727,39 @@ export default function CartPage() {
                                   <p className="text-sm text-gray-700">{addr.street}</p>
                                   {addr.details && (
                                     <p className="text-xs text-gray-500 mt-1">{addr.details}</p>
+                                  )}
+                                  {/* Indicateur visuel de zone livrable/non livrable */}
+                                  {showStatus && (
+                                    <div className="mt-2 flex items-center gap-2">
+                                      {isAddressDeliverable ? (
+                                        <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                                          <CheckCircle2 className="w-3 h-3" />
+                                          {language === 'ar' 
+                                            ? `✅ قابل للتوصيل`
+                                            : language === 'en'
+                                            ? `✅ Deliverable`
+                                            : `✅ Livrable`}
+                                        </span>
+                                      ) : (
+                                        <span className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+                                          <AlertTriangle className="w-3 h-3" />
+                                          {language === 'ar'
+                                            ? `❌ خارج النطاق (${maxDistance.toFixed(1)} كم > 30 كم)`
+                                            : language === 'en'
+                                            ? `❌ Out of range (${maxDistance.toFixed(1)} km > 30 km)`
+                                            : `❌ Hors zone (${maxDistance.toFixed(1)} km > 30 km)`}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                  {/* Indicateur de chargement pendant le géocodage */}
+                                  {isCurrentAddressSelected && (loadingDeliveryFee || isGeocodingAddress) && (
+                                    <div className="mt-2 flex items-center gap-2">
+                                      <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                                      <span className="text-xs text-muted-foreground">
+                                        {language === 'ar' ? "جارٍ التحقق..." : language === 'en' ? "Checking..." : "Vérification..."}
+                                      </span>
+                                    </div>
                                   )}
                                 </div>
                                 <div className="flex gap-1">
@@ -1546,7 +1794,8 @@ export default function CartPage() {
                                 </div>
                               </div>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -1679,6 +1928,9 @@ export default function CartPage() {
                           return null;
                         })()}
                         onAddressSelected={(selectedAddress) => {
+                            // Réinitialiser l'erreur de géocodage
+                            setGeocodingError(null);
+                            
                             // Mettre à jour l'adresse avec les données de la carte
                             setAddress(selectedAddress.fullAddress || selectedAddress.street);
                             setAddressDetails(
@@ -1700,6 +1952,11 @@ export default function CartPage() {
                                     lng: selectedAddress.coords.lng,
                                 };
                                 localStorage.setItem('tp_onboarding', JSON.stringify(updatedOnboarding));
+                                
+                                // Mettre à jour immédiatement la clé pour forcer le hook à recalculer
+                                const coordsKey = `${selectedAddress.coords.lat}-${selectedAddress.coords.lng}`;
+                                localStorage.setItem('_lastOnboardingKey', coordsKey);
+                                
                                 // Déclencher l'événement pour notifier le hook useDynamicDeliveryFee
                                 window.dispatchEvent(new Event('onboarding-updated'));
                             }
@@ -1814,7 +2071,11 @@ export default function CartPage() {
                     )}
 
                     {/* Avertissement si zone non livrable */}
-                    {hasUndeliverableZone && (
+                    {/* Afficher uniquement après vérification complète : coordonnées disponibles, restaurants chargés, calculs terminés */}
+                    {hasUndeliverableZone && hasCustomerCoords && !loadingDeliveryFee && restaurants.length > 0 && restaurants.every(r => {
+                      const info = getDeliveryInfo(r.restaurantId);
+                      return info !== undefined && info.distance !== undefined;
+                    }) && (
                       <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl p-3 md:p-4 space-y-2">
                         <div className="flex items-start gap-2">
                           <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
@@ -2082,7 +2343,22 @@ export default function CartPage() {
                             {t('cart.multiRestaurant.totalNote')}
                           </p>
                         )}
-                        <div className="flex justify-between items-center pt-2">
+                        {/* Détail du total : Prix produit + Frais livraison + Total */}
+                        <div className="space-y-2 pb-3 mb-3">
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm md:text-base text-muted-foreground">
+                                    {language === 'ar' ? "سعر المنتج" : language === 'en' ? "Product Price" : "Prix du produit"}
+                                </span>
+                                <span className="text-base md:text-lg font-medium">{subtotalProducts.toFixed(3)} {t('common.currency')}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm md:text-base text-muted-foreground">
+                                    {language === 'ar' ? "رسوم التوصيل" : language === 'en' ? "Delivery Fee" : "Prix de la livraison"}
+                                </span>
+                                <span className="text-base md:text-lg font-medium">{totalDeliveryFees.toFixed(3)} {t('common.currency')}</span>
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t">
                             <span className="text-base md:text-lg font-semibold">
                                 {step === "cart" 
                                   ? (language === 'ar' ? "المجموع الفرعي" : language === 'en' ? "Subtotal" : "Sous-total")
@@ -2102,8 +2378,31 @@ export default function CartPage() {
             <div className="p-4 md:p-6">
                 {step !== "summary" && (
                     <>
-                        <div className="flex justify-between items-center mb-3 md:mb-4">
-                            <span className="text-sm md:text-base text-muted-foreground">
+                        {/* Détail du total : Prix produit + Frais livraison + Total */}
+                        <div className="space-y-2 border-b pb-3 mb-3">
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm md:text-base text-muted-foreground">
+                                    {language === 'ar' ? "سعر المنتج" : language === 'en' ? "Product Price" : "Prix du produit"}
+                                </span>
+                                <span className="text-base md:text-lg font-medium">{subtotalProducts.toFixed(3)} {t('common.currency')}</span>
+                            </div>
+                            {step !== "cart" && (
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm md:text-base text-muted-foreground">
+                                        {language === 'ar' ? "رسوم التوصيل" : language === 'en' ? "Delivery Fee" : "Prix de la livraison"}
+                                    </span>
+                                    <span className="text-base md:text-lg font-medium">
+                                        {loadingDeliveryFee ? (
+                                            <span className="text-muted-foreground">...</span>
+                                        ) : (
+                                            `${totalDeliveryFees.toFixed(3)} ${t('common.currency')}`
+                                        )}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t mb-3 md:mb-4">
+                            <span className="text-sm md:text-base font-semibold">
                                 {step === "cart" 
                                   ? (language === 'ar' ? "المجموع الفرعي" : language === 'en' ? "Subtotal" : "Sous-total")
                                   : t('cart.total')
@@ -2111,9 +2410,23 @@ export default function CartPage() {
                             </span>
                             <span className="text-xl md:text-2xl font-bold font-serif">{totalWithDelivery.toFixed(3)} {t('common.currency')}</span>
                         </div>
-                        <Button 
-                            className="w-full h-11 md:h-12 text-base md:text-lg rounded-xl shadow-lg shadow-primary/20" 
+                        <Button
+                            className="w-full h-11 md:h-12 text-base md:text-lg rounded-xl shadow-lg shadow-primary/20"
                             onClick={handleNext}
+                            disabled={
+                              step === "address" && (
+                                !hasCustomerCoords || 
+                                hasUndeliverableZone || 
+                                loadingDeliveryFee || 
+                                isGeocodingAddress ||
+                                !!geocodingError ||
+                                restaurants.length === 0 ||
+                                !restaurants.every(r => {
+                                  const info = getDeliveryInfo(r.restaurantId);
+                                  return info !== undefined && info.distance !== undefined;
+                                })
+                              )
+                            }
                         >
                             {step === "address" ? t('cart.confirm') : t('cart.continue')}
                             <ArrowRight className={`w-4 h-4 md:w-5 md:h-5 ${isRtl ? 'mr-2 rotate-180' : 'ml-2'}`} />
@@ -2122,8 +2435,9 @@ export default function CartPage() {
                 )}
                 {step === "summary" && (
                     <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm md:text-base text-muted-foreground">{t('cart.total')}</span>
+                        {/* Total uniquement dans le footer (le détail est déjà dans le contenu principal) */}
+                        <div className="flex justify-between items-center mb-3 md:mb-4">
+                            <span className="text-sm md:text-base font-semibold">{t('cart.total')}</span>
                             <span className="text-xl md:text-2xl font-bold font-serif">{totalWithDelivery.toFixed(3)} {t('common.currency')}</span>
                         </div>
                         <div className="flex flex-col gap-2 md:gap-3">

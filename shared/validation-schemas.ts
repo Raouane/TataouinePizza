@@ -12,31 +12,43 @@ import { z } from "zod";
  * 
  * Format accepté :
  * - 8 chiffres (sans indicatif)
- * - Commence par 2, 4, 5, ou 9
- * - Exemples valides : "21234567", "41234567", "51234567", "91234567"
+ * - Commence par 20-29, 40-49, 50-59, 70-79, ou 90-99
+ * - Exemples valides :
+ *   - Mobile : "21678876" (21), "21234567" (21), "41234567" (41), "51234567" (51), "91234567" (91)
+ *   - Fixe : "70234567" (70), "71234567" (71), "79234567" (79)
  * 
  * Format avec indicatif :
- * - +216 suivi de 8 chiffres
- * - 00216 suivi de 8 chiffres
+ * - +216 suivi de 8 chiffres (ex: "+21621678876" → "21678876")
+ * - 00216 suivi de 8 chiffres (ex: "0021621678876" → "21678876")
+ * - 216 suivi de 8 chiffres (ex: "21621678876" → "21678876")
  * 
  * Le schéma normalise automatiquement le format (supprime les espaces, tirets, etc.)
+ * IMPORTANT: Ne supprime pas "216" s'il fait partie d'un numéro de 8 chiffres (ex: "21678876")
  */
 export const phoneSchema = z
   .string()
   .min(8, "Le numéro de téléphone doit contenir au moins 8 chiffres")
   .max(15, "Le numéro de téléphone est trop long")
   .transform((val) => {
-    // Normaliser : supprimer espaces, tirets, points, et préfixes
+    // Normaliser : supprimer espaces, tirets, points
     let cleaned = val.replace(/[\s\-\.\(\)]/g, "");
     
     // Supprimer les préfixes internationaux tunisiens uniquement
+    // IMPORTANT: Ne supprimer "216" que s'il est précédé de "+" ou "00" (format international)
+    // OU si le numéro total fait plus de 8 chiffres (indique un préfixe)
+    // Ne PAS supprimer "216" s'il fait partie d'un numéro de 8 chiffres (ex: "21678876")
     if (cleaned.startsWith("+216")) {
+      // Format: +216XXXXXXXX (11 chiffres au total)
       cleaned = cleaned.substring(4);
     } else if (cleaned.startsWith("00216")) {
+      // Format: 00216XXXXXXXX (13 chiffres au total)
       cleaned = cleaned.substring(5);
-    } else if (cleaned.startsWith("216")) {
+    } else if (cleaned.startsWith("216") && cleaned.length > 8) {
+      // Format: 216XXXXXXXX (11+ chiffres) - "216" est un préfixe
       cleaned = cleaned.substring(3);
     }
+    // Si le numéro fait exactement 8 chiffres (ex: "21678876"), on le garde tel quel
+    // La validation suivante vérifiera s'il commence par 2, 4, 5 ou 9
     
     // Si le numéro commence par un préfixe international non tunisien (ex: +33, +1, etc.)
     // on le supprime aussi pour permettre la validation
@@ -50,10 +62,16 @@ export const phoneSchema = z
   .refine(
     (val) => {
       // Vérifier que c'est un numéro tunisien valide
-      return /^[2459]\d{7}$/.test(val);
+      // Format: 8 chiffres commençant par:
+      // - 2X (20-29) : Mobile Ooredoo/Orange
+      // - 4X (40-49) : Mobile Lycamobile/MVNO
+      // - 5X (50-59) : Mobile Orange
+      // - 7X (70-79) : Fixe (régions) - inclut 70 pour IP/entreprises
+      // - 9X (90-99) : Mobile Tunisie Telecom
+      return /^(2[0-9]|4[0-9]|5[0-9]|7[0-9]|9[0-9])\d{6}$/.test(val);
     },
     {
-      message: "Le numéro de téléphone doit être tunisien : commencer par 2, 4, 5 ou 9 et contenir 8 chiffres. Exemples : 21612345678, 12345678, ou 21234567",
+      message: "Le numéro de téléphone doit être tunisien : commencer par 20-29, 40-49, 50-59, 70-79 ou 90-99 et contenir 8 chiffres. Exemples : 21678876, 21234567, 51234567, 70234567, 91234567",
     }
   );
 
@@ -208,9 +226,9 @@ export const nameSchema = z
  */
 export function createPhoneSchema(customMessage?: string) {
   return phoneSchema.refine(
-    (val) => /^[2459]\d{7}$/.test(val),
+    (val) => /^(2[0-9]|4[0-9]|5[0-9]|7[0-9]|9[0-9])\d{6}$/.test(val),
     {
-      message: customMessage || "Le numéro de téléphone tunisien doit commencer par 2, 4, 5 ou 9 et contenir 8 chiffres",
+      message: customMessage || "Le numéro de téléphone tunisien doit commencer par 20-29, 40-49, 50-59, 70-79 ou 90-99 et contenir 8 chiffres",
     }
   );
 }

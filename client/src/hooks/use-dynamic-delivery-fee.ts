@@ -44,6 +44,7 @@ export function useDynamicDeliveryFee() {
     window.addEventListener('onboarding-updated', handleStorageChange);
     
     // Créer un intervalle pour vérifier les changements (car storage event ne se déclenche que pour d'autres onglets)
+    // Réduire l'intervalle à 200ms pour une réactivité plus rapide lors du changement d'adresse
     const interval = setInterval(() => {
       const current = getOnboarding();
       const currentKey = current ? `${current.lat}-${current.lng}` : 'none';
@@ -53,7 +54,7 @@ export function useDynamicDeliveryFee() {
         localStorage.setItem('_lastOnboardingKey', currentKey);
         handleStorageChange();
       }
-    }, 500); // Vérifier toutes les 500ms pour une réactivité plus rapide
+    }, 200); // Vérifier toutes les 200ms pour une réactivité plus rapide lors du changement d'adresse
     
     return () => {
       window.removeEventListener('storage', handleStorageChange);

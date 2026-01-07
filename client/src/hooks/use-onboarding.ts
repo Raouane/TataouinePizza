@@ -132,8 +132,9 @@ export function useOnboarding() {
   // Validation du téléphone tunisien
   const validatePhone = useCallback((phone: string): boolean => {
     const cleaned = phone.replace(/\D/g, "");
-    // Format tunisien: 8 chiffres minimum, peut commencer par 2 ou 9
-    return cleaned.length >= 8 && /^[29]\d{7,}$/.test(cleaned);
+    // Format tunisien: 8 chiffres exactement
+    // Préfixes valides: 20-29, 40-49, 50-59, 71-79, 90-99
+    return /^(2[0-9]|4[0-9]|5[0-9]|7[1-9]|9[0-9])\d{6}$/.test(cleaned);
   }, []);
 
   // Validation du nom

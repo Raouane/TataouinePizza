@@ -24,11 +24,28 @@ import {
 
 describe("phoneSchema", () => {
   describe("Validation des numéros de téléphone tunisiens", () => {
-    it("devrait accepter un numéro de 8 chiffres commençant par 2, 4, 5 ou 9", () => {
+    it("devrait accepter un numéro de 8 chiffres avec préfixes valides (20-29, 40-49, 50-59, 70-79, 90-99)", () => {
+      // Mobile Ooredoo/Orange (20-29)
+      expect(phoneSchema.parse("21678876")).toBe("21678876");
       expect(phoneSchema.parse("21234567")).toBe("21234567");
+      expect(phoneSchema.parse("29234567")).toBe("29234567");
+      
+      // Mobile Lycamobile/MVNO (40-49)
       expect(phoneSchema.parse("41234567")).toBe("41234567");
+      expect(phoneSchema.parse("49234567")).toBe("49234567");
+      
+      // Mobile Orange (50-59)
       expect(phoneSchema.parse("51234567")).toBe("51234567");
+      expect(phoneSchema.parse("59234567")).toBe("59234567");
+      
+      // Fixe (70-79)
+      expect(phoneSchema.parse("70234567")).toBe("70234567");
+      expect(phoneSchema.parse("71234567")).toBe("71234567");
+      expect(phoneSchema.parse("79234567")).toBe("79234567");
+      
+      // Mobile Tunisie Telecom (90-99)
       expect(phoneSchema.parse("91234567")).toBe("91234567");
+      expect(phoneSchema.parse("99234567")).toBe("99234567");
     });
 
     it("devrait normaliser les numéros avec préfixe +216", () => {
@@ -56,12 +73,17 @@ describe("phoneSchema", () => {
       expect(phoneSchema.parse("(21) 23 45 67")).toBe("21234567");
     });
 
-    it("devrait rejeter les numéros qui ne commencent pas par 2, 4, 5 ou 9", () => {
-      expect(() => phoneSchema.parse("11234567")).toThrow();
-      expect(() => phoneSchema.parse("31234567")).toThrow();
-      expect(() => phoneSchema.parse("61234567")).toThrow();
-      expect(() => phoneSchema.parse("71234567")).toThrow();
-      expect(() => phoneSchema.parse("81234567")).toThrow();
+    it("devrait rejeter les numéros qui ne commencent pas par un préfixe valide", () => {
+      expect(() => phoneSchema.parse("11234567")).toThrow(); // Commence par 11
+      expect(() => phoneSchema.parse("31234567")).toThrow(); // Commence par 31
+      expect(() => phoneSchema.parse("61234567")).toThrow(); // Commence par 61
+      expect(() => phoneSchema.parse("80234567")).toThrow(); // Commence par 80 (hors plage 70-79)
+      expect(() => phoneSchema.parse("89234567")).toThrow(); // Commence par 89 (hors plage 90-99)
+    });
+    
+    it("devrait accepter le préfixe 70 pour les numéros fixes/IP", () => {
+      expect(phoneSchema.parse("70234567")).toBe("70234567");
+      expect(phoneSchema.parse("+21670234567")).toBe("70234567");
     });
 
     it("devrait rejeter les numéros avec moins de 8 chiffres", () => {
@@ -410,7 +432,7 @@ describe("createPhoneSchema", () => {
     it("devrait utiliser le message par défaut si aucun message n'est fourni", () => {
       const defaultSchema = createPhoneSchema();
       expect(() => defaultSchema.parse("12345678")).toThrow(
-        "Le numéro de téléphone tunisien doit commencer par 2, 4, 5 ou 9 et contenir 8 chiffres"
+        "Le numéro de téléphone tunisien doit commencer par 20-29, 40-49, 50-59, 70-79 ou 90-99 et contenir 8 chiffres"
       );
     });
 

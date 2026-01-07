@@ -10,8 +10,10 @@ Validation des numéros de téléphone tunisiens.
 
 **Format accepté :**
 - 8 chiffres (sans indicatif)
-- Commence par **2, 4, 5, ou 9**
-- Exemples valides : `"21234567"`, `"41234567"`, `"51234567"`, `"91234567"`
+- Commence par **20-29, 40-49, 50-59, 70-79, ou 90-99**
+- Exemples valides : 
+  - Mobile : `"21678876"` (21), `"21234567"` (21), `"41234567"` (41), `"51234567"` (51), `"91234567"` (91)
+  - Fixe : `"70234567"` (70), `"71234567"` (71), `"79234567"` (79)
 
 **Normalisation automatique :**
 - Supprime les espaces, tirets, points, parenthèses
