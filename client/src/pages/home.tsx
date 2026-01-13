@@ -21,7 +21,7 @@ interface Pizza {
 }
 
 export default function Home() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
   const [pizzas, setPizzas] = useState<Pizza[]>([]);
   const [loadingPizzas, setLoadingPizzas] = useState(false);
