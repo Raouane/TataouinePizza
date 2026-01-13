@@ -631,11 +631,13 @@ export async function notifyNextDriverInQueue(
   try {
     // Récupérer la file d'attente pour cette commande
     const { orderDriverQueues } = await import('../websocket.js');
-    const queue = orderDriverQueues.get(orderId);
+    let queue = orderDriverQueues.get(orderId);
     
-    if (!queue || queue.length === 0) {
-      console.log(`[Round Robin] ⚠️ Aucune file d'attente pour commande ${orderId}`);
-      return 0;
+    // Si pas de file, l'initialiser (première notification ou réinitialisation)
+    if (!queue) {
+      orderDriverQueues.set(orderId, []);
+      queue = orderDriverQueues.get(orderId)!;
+      console.log(`[Round Robin] 📋 File d'attente initialisée pour commande ${orderId}`);
     }
 
     // Récupérer tous les livreurs disponibles
@@ -751,13 +753,34 @@ export async function notifyNextDriverInQueue(
     driversWithWaitTime.sort((a, b) => b.waitTime - a.waitTime);
 
     // ✅ MODIFIÉ : Trouver le prochain livreur qui :
-    // 1. N'a pas encore été notifié (pas dans la file)
-    // 2. N'a pas refusé la commande (pas dans ignoredBy)
-    const notifiedDriverIds = new Set(queue.map(item => item.driverId));
+    // 1. N'a pas refusé la commande (pas dans ignoredBy)
+    // 2. Soit n'a pas encore été notifié, soit a été notifié il y a plus de 2 minutes (répétition)
     const ignoredDriverIdsSet = new Set(ignoredDriverIds);
-    const nextDriver = driversWithWaitTime.find(driver => 
-      !notifiedDriverIds.has(driver.id) && !ignoredDriverIdsSet.has(driver.id)
-    );
+    const now = Date.now();
+    const REPEAT_NOTIFICATION_DELAY = 2 * 60 * 1000; // 2 minutes
+    
+    const nextDriver = driversWithWaitTime.find(driver => {
+      // Exclure les livreurs qui ont refusé
+      if (ignoredDriverIdsSet.has(driver.id)) {
+        return false;
+      }
+      
+      // Vérifier si le livreur a déjà été notifié
+      const notificationEntry = queue.find(item => item.driverId === driver.id);
+      if (!notificationEntry) {
+        // Livreur jamais notifié, on peut le notifier
+        return true;
+      }
+      
+      // Livreur déjà notifié, vérifier si on peut répéter (après 2 minutes)
+      const timeSinceNotification = now - notificationEntry.notifiedAt.getTime();
+      if (timeSinceNotification >= REPEAT_NOTIFICATION_DELAY) {
+        console.log(`[Round Robin] 🔄 Répétition notification pour ${driver.name} (notifié il y a ${Math.round(timeSinceNotification / 1000)}s)`);
+        return true;
+      }
+      
+      return false;
+    });
 
     if (!nextDriver) {
       console.log(`[Round Robin] ⚠️ Tous les livreurs disponibles ont déjà été notifiés pour commande ${orderId}`);
@@ -768,11 +791,19 @@ export async function notifyNextDriverInQueue(
       return await notifyNextDriverInQueue(orderId, restaurantName, customerName, totalPrice, address);
     }
 
-    // Ajouter le livreur à la file
-    queue.push({
-      driverId: nextDriver.id,
-      notifiedAt: new Date()
-    });
+    // Ajouter ou mettre à jour le livreur dans la file
+    const existingEntry = queue.find(item => item.driverId === nextDriver.id);
+    if (existingEntry) {
+      // Mettre à jour le timestamp de notification
+      existingEntry.notifiedAt = new Date();
+      console.log(`[Round Robin] 🔄 Mise à jour timestamp notification pour ${nextDriver.name}`);
+    } else {
+      // Ajouter le livreur à la file
+      queue.push({
+        driverId: nextDriver.id,
+        notifiedAt: new Date()
+      });
+    }
 
     console.log(`[Round Robin] 📤 Notification du livreur suivant: ${nextDriver.name} (${nextDriver.phone})`);
 
