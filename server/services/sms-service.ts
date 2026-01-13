@@ -761,9 +761,11 @@ export async function notifyNextDriverInQueue(
 
     if (!nextDriver) {
       console.log(`[Round Robin] ⚠️ Tous les livreurs disponibles ont déjà été notifiés pour commande ${orderId}`);
-      // Tous les livreurs ont été notifiés, nettoyer la file
-      orderDriverQueues.delete(orderId);
-      return 0;
+      console.log(`[Round Robin] 🔄 Réinitialisation de la file pour continuer les notifications...`);
+      // Réinitialiser la file pour recommencer depuis le début
+      orderDriverQueues.set(orderId, []);
+      // Relancer la notification avec la file vide (va notifier le premier livreur disponible)
+      return await notifyNextDriverInQueue(orderId, restaurantName, customerName, totalPrice, address);
     }
 
     // Ajouter le livreur à la file
@@ -774,8 +776,28 @@ export async function notifyNextDriverInQueue(
 
     console.log(`[Round Robin] 📤 Notification du livreur suivant: ${nextDriver.name} (${nextDriver.phone})`);
 
-    // Envoyer WhatsApp au livreur suivant avec driverId directement
-    const result = await sendWhatsAppToDriver(
+    // Envoyer Telegram au livreur suivant (priorité)
+    let telegramSent = false;
+    if (nextDriver.telegramId) {
+      try {
+        await telegramService.sendOrderNotification(
+          nextDriver.telegramId,
+          orderId,
+          customerName,
+          totalPrice,
+          address,
+          restaurantName,
+          nextDriver.id
+        );
+        telegramSent = true;
+        console.log(`[Round Robin] ✅ Message Telegram envoyé à ${nextDriver.name}`);
+      } catch (error: any) {
+        console.error(`[Round Robin] ❌ Erreur envoi Telegram à ${nextDriver.name}:`, error.message);
+      }
+    }
+
+    // Envoyer WhatsApp au livreur suivant avec driverId directement (fallback)
+    const whatsappResult = await sendWhatsAppToDriver(
       nextDriver.phone,
       orderId,
       customerName,
@@ -785,10 +807,10 @@ export async function notifyNextDriverInQueue(
       nextDriver.id  // Passer driverId directement
     );
 
-    if (result) {
-      console.log(`[Round Robin] ✅ Message envoyé à ${nextDriver.name}`);
+    if (telegramSent || whatsappResult) {
+      console.log(`[Round Robin] ✅ Notification envoyée à ${nextDriver.name} (Telegram: ${telegramSent ? 'Oui' : 'Non'}, WhatsApp: ${whatsappResult ? 'Oui' : 'Non'})`);
       
-      // Redémarrer le timer de 2 minutes
+      // Redémarrer le timer de 1 minute pour continuer jusqu'à trouver un livreur
       const { startRoundRobinTimer } = await import('../websocket.js');
       await startRoundRobinTimer(orderId, restaurantName, customerName, totalPrice, address);
       

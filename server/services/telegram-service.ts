@@ -781,6 +781,13 @@ ${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
 
       console.log(`[Telegram] 📤 Envoi de ${trulyAvailableDrivers.length} notification(s)...`);
 
+      // ✅ Initialiser la file d'attente Round Robin pour cette commande
+      const { orderDriverQueues } = await import('../websocket.js');
+      if (!orderDriverQueues.has(orderId)) {
+        orderDriverQueues.set(orderId, []);
+        console.log(`[Telegram] 📋 File d'attente Round Robin initialisée pour commande ${orderId}`);
+      }
+
       // ✅ MODIFIÉ : Envoyer à TOUS les livreurs disponibles (pas seulement le premier)
       let successCount = 0;
       let failureCount = 0;
@@ -804,6 +811,13 @@ ${restaurantAddress ? `📍 ${restaurantAddress}` : ''}
         if (success) {
           successCount++;
           console.log(`[Telegram] ✅ Notification envoyée avec succès à ${driver.name}`);
+          
+          // Ajouter le livreur à la file d'attente Round Robin
+          const queue = orderDriverQueues.get(orderId)!;
+          queue.push({
+            driverId: driver.id,
+            notifiedAt: new Date()
+          });
         } else {
           failureCount++;
           console.error(`[Telegram] ❌ Échec envoi notification à ${driver.name}`);

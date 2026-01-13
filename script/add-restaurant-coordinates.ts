@@ -21,6 +21,7 @@ const restaurantCoordinates: Record<string, { lat: number; lng: number }> = {
   "BAB EL HARA": { lat: 32.9295, lng: 10.4510 },
   "Sahara Grill": { lat: 32.9298, lng: 10.4512 },
   "Tataouine Pizza": { lat: 32.9297, lng: 10.4511 },
+  "Pizza del Sol": { lat: 32.9296, lng: 10.4513 },
 };
 
 async function addRestaurantCoordinates() {

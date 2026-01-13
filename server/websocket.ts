@@ -315,21 +315,28 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
     console.log(`[WebSocket] 📱 Résultat: ${telegramCount} notification(s) Telegram envoyée(s)`);
     console.log("[WebSocket] ========================================\n");
     
-    // Démarrer le timer Round Robin si un livreur a été notifié
+    // Démarrer le timer Round Robin même si aucun livreur n'a été notifié initialement
+    // Le système continuera à chercher des livreurs disponibles
     if (telegramCount > 0) {
       console.log("[WebSocket] ✅ Timer Round Robin démarré");
-      startRoundRobinTimer(
-        orderData.orderId,
-        orderData.restaurantName,
-        orderData.customerName,
-        orderData.totalPrice,
-        orderData.address
-      );
     } else {
-      console.warn("[WebSocket] ⚠️ Aucun livreur notifié - alerte administration");
-      // Aucun livreur disponible - alerter l'administration
+      console.warn("[WebSocket] ⚠️ Aucun livreur notifié initialement - le système continuera à chercher");
+      // Initialiser la file d'attente même si aucun livreur n'est disponible
+      if (!orderDriverQueues.has(orderData.orderId)) {
+        orderDriverQueues.set(orderData.orderId, []);
+      }
+      // Alerter l'administration mais continuer quand même
       await alertAdministrationNoDriversAvailable(orderData);
     }
+    
+    // Toujours démarrer le timer Round Robin pour continuer à chercher un livreur
+    startRoundRobinTimer(
+      orderData.orderId,
+      orderData.restaurantName,
+      orderData.customerName,
+      orderData.totalPrice,
+      orderData.address
+    );
   } catch (telegramError: any) {
     console.error('\n[WebSocket] ❌❌❌ ERREUR ENVOI TELEGRAM ❌❌❌');
     console.error('[WebSocket]    Erreur:', telegramError.message);
@@ -337,6 +344,18 @@ export async function notifyDriversOfNewOrder(orderData: OrderNotification) {
     console.error("[WebSocket] ========================================\n");
     // Alerter l'administration même en cas d'erreur
     await alertAdministrationNoDriversAvailable(orderData);
+    // Initialiser la file d'attente même en cas d'erreur pour continuer à chercher
+    if (!orderDriverQueues.has(orderData.orderId)) {
+      orderDriverQueues.set(orderData.orderId, []);
+    }
+    // Démarrer le timer Round Robin même en cas d'erreur pour continuer à chercher un livreur
+    startRoundRobinTimer(
+      orderData.orderId,
+      orderData.restaurantName,
+      orderData.customerName,
+      orderData.totalPrice,
+      orderData.address
+    );
   }
 
   // Réinitialiser le timer d'inactivité car il y a une nouvelle commande
@@ -377,7 +396,14 @@ export async function startRoundRobinTimer(
       console.log(`[Round Robin] 🔄 Commande ${orderId} non acceptée, passage au livreur suivant...`);
       
       const { notifyNextDriverInQueue } = await import("./services/sms-service.js");
-      await notifyNextDriverInQueue(orderId, restaurantName, customerName, totalPrice, address);
+      const notifiedCount = await notifyNextDriverInQueue(orderId, restaurantName, customerName, totalPrice, address);
+      
+      // Si aucun livreur n'a été notifié, redémarrer le timer quand même pour continuer à chercher
+      if (notifiedCount === 0) {
+        console.log(`[Round Robin] ⚠️ Aucun livreur notifié, mais le timer continue à chercher...`);
+        // Redémarrer le timer pour continuer à chercher un livreur disponible
+        startRoundRobinTimer(orderId, restaurantName, customerName, totalPrice, address);
+      }
     } else {
       // Commande acceptée, nettoyer la file
       console.log(`[Round Robin] ✅ Commande ${orderId} acceptée, nettoyage de la file`);
