@@ -41,19 +41,45 @@ function normalizeFileName(fileName: string): string {
  * Mappings manuels pour les correspondances difficiles
  */
 const manualMappings: Record<string, string[]> = {
-  "pizza quatre fromages": ["4fromage", "quatre-fromages", "4-fromages"],
-  "pizza pepperoni": ["pepperoni"],
+  "pizza quatre fromages": ["4fromage", "quatre-fromages", "4-fromages", "pizza-4-fromages"],
+  "pizza pepperoni": ["pepperoni", "pizza-pepperoni"],
   "pizza végétarienne": ["vegetarienne", "vegetarian"],
   "éclair au chocolat": ["eclair-chocolat", "eclair"],
-  "macarons": ["macaron"],
-  "baklava": ["baklawa"],
+  "macarons": ["macaron", "macarons"],
+  "baklava": ["baklawa", "baklava"],
   "tarte aux fraises": ["tarte-fraise", "tarte-fraises"],
   "tarte aux pommes": ["tarte-pomme", "tarte-pommes"],
   "pizza œuf": ["pizza-oeuf", "oeuf"],
   "shakshuka saucisses": ["ojja-merguez", "shakshuka"],
   "tagine poulet pois": ["jelbana poulet", "tagine-poulet"],
-  "pâtes viande pois chiches": ["makrouna-boeuf", "pates"],
+  "pâtes viande pois chiches": ["makrouna-boeuf", "pates", "pates-a-la-viande"],
   "shawarma poulet": ["sandwich tunisien", "shawarma"],
+  "mechoui": ["mechoui", "oriental"],
+  "brochettes mixtes": ["brochettes", "brochettes-mixtes", "makloub"],
+  "vegetarian": ["vegetarienne", "vegetarian"],
+  "ma'amoul": ["maamoul"],
+  "tajine": ["jelbana poulet", "tagine-poulet", "jelbana"],
+  "œufs aux saucisses": ["ojja-merguez", "shakshuka"],
+  "tataouine spéciale": ["oriental", "makloub"],
+  "calzone": ["calzone", "calzone-aux-oeufs"],
+  "couscous poulet": ["couscous-poulet", "couscous-au-poulet"],
+  "fricassé": ["fricassé", "fricasse"],
+  "frites": ["frites"],
+  "kaak warka": ["kaak warka"],
+  "kamounia": ["kamounia"],
+  "lablabi": ["lablabi"],
+  "maamoul": ["maamoul"],
+  "mille-feuille": ["mille-feuille"],
+  "ragout poulet": ["ragout-de-poulet"],
+  "salade tunisienne": ["salade-tunisienne"],
+  "sandwich escalope": ["sandwich escalope"],
+  "sandwich poulet": ["sandwich poulet chiken", "sandwich-poulet-frites"],
+  "sandwich thon": ["sandwich-au-thon"],
+  "tarte citron": ["tarte-citron"],
+  "makloub": ["makloub"],
+  "makroudh": ["makroudh"],
+  "oriental": ["oriental"],
+  "biscuits blancs": ["biscuits-blancs"],
 };
 
 /**
@@ -132,7 +158,7 @@ async function mapImagesToProducts() {
     }
 
     const imageFiles = fs.readdirSync(imagesDir).filter(file => 
-      /\.(png|jpg|jpeg|svg)$/i.test(file)
+      /\.(png|jpg|jpeg)$/i.test(file) && !file.toLowerCase().endsWith('.svg')
     );
     
     console.log(`🖼️  ${imageFiles.length} fichiers images trouvés:\n`);

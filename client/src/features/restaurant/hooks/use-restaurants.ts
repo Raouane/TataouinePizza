@@ -20,14 +20,22 @@ export function useRestaurants() {
     const fetchRestaurants = async () => {
       try {
         setLoading(true);
+        console.log('[useRestaurants] 🔍 Début du chargement des restaurants...');
         const data = await getRestaurants();
+        console.log('[useRestaurants] ✅ Restaurants chargés:', data.length);
+        if (data.length === 0) {
+          console.warn('[useRestaurants] ⚠️ Aucun restaurant trouvé dans la réponse API');
+        } else {
+          console.log('[useRestaurants] 📋 Liste des restaurants:', data.map(r => r.name));
+        }
         setRestaurants(data);
         setError(null);
       } catch (err) {
-        console.error("Erreur lors du chargement des restaurants:", err);
+        console.error("[useRestaurants] ❌ Erreur lors du chargement des restaurants:", err);
         setError(err instanceof Error ? err : new Error("Unknown error"));
       } finally {
         setLoading(false);
+        console.log('[useRestaurants] ✅ Chargement terminé');
       }
     };
 

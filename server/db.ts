@@ -85,9 +85,10 @@ const isSupabase = connectionString.includes('.supabase.co') ||
                    connectionString.includes('pooler.supabase.com') ||
                    connectionString.includes('supabase');
 const isRender = connectionString.includes('.render.com');
+const isLocalhost = connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
 
-// Ajouter SSL pour Supabase et Render PostgreSQL si pas déjà présent
-if ((isSupabase || isRender) && !connectionString.includes('sslmode=')) {
+// Ajouter SSL pour Supabase et Render PostgreSQL si pas déjà présent (mais PAS pour localhost)
+if ((isSupabase || isRender) && !isLocalhost && !connectionString.includes('sslmode=')) {
   connectionString += (connectionString.includes('?') ? '&' : '?') + 'sslmode=require';
   console.log("[DB] SSL mode ajouté automatiquement");
 }
@@ -108,8 +109,13 @@ if (isSupabase && !process.env.PGSSLMODE) {
   console.log("[DB] 🔧 PGSSLMODE=no-verify FORCÉ pour Supabase");
 }
 
-// ✅ PRIORITÉ 1 : Si PGSSLMODE=no-verify est défini, l'utiliser pour TOUTES les connexions
-if (process.env.PGSSLMODE === 'no-verify') {
+// ✅ PRIORITÉ 0 : Pour localhost, ne PAS utiliser SSL (PostgreSQL local ne le supporte généralement pas)
+if (isLocalhost) {
+  // Désactiver explicitement SSL pour localhost
+  poolConfig.ssl = false;
+  console.log("[DB] ✅ Connexion locale détectée - SSL explicitement désactivé");
+} else if (process.env.PGSSLMODE === 'no-verify') {
+  // ✅ PRIORITÉ 1 : Si PGSSLMODE=no-verify est défini, l'utiliser pour TOUTES les connexions (sauf localhost)
   poolConfig.ssl = {
     rejectUnauthorized: false,
   };
@@ -139,7 +145,8 @@ if (poolConfig.ssl) {
 
 // ✅ FIX ULTIME : S'assurer que SSL est TOUJOURS configuré pour Supabase
 // Même si la détection a échoué, forcer SSL si l'URL contient "supabase"
-if (!poolConfig.ssl && (connectionString.includes('supabase') || process.env.PGSSLMODE === 'no-verify')) {
+// MAIS PAS pour localhost
+if (!poolConfig.ssl && !isLocalhost && (connectionString.includes('supabase') || (process.env.PGSSLMODE === 'no-verify' && !isLocalhost))) {
   poolConfig.ssl = {
     rejectUnauthorized: false,
   };
@@ -154,7 +161,8 @@ console.log("[DB] 🔍 ConnectionString contient 'postgresql://':", connectionSt
 console.log("[DB] 🔍 ConnectionString contient '@':", connectionString.includes('@'));
 
 // ✅ FIX CRITIQUE : Vérifier une dernière fois que SSL est configuré avant de créer le Pool
-if (isSupabase && !poolConfig.ssl) {
+// MAIS PAS pour localhost
+if (isSupabase && !isLocalhost && !poolConfig.ssl) {
   poolConfig.ssl = {
     rejectUnauthorized: false,
   };

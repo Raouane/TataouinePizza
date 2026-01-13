@@ -32,6 +32,7 @@ export default function Home() {
     openRestaurants, 
     closedRestaurants, 
     loading,
+    error,
     searchRestaurants 
   } = useRestaurants();
   
@@ -215,10 +216,29 @@ export default function Home() {
                 getCategoryLabel={getCategoryLabelMemo}
               />
               
-              {(filteredRestaurants.length === 0 && openRestaurants.length === 0 && closedRestaurants.length === 0) && !loading && (
+              {error && (
+                <div className="text-center py-12 bg-red-50 rounded-2xl border border-red-200">
+                  <div className="text-4xl mb-3">⚠️</div>
+                  <p className="text-red-600 font-medium mb-2">
+                    {language === 'ar' ? "خطأ في تحميل المطاعم" : language === 'en' ? "Error loading restaurants" : "Erreur lors du chargement des restaurants"}
+                  </p>
+                  <p className="text-sm text-red-500 mb-2">{error.message}</p>
+                  <p className="text-xs text-red-400 mt-2">
+                    {language === 'ar' ? "تحقق من وحدة التحكم للمزيد من التفاصيل" : language === 'en' ? "Check console for more details" : "Vérifiez la console pour plus de détails"}
+                  </p>
+                </div>
+              )}
+              {!error && (filteredRestaurants.length === 0 && openRestaurants.length === 0 && closedRestaurants.length === 0) && !loading && (
                 <div className="text-center py-12 bg-white rounded-2xl">
                   <div className="text-4xl mb-3">🔍</div>
-                  <p className="text-gray-600 font-medium">{t('home.search.noRestaurants')}</p>
+                  <p className="text-gray-600 font-medium mb-2">{t('home.search.noRestaurants')}</p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {language === 'ar' 
+                      ? `إجمالي المطاعم المحملة: ${restaurants.length} (مفتوحة: ${openRestaurants.length}, مغلقة: ${closedRestaurants.length})`
+                      : language === 'en'
+                      ? `Total restaurants loaded: ${restaurants.length} (open: ${openRestaurants.length}, closed: ${closedRestaurants.length})`
+                      : `Total restaurants chargés: ${restaurants.length} (ouverts: ${openRestaurants.length}, fermés: ${closedRestaurants.length})`}
+                  </p>
                 </div>
               )}
             </>

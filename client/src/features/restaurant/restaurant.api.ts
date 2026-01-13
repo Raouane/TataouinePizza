@@ -11,12 +11,20 @@ const API_BASE = "/api";
  * Récupère tous les restaurants
  */
 export async function getRestaurants(): Promise<Restaurant[]> {
-  const res = await fetch(`${API_BASE}/restaurants`);
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Failed to fetch restaurants");
+  try {
+    const res = await fetch(`${API_BASE}/restaurants`);
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ error: `HTTP ${res.status}: ${res.statusText}` }));
+      console.error('[Restaurant API] ❌ Erreur lors de la récupération des restaurants:', error);
+      throw new Error(error.error || `Failed to fetch restaurants: ${res.status} ${res.statusText}`);
+    }
+    const data = await res.json();
+    console.log('[Restaurant API] ✅ Restaurants récupérés:', data.length);
+    return data;
+  } catch (err) {
+    console.error('[Restaurant API] ❌ Exception lors de la récupération des restaurants:', err);
+    throw err;
   }
-  return res.json();
 }
 
 /**
