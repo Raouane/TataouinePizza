@@ -34,6 +34,13 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const isRtl = dir === 'rtl';
   
+  // Log de diagnostic pour vérifier que Home se monte correctement
+  useEffect(() => {
+    console.log('[DEBUG] 🏠 COMPOSANT HOME MONTÉ');
+    console.log('  - URL navigateur:', window.location.pathname);
+    console.log('  - Home affiché avec succès');
+  }, []);
+  
   // Récupérer le setting delivery_modes_enabled (global)
   const globalSetting = usePublicSetting("delivery_modes_enabled", "true");
   

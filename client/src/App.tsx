@@ -13,7 +13,6 @@
  * ARCHITECTURE DE NAVIGATION:
  * 
  * 1. ROUTES PUBLIQUES (sans Layout):
- *    - /onboarding : Page d'onboarding pour nouveaux utilisateurs
  *    - /admin : Redirection automatique vers /admin/login ou /admin/dashboard
  *    - /admin/login : Connexion administrateur
  *    - /admin/dashboard : Tableau de bord administrateur
@@ -32,12 +31,7 @@
  *    - /history : Historique des commandes
  *    - /profile : Profil utilisateur
  * 
- * 3. PROTECTION PAR ONBOARDING:
- *    - Toutes les routes protégées vérifient si l'utilisateur a complété l'onboarding
- *    - Si non complété → redirection vers /onboarding
- *    - L'onboarding peut être désactivé via la variable d'environnement ENABLE_ONBOARDING
- * 
- * 4. COMPOSANTS DE NAVIGATION:
+ * 3. COMPOSANTS DE NAVIGATION:
  *    - Layout: Fournit la barre de navigation (header + bottom nav mobile)
  *    - ScrollToTop: Scroll automatique en haut lors des changements de route
  *    - MenuRedirect: Redirige /menu vers /
@@ -124,34 +118,11 @@ import DriverAutoLogin from "@/pages/driver-auto-login";
 import DriverDashboard from "@/pages/driver-dashboard";
 import RestaurantLogin from "@/pages/restaurant-login";
 import RestaurantDashboard from "@/pages/restaurant-dashboard";
-import OnboardingPage from "@/pages/onboarding";
 import DeliveryForm from "@/pages/delivery-form";
 import DeliveryFormStep2 from "@/pages/delivery-form-step2";
 import DeliveryFormStep3 from "@/pages/delivery-form-step3";
 import DeliveryProfessional from "@/pages/delivery-professional";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
-
-/**
- * Hook personnalisé pour vérifier l'état de l'onboarding avec réactivité
- * 
- * UTILISATION DE LA NAVIGATION:
- * - Utilise useLocation() de wouter pour détecter la route actuelle
- * - Évite les redirections infinies en vérifiant si on est déjà sur /onboarding
- * - Écoute les changements du localStorage pour synchroniser entre onglets
- * 
- * LOGIQUE:
- * - Si onboarding désactivé → retourne toujours true (accès direct)
- * - Si sur /onboarding → retourne false (évite les redirections)
- * - Sinon → vérifie localStorage pour l'état d'onboarding
- */
-// Hook pour vérifier l'onboarding avec réactivité
-// ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG
-// Pour le MVP, retourne toujours true pour permettre l'accès direct à toutes les pages
-function useOnboarding() {
-  // Simplification drastique : retourner toujours true pour le MVP
-  // Cela permet d'afficher directement la page d'accueil sans redirection
-  return true;
-}
 
 /**
  * Composant de redirection pour la route /menu
@@ -210,20 +181,51 @@ function AdminRedirect() {
  * 
  * Routes protégées (avec Layout):
  * - Routes utilisateur avec barre de navigation
- * - Protection par onboarding (redirection si non complété)
  * - Layout fournit: Header, Bottom Nav (mobile), Footer
- * 
- * PROTECTION PAR ONBOARDING:
- * - Toutes les routes protégées vérifient isOnboarded
- * - Si false → affiche OnboardingPage
- * - Si true → affiche le composant de la route
  * 
  * PARAMÈTRES DE ROUTE:
  * - /menu/:restaurantId utilise useParams() dans le composant Menu
  * - Les query strings (?product=123) sont accessibles via window.location.search
  */
 function Router() {
-  const isOnboarded = useOnboarding(); // Vérifie l'état d'onboarding (toujours true pour MVP)
+  const [location, setLocation] = useLocation(); // Pour le diagnostic et la correction
+  
+  // CORRECTION: Si l'URL du navigateur est /admin/login sans token, forcer la route vers /
+  // Cette correction doit s'exécuter au premier rendu pour éviter que AdminLogin ne se monte
+  useEffect(() => {
+    const browserPath = window.location.pathname;
+    const adminToken = localStorage.getItem("adminToken");
+    
+    // Si l'URL est /admin/login mais qu'il n'y a pas de token, rediriger vers /
+    // Cela corrige le problème où le cache/service worker garde l'ancienne URL
+    if (browserPath === "/admin/login" && !adminToken) {
+      console.warn('[DEBUG] ⚠️ CORRECTION: URL navigateur est /admin/login sans token, redirection vers /');
+      // Utiliser setLocation de Wouter (navigation client-side) au lieu de window.location
+      // Cela met à jour l'URL du navigateur ET la route Wouter sans rechargement
+      setLocation("/");
+    }
+  }, []); // S'exécute une seule fois au montage pour éviter les boucles
+  
+  // Logs de diagnostic pour comprendre le routage
+  useEffect(() => {
+    const browserPath = window.location.pathname;
+    console.log('[DEBUG] 🔍 DIAGNOSTIC ROUTAGE:');
+    console.log('  - URL navigateur:', browserPath);
+    console.log('  - Route Wouter:', location);
+    console.log('  - Hash:', window.location.hash);
+    console.log('  - Search:', window.location.search);
+    
+    // Détecter si on est sur /admin/login alors qu'on devrait être sur /
+    if (browserPath === "/" && location === "/admin/login") {
+      console.warn('[DEBUG] ⚠️ PROBLÈME DÉTECTÉ: URL navigateur est / mais Wouter est sur /admin/login');
+    }
+    if (browserPath === "/admin/login" && location === "/admin/login") {
+      const adminToken = localStorage.getItem("adminToken");
+      if (!adminToken) {
+        console.log('[DEBUG] ℹ️ Utilisateur accède directement à /admin/login (normal si clic sur lien)');
+      }
+    }
+  }, [location]);
 
   return (
     <Switch>
@@ -231,15 +233,11 @@ function Router() {
           ROUTES PUBLIQUES (sans Layout) - EN PREMIER
           ============================================ */}
       
-      {/* Route onboarding toujours accessible (même si désactivé, pour accès manuel) */}
-      {/* ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG */}
-      <Route path="/onboarding" component={OnboardingPage} />
-      
-      {/* Routes d'authentification et administration - Routes exactes AVANT la redirection /admin */}
+      {/* Routes d'authentification et administration - Routes exactes */}
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
       
-      {/* Redirection intelligente /admin → /admin/login ou /admin/dashboard (APRÈS les routes exactes) */}
+      {/* Redirection intelligente /admin → /admin/login ou /admin/dashboard */}
       <Route path="/admin" component={AdminRedirect} />
       <Route path="/driver/login" component={DriverLogin} />
       <Route path="/driver/auto-login" component={DriverAutoLogin} />
@@ -254,77 +252,77 @@ function Router() {
       {/* Route /menu sans restaurantId → redirection vers / */}
       <Route path="/menu">
         <Layout>
-          {isOnboarded ? <MenuRedirect /> : <OnboardingPage />}
+          <MenuRedirect />
         </Layout>
       </Route>
       
       {/* Route menu avec paramètre restaurantId (ex: /menu/123) */}
       <Route path="/menu/:restaurantId">
         <Layout>
-          {isOnboarded ? <Menu /> : <OnboardingPage />}
+          <Menu />
         </Layout>
       </Route>
       
       {/* Page panier */}
       <Route path="/cart">
         <Layout>
-          {isOnboarded ? <CartPage /> : <OnboardingPage />}
+          <CartPage />
         </Layout>
       </Route>
       
       {/* Page de succès de commande */}
       <Route path="/success">
         <Layout>
-          {isOnboarded ? <OrderSuccess /> : <OnboardingPage />}
+          <OrderSuccess />
         </Layout>
       </Route>
       
       {/* Historique des commandes */}
       <Route path="/history">
         <Layout>
-          {isOnboarded ? <OrderHistory /> : <OnboardingPage />}
+          <OrderHistory />
         </Layout>
       </Route>
       
       {/* Profil utilisateur */}
       <Route path="/profile">
         <Layout>
-          {isOnboarded ? <Profile /> : <OnboardingPage />}
+          <Profile />
         </Layout>
       </Route>
       
       {/* Formulaire de livraison - Étape 1 */}
       <Route path="/delivery-form">
         <Layout>
-          {isOnboarded ? <DeliveryForm /> : <OnboardingPage />}
+          <DeliveryForm />
         </Layout>
       </Route>
       
       {/* Formulaire de livraison - Étape 2 */}
       <Route path="/delivery-form-step2">
         <Layout>
-          {isOnboarded ? <DeliveryFormStep2 /> : <OnboardingPage />}
+          <DeliveryFormStep2 />
         </Layout>
       </Route>
       
       {/* Formulaire de livraison - Étape 3 */}
       <Route path="/delivery-form-step3">
         <Layout>
-          {isOnboarded ? <DeliveryFormStep3 /> : <OnboardingPage />}
+          <DeliveryFormStep3 />
         </Layout>
       </Route>
       
       {/* Page professionnel de livraison */}
       <Route path="/delivery-professional">
         <Layout>
-          {isOnboarded ? <DeliveryProfessional /> : <OnboardingPage />}
+          <DeliveryProfessional />
         </Layout>
       </Route>
       
-      {/* Route racine - Page d'accueil (EN DERNIER pour éviter de matcher toutes les routes) */}
+      {/* Route racine - Page d'accueil (EN DERNIER car / matche tout) */}
       <Route path="/">
         <Layout>
-          {isOnboarded ? <Home /> : <OnboardingPage />}
+          <Home />
         </Layout>
       </Route>
       
@@ -337,6 +335,19 @@ function Router() {
 }
 
 function App() {
+  // Log de diagnostic au chargement initial (SANS redirection pour éviter les boucles)
+  useEffect(() => {
+    const browserPath = window.location.pathname;
+    console.log('[DEBUG] 🚀 APP DÉMARRÉE');
+    console.log('  - URL navigateur au démarrage:', browserPath);
+    console.log('  - User Agent:', navigator.userAgent);
+    console.log('  - Timestamp:', new Date().toISOString());
+    
+    // Vérifier s'il y a un token admin (pour comprendre pourquoi on pourrait être redirigé)
+    const adminToken = localStorage.getItem("adminToken");
+    console.log('  - Admin token présent:', !!adminToken);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

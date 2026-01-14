@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,28 @@ export default function AdminLogin() {
   // Désactiver l'enregistrement en production
   const isProduction = window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
   const [isRegistering, setIsRegistering] = useState(false);
+
+  // Log de diagnostic + CORRECTION: Rediriger vers / si pas de token (cache/service worker)
+  useEffect(() => {
+    const browserPath = window.location.pathname;
+    const adminToken = localStorage.getItem("adminToken");
+    
+    console.log('[DEBUG] 🔐 COMPOSANT ADMIN LOGIN MONTÉ');
+    console.log('  - URL navigateur:', browserPath);
+    console.log('  - Admin token présent:', !!adminToken);
+    
+    // CORRECTION: Si on arrive sur /admin/login sans token, rediriger vers /
+    // Cela corrige le problème où le cache/service worker garde l'ancienne URL
+    if (!adminToken && browserPath === "/admin/login") {
+      console.warn('[DEBUG] ⚠️ CORRECTION: AdminLogin monté sans token, redirection vers /');
+      setLocation("/");
+      return; // Ne pas continuer si on redirige
+    }
+    
+    if (browserPath === "/") {
+      console.warn('[DEBUG] ⚠️ PROBLÈME: AdminLogin monté alors que URL navigateur est /');
+    }
+  }, [setLocation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
