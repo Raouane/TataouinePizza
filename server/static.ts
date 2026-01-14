@@ -11,14 +11,35 @@ export function serveStatic(app: Express) {
   const projectRoot = process.cwd();
   const distPathFromRoot = path.resolve(projectRoot, "dist", "public");
   
-  let actualDistPath = distPath;
-  if (!fs.existsSync(distPath) && fs.existsSync(distPathFromRoot)) {
-    actualDistPath = distPathFromRoot;
+  // Essayer aussi depuis le dossier parent (cas où le serveur est dans dist/server)
+  const distPathFromParent = path.resolve(__dirname, "..", "public");
+  
+  // Liste des chemins possibles à essayer
+  const possiblePaths = [
+    distPath,
+    distPathFromRoot,
+    distPathFromParent,
+    path.resolve(projectRoot, "client", "dist", "public"), // Cas alternatif
+  ];
+  
+  let actualDistPath: string | null = null;
+  
+  // Chercher le premier chemin qui existe
+  for (const testPath of possiblePaths) {
+    if (fs.existsSync(testPath)) {
+      actualDistPath = testPath;
+      console.log(`[STATIC] ✅ Chemin de build trouvé: ${testPath}`);
+      break;
+    } else {
+      console.log(`[STATIC] ⚠️ Chemin testé (n'existe pas): ${testPath}`);
+    }
   }
   
-  if (!fs.existsSync(actualDistPath)) {
+  if (!actualDistPath) {
+    console.error(`[STATIC] ❌ Aucun chemin de build trouvé. Chemins testés:`);
+    possiblePaths.forEach(p => console.error(`  - ${p}`));
     throw new Error(
-      `Could not find the build directory: ${actualDistPath}, make sure to build the client first`,
+      `Could not find the build directory. Tried: ${possiblePaths.join(', ')}. Make sure to build the client first.`,
     );
   }
 
@@ -179,17 +200,39 @@ export function serveStatic(app: Express) {
   });
 
   // Route explicite pour la racine / pour garantir qu'elle serve index.html
-  app.get("/", (req, res) => {
-    const indexPath = path.resolve(actualDistPath, "index.html");
-    if (fs.existsSync(indexPath)) {
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-      console.log(`[STATIC] 📄 Servir index.html pour la route racine /`);
-      res.sendFile(indexPath);
-    } else {
-      res.status(404).send('index.html not found');
+  // IMPORTANT: Cette route doit être définie AVANT express.static() pour avoir la priorité
+  app.get("/", (req, res, next) => {
+    // Ne pas intercepter si c'est une requête API
+    if (req.originalUrl?.startsWith("/api/") || req.url?.startsWith("/api/")) {
+      return next();
     }
+    
+    const indexPath = path.resolve(actualDistPath, "index.html");
+    
+    // Vérifier si le fichier existe avant de l'envoyer
+    if (!fs.existsSync(indexPath)) {
+      console.error(`[STATIC] ❌ index.html non trouvé dans: ${indexPath}`);
+      console.error(`[STATIC] 📁 Chemin de build: ${actualDistPath}`);
+      console.error(`[STATIC] 📁 Contenu du dossier:`, fs.existsSync(actualDistPath) ? fs.readdirSync(actualDistPath).join(', ') : 'Dossier inexistant');
+      return res.status(500).send('Erreur de déploiement : index.html introuvable.');
+    }
+    
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    console.log(`[STATIC] 📄 Servir index.html pour la route racine / (URL: ${req.originalUrl || req.url})`);
+    
+    // Utiliser sendFile avec callback pour gérer les erreurs
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        console.error(`[STATIC] ❌ Erreur envoi index.html pour route racine:`, err);
+        if (!res.headersSent) {
+          res.status(500).send('Erreur de déploiement : impossible de servir index.html.');
+        }
+      } else {
+        console.log(`[STATIC] ✅ index.html servi avec succès pour route racine /`);
+      }
+    });
   });
 
   app.use(express.static(actualDistPath, {
@@ -290,31 +333,47 @@ export function serveStatic(app: Express) {
     // Pour les routes SPA (pas de fichier statique), servir index.html
     // IMPORTANT: Ne pas mettre en cache index.html pour éviter les problèmes de hash
     const indexPath = path.resolve(actualDistPath, "index.html");
-    if (fs.existsSync(indexPath)) {
-      // Désactiver le cache pour index.html pour éviter les problèmes de hash
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-      
-      // Lire et logger le contenu de index.html pour vérifier les hash
-      try {
-        const indexContent = fs.readFileSync(indexPath, 'utf-8');
-        const jsMatches = indexContent.match(/\/assets\/index-([a-zA-Z0-9]+)\.js/g);
-        const cssMatches = indexContent.match(/\/assets\/index-([a-zA-Z0-9]+)\.css/g);
-        if (jsMatches && jsMatches.length > 0) {
-          console.log(`[STATIC] 📄 index.html contient JS: ${jsMatches[0]}`);
-        }
-        if (cssMatches && cssMatches.length > 0) {
-          console.log(`[STATIC] 📄 index.html contient CSS: ${cssMatches[0]}`);
-        }
-      } catch (err) {
-        console.error(`[STATIC] ⚠️ Erreur lecture index.html:`, err);
-      }
-      
-      console.log(`[STATIC] 📄 Servir index.html (sans cache)`);
-      res.sendFile(indexPath);
-    } else {
-      res.status(404).send('index.html not found');
+    
+    // Vérifier si le fichier existe avant de l'envoyer
+    if (!fs.existsSync(indexPath)) {
+      console.error(`[STATIC] ❌ index.html non trouvé dans: ${indexPath}`);
+      console.error(`[STATIC] 📁 Chemin de build: ${actualDistPath}`);
+      console.error(`[STATIC] 📁 Contenu du dossier:`, fs.existsSync(actualDistPath) ? fs.readdirSync(actualDistPath).join(', ') : 'Dossier inexistant');
+      return res.status(500).send('Erreur de déploiement : index.html introuvable.');
     }
+    
+    // Désactiver le cache pour index.html pour éviter les problèmes de hash
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
+    // Lire et logger le contenu de index.html pour vérifier les hash (optionnel, pour debug)
+    try {
+      const indexContent = fs.readFileSync(indexPath, 'utf-8');
+      const jsMatches = indexContent.match(/\/assets\/index-([a-zA-Z0-9]+)\.js/g);
+      const cssMatches = indexContent.match(/\/assets\/index-([a-zA-Z0-9]+)\.css/g);
+      if (jsMatches && jsMatches.length > 0) {
+        console.log(`[STATIC] 📄 index.html contient JS: ${jsMatches[0]}`);
+      }
+      if (cssMatches && cssMatches.length > 0) {
+        console.log(`[STATIC] 📄 index.html contient CSS: ${cssMatches[0]}`);
+      }
+    } catch (err) {
+      console.error(`[STATIC] ⚠️ Erreur lecture index.html:`, err);
+    }
+    
+    console.log(`[STATIC] 📄 Servir index.html pour route: ${req.path} (URL complète: ${req.originalUrl || req.url})`);
+    
+    // Utiliser sendFile avec callback pour gérer les erreurs
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        console.error(`[STATIC] ❌ Erreur envoi index.html:`, err);
+        if (!res.headersSent) {
+          res.status(500).send('Erreur de déploiement : impossible de servir index.html.');
+        }
+      } else {
+        console.log(`[STATIC] ✅ index.html servi avec succès pour: ${req.path}`);
+      }
+    });
   });
 }

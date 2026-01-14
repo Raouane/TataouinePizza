@@ -285,6 +285,14 @@ function AdminRedirect() {
  */
 function Router() {
   const isOnboarded = useOnboarding(); // Vérifie l'état d'onboarding
+  const [location] = useLocation(); // Pour déboguer la route actuelle
+
+  // Debug: Logger la route actuelle en production
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") {
+      console.log("[ROUTER] Route actuelle:", location);
+    }
+  }, [location]);
 
   return (
     <Switch>
