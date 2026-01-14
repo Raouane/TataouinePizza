@@ -147,16 +147,19 @@ import { isOnboardingEnabled, shouldSkipOnboarding } from "@/lib/onboarding-conf
  */
 // Hook pour vérifier l'onboarding avec réactivité
 // ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG
+// Pour le MVP, retourne toujours true pour permettre l'accès direct à toutes les pages
 function useOnboarding() {
   const onboardingEnabled = isOnboardingEnabled();
-  const [location] = useLocation(); // Lecture de la route actuelle via wouter
   
-  // Si l'onboarding est désactivé, toujours retourner true (accès direct)
-  // MAIS ne pas rediriger si on est déjà sur /onboarding
+  // Si l'onboarding est désactivé (MVP), toujours retourner true
+  // Cela permet d'afficher directement la page d'accueil sans redirection
+  if (!onboardingEnabled) {
+    return true; // Onboarding désactivé → accès direct à toutes les pages
+  }
+  
+  // Si l'onboarding est activé (futur), utiliser la logique complète
+  const [location] = useLocation();
   const [isOnboarded, setIsOnboarded] = useState(() => {
-    if (!onboardingEnabled) {
-      return true; // Onboarding désactivé → accès direct
-    }
     // Si on est sur /onboarding, ne pas considérer comme complété pour éviter les redirections
     if (location === '/onboarding') {
       return false;
@@ -165,12 +168,6 @@ function useOnboarding() {
   });
 
   useEffect(() => {
-    // Si l'onboarding est désactivé, ne pas écouter les changements
-    if (!onboardingEnabled) {
-      setIsOnboarded(true);
-      return;
-    }
-
     // Si on est sur /onboarding, ne pas considérer comme complété
     if (location === '/onboarding') {
       setIsOnboarded(false);
@@ -209,7 +206,7 @@ function useOnboarding() {
       window.removeEventListener("storage", handleStorageChange);
       clearInterval(interval);
     };
-  }, [isOnboarded, onboardingEnabled, location]);
+  }, [isOnboarded, location]);
 
   return isOnboarded;
 }
@@ -287,10 +284,12 @@ function Router() {
   const isOnboarded = useOnboarding(); // Vérifie l'état d'onboarding
   const [location] = useLocation(); // Pour déboguer la route actuelle
 
-  // Debug: Logger la route actuelle en production
+  // Debug: Logger la route actuelle pour identifier les problèmes de routage
   useEffect(() => {
-    if (process.env.NODE_ENV === "production") {
-      console.log("[ROUTER] Route actuelle:", location);
+    console.log("[ROUTER] Route actuelle:", location);
+    // Si on est sur /admin/login alors qu'on devrait être sur /, c'est un problème
+    if (location === "/admin/login" && window.location.pathname === "/") {
+      console.warn("[ROUTER] ⚠️ Problème détecté: Route Wouter est /admin/login mais URL navigateur est /");
     }
   }, [location]);
 
@@ -390,7 +389,7 @@ function Router() {
         </Layout>
       </Route>
       
-      {/* Route racine - Page d'accueil (DOIT ÊTRE EN DERNIER pour éviter de matcher toutes les routes) */}
+      {/* Route racine - Page d'accueil (EN DERNIER pour éviter de matcher toutes les routes) */}
       <Route path="/">
         <Layout>
           {isOnboarded ? <Home /> : <OnboardingPage />}

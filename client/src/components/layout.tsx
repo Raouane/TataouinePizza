@@ -198,7 +198,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="container max-w-5xl mx-auto px-4 md:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="text-center md:text-left">
-              <h3 className="font-serif font-bold text-lg">TataoninePizza</h3>
+              <h3 className="font-serif font-bold text-lg">TataouinePizza</h3>
               <p className="text-sm text-muted-foreground">L'authentique goût du désert</p>
             </div>
             
@@ -213,19 +213,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
               
               <div>
-                <a href="/restaurant/login" className="text-muted-foreground hover:text-primary transition-colors underline text-xs">
+                <Link href="/restaurant/login" className="text-muted-foreground hover:text-primary transition-colors underline text-xs">
                   Espace Restaurant
-                </a>
+                </Link>
               </div>
               <div>
-                <a href="/driver/login" className="text-muted-foreground hover:text-primary transition-colors underline text-xs">
+                <Link href="/driver/login" className="text-muted-foreground hover:text-primary transition-colors underline text-xs">
                   Espace Livreur
-                </a>
+                </Link>
               </div>
               <div>
-                <a href="/admin/login" className="text-muted-foreground hover:text-primary transition-colors underline text-xs">
+                <Link href="/admin/login" className="text-muted-foreground hover:text-primary transition-colors underline text-xs">
                   Administration
-                </a>
+                </Link>
               </div>
             </div>
           </div>
