@@ -38,6 +38,7 @@ import { OrderStorage } from "./storage/order-storage.js";
 import { IdempotencyStorage } from "./storage/idempotency-storage.js";
 import { TelegramStorage } from "./storage/telegram-storage.js";
 import { CashStorage } from "./storage/cash-storage.js";
+import { AppSettingsStorage } from "./storage/app-settings-storage.js";
 
 /**
  * Interface principale du storage
@@ -142,6 +143,12 @@ export interface IStorage {
   getLastCashHandover(driverId: string, date: Date): Promise<CashHandover | undefined>;
   validateCashHandover(handoverId: string, adminId: string): Promise<CashHandover>;
   isCashHandoverValidated(handoverId: string): Promise<boolean>;
+
+  // App Settings
+  getSetting(key: string): Promise<{ key: string; value: string; description?: string | null; updatedAt: Date; updatedBy?: string | null } | undefined>;
+  getAllSettings(): Promise<Array<{ key: string; value: string; description?: string | null; updatedAt: Date; updatedBy?: string | null }>>;
+  upsertSetting(key: string, value: string, description?: string, updatedBy?: string): Promise<{ key: string; value: string; description?: string | null; updatedAt: Date; updatedBy?: string | null }>;
+  deleteSetting(key: string): Promise<void>;
 }
 
 /**
@@ -159,6 +166,7 @@ export class DatabaseStorage implements IStorage {
   private idempotencyStorage = new IdempotencyStorage();
   private telegramStorage = new TelegramStorage();
   private cashStorage = new CashStorage();
+  private appSettingsStorage = new AppSettingsStorage();
 
   // ============ ADMIN ============
   async getAdminByEmail(email: string): Promise<AdminUser | undefined> {
@@ -451,6 +459,23 @@ export class DatabaseStorage implements IStorage {
 
   async isCashHandoverValidated(handoverId: string): Promise<boolean> {
     return this.cashStorage.isCashHandoverValidated(handoverId);
+  }
+
+  // ============ APP SETTINGS ============
+  async getSetting(key: string) {
+    return this.appSettingsStorage.getSetting(key);
+  }
+
+  async getAllSettings() {
+    return this.appSettingsStorage.getAllSettings();
+  }
+
+  async upsertSetting(key: string, value: string, description?: string, updatedBy?: string) {
+    return this.appSettingsStorage.upsertSetting(key, value, description, updatedBy);
+  }
+
+  async deleteSetting(key: string): Promise<void> {
+    return this.appSettingsStorage.deleteSetting(key);
   }
 }
 

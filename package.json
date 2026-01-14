@@ -36,6 +36,7 @@
     "test:orders:3": "tsx server/scripts/create-test-orders-3-simultaneous.ts",
     "test-driver-workflow": "tsx script/test-driver-workflow.ts",
     "create-admin": "tsx script/create-admin.ts",
+    "init-settings": "tsx script/init-app-settings.ts",
     "script:update-driver-status": "tsx server/scripts/update-driver-status.ts",
     "script:count-whatsapp-messages": "tsx server/scripts/count-whatsapp-messages.ts",
     "script:set-default-passwords": "tsx server/scripts/set-default-passwords.ts",

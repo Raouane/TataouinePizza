@@ -125,6 +125,10 @@ import DriverDashboard from "@/pages/driver-dashboard";
 import RestaurantLogin from "@/pages/restaurant-login";
 import RestaurantDashboard from "@/pages/restaurant-dashboard";
 import OnboardingPage, { getOnboarding } from "@/pages/onboarding";
+import DeliveryForm from "@/pages/delivery-form";
+import DeliveryFormStep2 from "@/pages/delivery-form-step2";
+import DeliveryFormStep3 from "@/pages/delivery-form-step3";
+import DeliveryProfessional from "@/pages/delivery-professional";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { isOnboardingEnabled, shouldSkipOnboarding } from "@/lib/onboarding-config";
 
@@ -360,6 +364,38 @@ function Router() {
               path="/profile"
               component={() =>
                 isOnboarded ? <Profile /> : <OnboardingPage />
+              }
+            />
+            
+            {/* Formulaire de livraison - Étape 1 */}
+            <Route
+              path="/delivery-form"
+              component={() =>
+                isOnboarded ? <DeliveryForm /> : <OnboardingPage />
+              }
+            />
+            
+            {/* Formulaire de livraison - Étape 2 */}
+            <Route
+              path="/delivery-form-step2"
+              component={() =>
+                isOnboarded ? <DeliveryFormStep2 /> : <OnboardingPage />
+              }
+            />
+            
+            {/* Formulaire de livraison - Étape 3 */}
+            <Route
+              path="/delivery-form-step3"
+              component={() =>
+                isOnboarded ? <DeliveryFormStep3 /> : <OnboardingPage />
+              }
+            />
+            
+            {/* Page professionnel de livraison */}
+            <Route
+              path="/delivery-professional"
+              component={() =>
+                isOnboarded ? <DeliveryProfessional /> : <OnboardingPage />
               }
             />
             

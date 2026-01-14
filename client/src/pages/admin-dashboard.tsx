@@ -17,6 +17,7 @@ import { OrdersTab } from "@/components/admin/orders-tab";
 import { RestaurantsTab } from "@/components/admin/restaurants-tab";
 import { DriversTab } from "@/components/admin/drivers-tab";
 import { PizzasTab } from "@/components/admin/pizzas-tab";
+import { SettingsTab } from "@/components/admin/settings-tab";
 import { DeleteConfirmDialog } from "@/components/admin/delete-confirm-dialog";
 import type { Order, Driver, Restaurant, Pizza } from "@/lib/api";
 
@@ -436,6 +437,10 @@ export default function AdminDashboard() {
             onDelete={openDeletePizzaDialog}
             initialRestaurantFilter={selectedRestaurantForProducts}
           />
+        )}
+
+        {activeTab === "settings" && (
+          <SettingsTab token={token} />
         )}
       </div>
 

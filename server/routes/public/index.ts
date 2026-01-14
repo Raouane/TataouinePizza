@@ -11,6 +11,7 @@ import { registerRestaurantsRoutes } from "./restaurants.routes";
 import { registerPizzasRoutes } from "./pizzas.routes";
 import { registerOrdersReadRoutes } from "./orders-read.routes";
 import { registerOrdersWriteRoutes } from "./orders-write.routes";
+import { registerPublicSettingsRoutes } from "./settings.routes";
 
 /**
  * Enregistre toutes les routes publiques
@@ -37,4 +38,7 @@ export function registerPublicRoutes(app: Express): void {
   
   // Routes commandes - ÉCRITURE (POST)
   registerOrdersWriteRoutes(app);
+  
+  // Routes settings (lecture seule, publique)
+  registerPublicSettingsRoutes(app);
 }

@@ -1,250 +1,210 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Phone } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Link, useLocation } from "wouter";
+import { 
+  Zap, 
+  MapPin, 
+  Shield,
+  ChevronRight
+} from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
-import { isRestaurantOpen } from "@/lib/restaurant-status";
-import { SearchBar } from "@/components/search-bar";
-import { PizzaSearchResult } from "@/components/pizza-search-result";
-import { RestaurantsSection } from "@/features/restaurant/components/restaurants-section";
-import { useRestaurants } from "@/features/restaurant/hooks/use-restaurants";
-import { getCategoryLabel } from "@/lib/category-labels";
-import { debounce } from "@/lib/debounce";
-import type { Restaurant } from "@/features/restaurant/restaurant.types";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { usePublicSetting } from "@/hooks/use-app-settings";
+import HomeOld from "./home-old";
 
-interface Pizza {
+interface DeliveryMode {
   id: string;
-  name: string;
-  description?: string;
-  restaurantId: string;
-  category?: string;
-  imageUrl?: string;
-  prices?: Array<{ size: string; price: string }>;
+  image: string;
+  title: string;
+  description: string;
+  color: string;
+}
+
+interface Feature {
+  id: string;
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  bgColor: string;
+  iconColor: string;
 }
 
 export default function Home() {
-  const { t, language } = useLanguage();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [pizzas, setPizzas] = useState<Pizza[]>([]);
-  const [loadingPizzas, setLoadingPizzas] = useState(false);
+  const { t, language, dir } = useLanguage();
+  const [, setLocation] = useLocation();
+  const isRtl = dir === 'rtl';
   
-  // Utiliser le hook de la feature restaurant
-  const { 
-    restaurants, 
-    openRestaurants, 
-    closedRestaurants, 
-    loading,
-    error,
-    searchRestaurants 
-  } = useRestaurants();
+  // Récupérer le setting delivery_modes_enabled (global)
+  const globalSetting = usePublicSetting("delivery_modes_enabled", "true");
   
-  // AbortController pour annuler les requêtes en cours
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Debounced search avec AbortController
-  const debouncedFetchPizzas = useMemo(
-    () =>
-      debounce((query: string) => {
-        // Annuler la requête précédente si elle existe
-        if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
-        }
-
-        if (query.trim().length > 0) {
-          fetchPizzas(query.trim());
-        } else {
-          setPizzas([]);
-          setLoadingPizzas(false);
-        }
-      }, 300),
-    []
-  );
-
+  // Vérifier si l'utilisateur a une préférence locale
+  const [localPreference, setLocalPreference] = useState<string | null>(null);
+  
   useEffect(() => {
-    debouncedFetchPizzas(searchQuery);
-    
-    // Cleanup: annuler la requête si le composant se démonte ou la recherche change
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, [searchQuery, debouncedFetchPizzas]);
-
-  // OPTIMISATION: Recherche côté serveur avec query param + AbortController
-  const fetchPizzas = useCallback(async (query: string) => {
-    // Créer un nouveau AbortController pour cette requête
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-
-    setLoadingPizzas(true);
-    try {
-      const res = await fetch(`/api/pizzas?search=${encodeURIComponent(query)}`, {
-        signal: abortController.signal,
-      });
-      
-      // Vérifier si la requête a été annulée
-      if (abortController.signal.aborted) {
-        return;
-      }
-
-      if (res.ok) {
-        const data = await res.json();
-        setPizzas(data);
-      }
-    } catch (err) {
-      // Ignorer les erreurs d'abort (c'est normal)
-      if (err instanceof Error && err.name === 'AbortError') {
-        return;
-      }
-      console.error("Failed to fetch pizzas:", err);
-    } finally {
-      // Ne mettre à jour le loading que si la requête n'a pas été annulée
-      if (!abortController.signal.aborted) {
-        setLoadingPizzas(false);
-      }
-    }
+    const localValue = localStorage.getItem("delivery_modes_enabled");
+    setLocalPreference(localValue);
   }, []);
-
-  // OPTIMISATION: Map des restaurants pour O(1) lookup
-  const restaurantsById = useMemo(() => {
-    return Object.fromEntries(restaurants.map(r => [r.id, r]));
-  }, [restaurants]);
-
-  // Préparer les données AVANT le return
-  const showSearchResults = searchQuery.trim().length > 0;
   
-  // Utiliser la fonction de recherche de la feature restaurant
-  const filteredRestaurants = useMemo(() => {
-    if (showSearchResults) return [];
-    return searchRestaurants(searchQuery);
-  }, [searchQuery, showSearchResults, searchRestaurants]);
+  // Priorité : localStorage > setting global
+  const deliveryModesEnabled = localPreference !== null 
+    ? localPreference === "true"
+    : globalSetting === "true";
+  
+  // Si le mode livraison est désactivé, afficher l'ancienne page
+  if (!deliveryModesEnabled) {
+    return <HomeOld />;
+  }
 
-  // Filtrer les pizzas (maintenant déjà filtrées côté serveur, mais on garde pour sécurité)
-  const filteredPizzas = useMemo(() => {
-    if (!showSearchResults) return [];
-    return pizzas
-      .filter(pizza => {
-        const restaurant = restaurantsById[pizza.restaurantId];
-        return restaurant && isRestaurantOpen(restaurant);
-      })
-      .slice(0, 20);
-  }, [pizzas, restaurantsById, showSearchResults]);
+  const deliveryModes: DeliveryMode[] = [
+    {
+      id: "scooter",
+      image: "/images/products/delivery/delivery-scooter.png",
+      title: t('delivery.mode.scooter.title'),
+      description: t('delivery.mode.scooter.desc'),
+      color: "bg-yellow-500"
+    },
+    {
+      id: "tuk-tuk",
+      image: "/images/products/delivery/delivery-tuktuk.png",
+      title: t('delivery.mode.tuktuk.title'),
+      description: t('delivery.mode.tuktuk.desc'),
+      color: "bg-red-500"
+    },
+    {
+      id: "truck",
+      image: "/images/products/delivery/delivery-truck.png",
+      title: t('delivery.mode.truck.title'),
+      description: t('delivery.mode.truck.desc'),
+      color: "bg-blue-500"
+    },
+    {
+      id: "tractor",
+      image: "/images/products/delivery/tracteur.png",
+      title: t('delivery.mode.tractor.title'),
+      description: t('delivery.mode.tractor.desc'),
+      color: "bg-green-500"
+    }
+  ];
 
-  // Helper pour les labels de catégories (utilise le helper pur)
-  const getCategoryLabelMemo = useCallback(
-    (cat: string) => getCategoryLabel(cat, t),
-    [t]
-  );
+  const features: Feature[] = [
+    {
+      id: "express",
+      icon: Zap,
+      title: t('delivery.feature.express.title'),
+      description: t('delivery.feature.express.desc'),
+      bgColor: "bg-orange-50",
+      iconColor: "text-orange-600"
+    },
+    {
+      id: "tracking",
+      icon: MapPin,
+      title: t('delivery.feature.tracking.title'),
+      description: t('delivery.feature.tracking.desc'),
+      bgColor: "bg-yellow-50",
+      iconColor: "text-yellow-600"
+    },
+    {
+      id: "secure",
+      icon: Shield,
+      title: t('delivery.feature.secure.title'),
+      description: t('delivery.feature.secure.desc'),
+      bgColor: "bg-green-50",
+      iconColor: "text-green-600"
+    }
+  ];
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
-      <SearchBar value={searchQuery} onChange={setSearchQuery} />
+    <div className="min-h-screen bg-gray-50" dir={dir}>
+      {/* Hero Section */}
+      <section className="text-center mb-12 mt-8 px-4">
+        <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+          {t('delivery.hero.title')}
+        </h1>
+        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          {t('delivery.hero.subtitle')}
+        </p>
+      </section>
 
-      {/* Message d'appel - Toujours visible juste après la barre de recherche quand il n'y a pas de résultats */}
-      {showSearchResults && !loadingPizzas && filteredPizzas.length === 0 && (
-        <div className="px-3 md:px-4 mt-2 md:mt-3 max-w-4xl mx-auto">
-          <div className="p-3 md:p-4 bg-orange-50 rounded-lg border border-orange-200">
-            <p className="text-xs md:text-sm text-gray-700 mb-2 md:mb-3 leading-relaxed text-center">
-              {t('home.search.callUs') || "Vous ne trouvez pas ce que vous cherchez ? Pas de problème, appelez-nous et nous aurons le plaisir de vous répondre et trouver ce que vous aimez !"}
-            </p>
-            <div className="flex justify-center">
-              <a 
-                href="tel:+21653666945" 
-                className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold text-sm md:text-base px-4 md:px-6 py-2 md:py-3 rounded-lg transition-colors"
+      {/* Delivery Modes Section */}
+      <section className="mb-16 px-4">
+        <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+          {t('delivery.modes.title')}
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+          {deliveryModes.map((mode) => {
+            return (
+              <Card 
+                key={mode.id} 
+                className="cursor-pointer hover:shadow-lg transition-shadow duration-300 border-2 hover:border-orange-500 overflow-hidden p-0 flex flex-col"
+                onClick={() => setLocation(`/delivery-form?mode=${mode.id}`)}
               >
-                <Phone className="h-4 w-4 md:h-5 md:w-5" />
-                <span>{t('home.search.callNow') || "Appelez-nous"}</span>
-              </a>
-            </div>
-          </div>
+                <div className="relative w-full h-64 overflow-hidden flex-shrink-0">
+                  <img 
+                    src={mode.image} 
+                    alt={mode.title}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // Fallback si l'image n'existe pas
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      if (parent) {
+                        parent.className = `relative w-full h-64 ${mode.color} flex items-center justify-center`;
+                        parent.innerHTML = `<div class="text-white text-4xl">🛵</div>`;
+                      }
+                    }}
+                  />
+                </div>
+                <div className="p-6 flex flex-col flex-grow">
+                  <CardTitle className="text-xl mb-2">{mode.title}</CardTitle>
+                  <CardDescription className="text-base text-gray-600">
+                    {mode.description}
+                  </CardDescription>
+                </div>
+              </Card>
+            );
+          })}
         </div>
-      )}
+      </section>
 
-      {showSearchResults && (
-        <section className="px-3 md:px-4 mt-4 md:mt-8 max-w-4xl mx-auto">
-          <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-3 md:mb-4 px-1">
-            {loadingPizzas 
-              ? t('home.search.loading')
-              : filteredPizzas.length > 0 
-                ? t('home.search.results', { count: filteredPizzas.length })
-                : t('home.search.noResults')}
-          </h2>
-          
-          {loadingPizzas ? (
-            <div className="space-y-3 md:space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-gray-200 rounded-xl md:rounded-2xl h-20 md:h-24 animate-pulse" />
-              ))}
-            </div>
-          ) : filteredPizzas.length > 0 ? (
-            <div className="space-y-3 md:space-y-4">
-              {filteredPizzas.map((pizza) => (
-                <PizzaSearchResult
-                  key={pizza.id}
-                  pizza={pizza}
-                  restaurant={restaurantsById[pizza.restaurantId]}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-3 md:py-8 bg-white rounded-xl md:rounded-2xl px-4">
-              <div className="text-3xl md:text-4xl mb-2 md:mb-3">🔍</div>
-              <p className="text-sm md:text-base text-gray-600 font-medium">{t('home.search.noResults')}</p>
-              <p className="text-xs md:text-sm text-gray-500 mt-1 md:mt-2">{t('home.search.tryOther')}</p>
-            </div>
-          )}
-        </section>
-      )}
+      {/* Features Section */}
+      <section className="bg-amber-50 rounded-2xl p-8 mb-12 mx-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          {features.map((feature) => {
+            const Icon = feature.icon;
+            return (
+              <div 
+                key={feature.id}
+                className={`${feature.bgColor} rounded-xl p-6 flex flex-col items-center text-center`}
+              >
+                <div className={`w-16 h-16 rounded-lg bg-white flex items-center justify-center mb-4 shadow-sm`}>
+                  <Icon className={`h-8 w-8 ${feature.iconColor}`} />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {feature.title}
+                </h3>
+                <p className="text-sm text-gray-600">
+                  {feature.description}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
-      {!showSearchResults && (
-        <section className="px-4 md:px-6 mt-8 md:mt-12 max-w-4xl mx-auto">
-          {loading ? (
-            <div className="space-y-6 md:space-y-8">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-gray-200 rounded-2xl h-48 animate-pulse" />
-              ))}
-            </div>
-          ) : (
-            <>
-              <RestaurantsSection
-                restaurants={openRestaurants}
-                title={t('home.restaurants.open')}
-                getCategoryLabel={getCategoryLabelMemo}
-              />
-              <RestaurantsSection
-                restaurants={closedRestaurants}
-                title={t('home.restaurants.closed')}
-                getCategoryLabel={getCategoryLabelMemo}
-              />
-              
-              {error && (
-                <div className="text-center py-12 bg-red-50 rounded-2xl border border-red-200">
-                  <div className="text-4xl mb-3">⚠️</div>
-                  <p className="text-red-600 font-medium mb-2">
-                    {language === 'ar' ? "خطأ في تحميل المطاعم" : language === 'en' ? "Error loading restaurants" : "Erreur lors du chargement des restaurants"}
-                  </p>
-                  <p className="text-sm text-red-500 mb-2">{error.message}</p>
-                  <p className="text-xs text-red-400 mt-2">
-                    {language === 'ar' ? "تحقق من وحدة التحكم للمزيد من التفاصيل" : language === 'en' ? "Check console for more details" : "Vérifiez la console pour plus de détails"}
-                  </p>
-                </div>
-              )}
-              {!error && (filteredRestaurants.length === 0 && openRestaurants.length === 0 && closedRestaurants.length === 0) && !loading && (
-                <div className="text-center py-12 bg-white rounded-2xl">
-                  <div className="text-4xl mb-3">🔍</div>
-                  <p className="text-gray-600 font-medium mb-2">{t('home.search.noRestaurants')}</p>
-                  <p className="text-xs text-gray-500 mt-2">
-                    {language === 'ar' 
-                      ? `إجمالي المطاعم المحملة: ${restaurants.length} (مفتوحة: ${openRestaurants.length}, مغلقة: ${closedRestaurants.length})`
-                      : language === 'en'
-                      ? `Total restaurants loaded: ${restaurants.length} (open: ${openRestaurants.length}, closed: ${closedRestaurants.length})`
-                      : `Total restaurants chargés: ${restaurants.length} (ouverts: ${openRestaurants.length}, fermés: ${closedRestaurants.length})`}
-                  </p>
-                </div>
-              )}
-            </>
-          )}
-        </section>
-      )}
+      {/* CTA Section */}
+      <section className="text-center mb-12 px-4">
+        <Button 
+          size="lg" 
+          className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-6 text-lg"
+          asChild
+        >
+          <Link href="/menu">
+            {t('delivery.cta.restaurants')}
+            <ChevronRight className={`${isRtl ? 'mr-2 rotate-180' : 'ml-2'} h-5 w-5`} />
+          </Link>
+        </Button>
+      </section>
     </div>
   );
 }

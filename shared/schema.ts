@@ -136,6 +136,7 @@ export const orderItems = pgTable("order_items", {
   size: pizzaSizeEnum("size").notNull(),
   quantity: integer("quantity").notNull(),
   pricePerUnit: numeric("price_per_unit", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(), // Ajouté pour correspondre à la DB existante
 });
 
 // Idempotency Keys (anti double commande - PRIORITÉ 1)
@@ -171,6 +172,15 @@ export const cashHandovers = pgTable("cash_handovers", {
   validatedBy: varchar("validated_by").references(() => adminUsers.id, { onDelete: "set null" }), // Admin qui a validé
   validatedAt: timestamp("validated_at"), // Timestamp de validation par le gérant
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// App Settings (pour la configuration de l'application)
+export const appSettings = pgTable("app_settings", {
+  key: varchar("key").primaryKey(), // Clé unique du setting (ex: "delivery_modes_enabled")
+  value: text("value").notNull(), // Valeur du setting (JSON string ou texte simple)
+  description: text("description"), // Description du setting
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by").references(() => adminUsers.id, { onDelete: "set null" }),
 });
 
 // Zod Schemas for validation
@@ -420,3 +430,4 @@ export type UpdatePizza = z.infer<typeof updatePizzaSchema>;
 export type AssignDriver = z.infer<typeof assignDriverSchema>;
 export type CustomerLogin = z.infer<typeof customerLoginSchema>;
 export type CashHandover = typeof cashHandovers.$inferSelect;
+export type AppSetting = typeof appSettings.$inferSelect;

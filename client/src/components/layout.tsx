@@ -56,6 +56,7 @@
  */
 
 import { Link, useLocation } from "wouter";
+import { DeliveryModeToggle } from "./delivery-mode-toggle";
 import { ShoppingBag, Home, Pizza, Menu as MenuIcon, Globe, User } from "lucide-react";
 import { useCart } from "@/lib/cart";
 import { cn } from "@/lib/utils";
@@ -206,6 +207,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="text-center md:text-right text-xs space-y-2">
+              {/* Toggle pour les modes de livraison */}
+              <div className="flex items-center justify-center md:justify-end gap-2 py-2">
+                <DeliveryModeToggle />
+              </div>
+              
               <div>
                 <a href="/restaurant/login" className="text-muted-foreground hover:text-primary transition-colors underline text-xs">
                   Espace Restaurant

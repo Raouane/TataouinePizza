@@ -4,6 +4,7 @@ import { setupWebSocket } from "./websocket";
 import { registerAdminCrudRoutes } from "./routes/admin-crud";
 import { registerAdminSeedRoutes } from "./routes/admin-seed";
 import { registerAdminMigrationRoute } from "./routes/admin-migration";
+import { registerAdminSettingsRoutes } from "./routes/admin-settings";
 import { registerPublicRoutes } from "./routes/public";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerRestaurantDashboardRoutes } from "./routes/restaurant-dashboard";
@@ -66,6 +67,7 @@ export async function registerRoutes(
   registerAdminCrudRoutes(app);
   registerAdminSeedRoutes(app);
   registerAdminMigrationRoute(app);
+  registerAdminSettingsRoutes(app);
   registerStripeRoutes(app);
   registerFlouciRoutes(app);
 

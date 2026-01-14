@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { RefreshCw, Menu, Settings, BarChart3, Store, Bike, Pizza as PizzaIcon, ShoppingCart, LogOut, Database } from "lucide-react";
+import { RefreshCw, Menu, Settings, BarChart3, Store, Bike, Pizza as PizzaIcon, ShoppingCart, LogOut, Database, Cog } from "lucide-react";
 
 interface AdminHeaderProps {
   activeTab: string;
@@ -104,6 +104,17 @@ export function AdminHeader({
                     >
                       <PizzaIcon className="w-4 h-4" />
                       <span>Produits</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-2 h-auto py-2"
+                      onClick={() => {
+                        onSetActiveTab("settings");
+                        onSetShowMenu(false);
+                      }}
+                    >
+                      <Cog className="w-4 h-4" />
+                      <span>Paramètres</span>
                     </Button>
                   </div>
 
