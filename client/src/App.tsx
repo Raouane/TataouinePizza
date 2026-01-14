@@ -296,12 +296,12 @@ function Router() {
       {/* ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG */}
       <Route path="/onboarding" component={OnboardingPage} />
       
-      {/* Redirection intelligente /admin → /admin/login ou /admin/dashboard */}
-      <Route path="/admin" component={AdminRedirect} />
-      
-      {/* Routes d'authentification et administration */}
+      {/* Routes d'authentification et administration - Routes exactes AVANT la redirection /admin */}
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
+      
+      {/* Redirection intelligente /admin → /admin/login ou /admin/dashboard (APRÈS les routes exactes) */}
+      <Route path="/admin" component={AdminRedirect} />
       <Route path="/driver/login" component={DriverLogin} />
       <Route path="/driver/auto-login" component={DriverAutoLogin} />
       <Route path="/driver/dashboard" component={DriverDashboard} />
