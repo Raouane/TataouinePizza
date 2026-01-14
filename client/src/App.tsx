@@ -289,35 +289,12 @@ function Router() {
   return (
     <Switch>
       {/* ============================================
-          ROUTES PUBLIQUES (sans Layout)
-          ============================================ */}
-      
-      {/* Route onboarding toujours accessible (même si désactivé, pour accès manuel) */}
-      {/* ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG */}
-      <Route path="/onboarding" component={OnboardingPage} />
-      
-      {/* Routes d'authentification et administration - Routes exactes AVANT la redirection /admin */}
-      <Route path="/admin/login" component={AdminLogin} />
-      <Route path="/admin/dashboard" component={AdminDashboard} />
-      
-      {/* Redirection intelligente /admin → /admin/login ou /admin/dashboard (APRÈS les routes exactes) */}
-      <Route path="/admin" component={AdminRedirect} />
-      <Route path="/driver/login" component={DriverLogin} />
-      <Route path="/driver/auto-login" component={DriverAutoLogin} />
-      <Route path="/driver/dashboard" component={DriverDashboard} />
-      <Route path="/restaurant/login" component={RestaurantLogin} />
-      <Route path="/restaurant/dashboard" component={RestaurantDashboard} />
-      
-      {/* ============================================
-          ROUTES PROTÉGÉES (avec Layout)
+          ROUTE RACINE EN PREMIER (PRIORITÉ ABSOLUE)
           ============================================ */}
       <Route>
         <Layout>
           <Switch>
-            {/* ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG */}
-            {/* Si onboarding désactivé, isOnboarded = true → accès direct à Home */}
-            
-            {/* Route racine - Page d'accueil */}
+            {/* Route racine - Page d'accueil (PRIORITÉ ABSOLUE) */}
             <Route
               path="/"
               component={() => (isOnboarded ? <Home /> : <OnboardingPage />)}
@@ -401,6 +378,32 @@ function Router() {
             
             {/* Route 404 - Page non trouvée (doit être en dernier) */}
             <Route component={NotFound} />
+          </Switch>
+        </Layout>
+      </Route>
+      
+      {/* ============================================
+          ROUTES PUBLIQUES (sans Layout)
+          ============================================ */}
+      
+      {/* Route onboarding toujours accessible (même si désactivé, pour accès manuel) */}
+      {/* ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG */}
+      <Route path="/onboarding" component={OnboardingPage} />
+      
+      {/* Routes d'authentification et administration - Routes exactes AVANT la redirection /admin */}
+      <Route path="/admin/login" component={AdminLogin} />
+      <Route path="/admin/dashboard" component={AdminDashboard} />
+      
+      {/* Redirection intelligente /admin → /admin/login ou /admin/dashboard (APRÈS les routes exactes) */}
+      <Route path="/admin" component={AdminRedirect} />
+      <Route path="/driver/login" component={DriverLogin} />
+      <Route path="/driver/auto-login" component={DriverAutoLogin} />
+      <Route path="/driver/dashboard" component={DriverDashboard} />
+      <Route path="/restaurant/login" component={RestaurantLogin} />
+      <Route path="/restaurant/dashboard" component={RestaurantDashboard} />
+      
+      {/* Route 404 finale pour les routes non trouvées */}
+      <Route component={NotFound} />
           </Switch>
         </Layout>
       </Route>
