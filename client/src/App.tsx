@@ -311,99 +311,88 @@ function Router() {
       {/* ============================================
           ROUTES PROTÉGÉES (avec Layout) - APRÈS LES ROUTES PUBLIQUES
           ============================================ */}
-      <Route>
+      
+      {/* Route /menu sans restaurantId → redirection vers / */}
+      <Route path="/menu">
         <Layout>
-          <Switch>
-            {/* Route racine - Page d'accueil (PRIORITÉ ABSOLUE) */}
-            <Route
-              path="/"
-              component={() => (isOnboarded ? <Home /> : <OnboardingPage />)}
-            />
-            
-            {/* Route /menu sans restaurantId → redirection vers / */}
-            <Route
-              path="/menu"
-              component={() => (isOnboarded ? <MenuRedirect /> : <OnboardingPage />)}
-            />
-            
-            {/* Route menu avec paramètre restaurantId (ex: /menu/123) */}
-            <Route
-              path="/menu/:restaurantId"
-              component={() => (isOnboarded ? <Menu /> : <OnboardingPage />)}
-            />
-            
-            {/* Page panier */}
-            <Route
-              path="/cart"
-              component={() =>
-                isOnboarded ? <CartPage /> : <OnboardingPage />
-              }
-            />
-            
-            {/* Page de succès de commande */}
-            <Route
-              path="/success"
-              component={() =>
-                isOnboarded ? <OrderSuccess /> : <OnboardingPage />
-              }
-            />
-            
-            {/* Historique des commandes */}
-            <Route
-              path="/history"
-              component={() =>
-                isOnboarded ? <OrderHistory /> : <OnboardingPage />
-              }
-            />
-            
-            {/* Profil utilisateur */}
-            <Route
-              path="/profile"
-              component={() =>
-                isOnboarded ? <Profile /> : <OnboardingPage />
-              }
-            />
-            
-            {/* Formulaire de livraison - Étape 1 */}
-            <Route
-              path="/delivery-form"
-              component={() =>
-                isOnboarded ? <DeliveryForm /> : <OnboardingPage />
-              }
-            />
-            
-            {/* Formulaire de livraison - Étape 2 */}
-            <Route
-              path="/delivery-form-step2"
-              component={() =>
-                isOnboarded ? <DeliveryFormStep2 /> : <OnboardingPage />
-              }
-            />
-            
-            {/* Formulaire de livraison - Étape 3 */}
-            <Route
-              path="/delivery-form-step3"
-              component={() =>
-                isOnboarded ? <DeliveryFormStep3 /> : <OnboardingPage />
-              }
-            />
-            
-            {/* Page professionnel de livraison */}
-            <Route
-              path="/delivery-professional"
-              component={() =>
-                isOnboarded ? <DeliveryProfessional /> : <OnboardingPage />
-              }
-            />
-            
-            {/* Route 404 - Page non trouvée (doit être en dernier) */}
-            <Route component={NotFound} />
-          </Switch>
+          {isOnboarded ? <MenuRedirect /> : <OnboardingPage />}
+        </Layout>
+      </Route>
+      
+      {/* Route menu avec paramètre restaurantId (ex: /menu/123) */}
+      <Route path="/menu/:restaurantId">
+        <Layout>
+          {isOnboarded ? <Menu /> : <OnboardingPage />}
+        </Layout>
+      </Route>
+      
+      {/* Page panier */}
+      <Route path="/cart">
+        <Layout>
+          {isOnboarded ? <CartPage /> : <OnboardingPage />}
+        </Layout>
+      </Route>
+      
+      {/* Page de succès de commande */}
+      <Route path="/success">
+        <Layout>
+          {isOnboarded ? <OrderSuccess /> : <OnboardingPage />}
+        </Layout>
+      </Route>
+      
+      {/* Historique des commandes */}
+      <Route path="/history">
+        <Layout>
+          {isOnboarded ? <OrderHistory /> : <OnboardingPage />}
+        </Layout>
+      </Route>
+      
+      {/* Profil utilisateur */}
+      <Route path="/profile">
+        <Layout>
+          {isOnboarded ? <Profile /> : <OnboardingPage />}
+        </Layout>
+      </Route>
+      
+      {/* Formulaire de livraison - Étape 1 */}
+      <Route path="/delivery-form">
+        <Layout>
+          {isOnboarded ? <DeliveryForm /> : <OnboardingPage />}
+        </Layout>
+      </Route>
+      
+      {/* Formulaire de livraison - Étape 2 */}
+      <Route path="/delivery-form-step2">
+        <Layout>
+          {isOnboarded ? <DeliveryFormStep2 /> : <OnboardingPage />}
+        </Layout>
+      </Route>
+      
+      {/* Formulaire de livraison - Étape 3 */}
+      <Route path="/delivery-form-step3">
+        <Layout>
+          {isOnboarded ? <DeliveryFormStep3 /> : <OnboardingPage />}
+        </Layout>
+      </Route>
+      
+      {/* Page professionnel de livraison */}
+      <Route path="/delivery-professional">
+        <Layout>
+          {isOnboarded ? <DeliveryProfessional /> : <OnboardingPage />}
+        </Layout>
+      </Route>
+      
+      {/* Route racine - Page d'accueil (DOIT ÊTRE EN DERNIER pour éviter de matcher toutes les routes) */}
+      <Route path="/">
+        <Layout>
+          {isOnboarded ? <Home /> : <OnboardingPage />}
         </Layout>
       </Route>
       
       {/* Route 404 finale pour les routes non trouvées (hors Layout) */}
-      <Route component={NotFound} />
+      <Route path="*">
+        <NotFound />
+      </Route>
     </Switch>
   );
 }

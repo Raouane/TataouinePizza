@@ -178,6 +178,20 @@ export function serveStatic(app: Express) {
     next();
   });
 
+  // Route explicite pour la racine / pour garantir qu'elle serve index.html
+  app.get("/", (req, res) => {
+    const indexPath = path.resolve(actualDistPath, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      console.log(`[STATIC] 📄 Servir index.html pour la route racine /`);
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send('index.html not found');
+    }
+  });
+
   app.use(express.static(actualDistPath, {
     // Ne pas servir index.html automatiquement pour les routes SPA
     index: false,
