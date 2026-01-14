@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Check, Phone, MessageCircle, MapPin, Clock, ChefHat, Bike, AlertCircle, X } from "lucide-react";
+import { Check, Phone, MessageCircle, MapPin, Clock, ChefHat, Bike, AlertCircle, X, Navigation } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useLanguage } from "@/lib/i18n";
 import { useOrder } from "@/lib/order-context";
@@ -122,6 +122,94 @@ export default function OrderSuccess() {
       setShowSuccessMessage(true);
     }
   }, [isDelivered, showSuccessMessage]);
+
+  // Fonction pour partager la position GPS via WhatsApp
+  const handleShareLocation = () => {
+    // Vérifier si le navigateur supporte la géolocalisation
+    if (!("geolocation" in navigator)) {
+      toast.error(t('geolocation.notSupported'));
+      return;
+    }
+
+    // Vérifier qu'on a un numéro de livreur
+    if (!orderData?.driverPhone && !orderData?.phone) {
+      toast.error(t('order.tracking.shareLocation.error'));
+      return;
+    }
+
+    // Demander la position GPS actuelle
+    navigator.geolocation.getCurrentPosition(
+      // ✅ SUCCÈS : La position a été récupérée
+      (position) => {
+        // Récupérer les coordonnées depuis l'objet position
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        
+        console.log('[ShareLocation] Position récupérée:', { latitude, longitude });
+        
+        // Générer le lien Google Maps avec les coordonnées
+        const mapsLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
+        
+        // Préparer le numéro du livreur (sans le signe +, uniquement les chiffres)
+        const driverPhone = (orderData?.driverPhone || orderData?.phone || '')
+          .replace(/[^0-9]/g, ''); // Retirer tout sauf les chiffres
+        
+        if (!driverPhone) {
+          toast.error(t('order.tracking.shareLocation.error'));
+          return;
+        }
+
+        // Créer le message multilingue avec les coordonnées
+        const message = t('order.tracking.shareLocation.message', {
+          orderId: orderId || 'N/A',
+          mapsLink: mapsLink
+        });
+
+        // Encoder le message pour WhatsApp (URL encoding)
+        const encodedMessage = encodeURIComponent(message);
+        
+        // Ouvrir WhatsApp avec le message pré-rempli
+        const whatsappUrl = `https://wa.me/${driverPhone}?text=${encodedMessage}`;
+        window.open(whatsappUrl, '_blank');
+        
+        toast.success(t('order.tracking.shareLocation.success'));
+      },
+      
+      // ❌ ERREUR : La position n'a pas pu être récupérée
+      (error) => {
+        console.error('[ShareLocation] Erreur géolocalisation:', error);
+        let errorMessage: string;
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            // L'utilisateur a refusé l'accès GPS
+            errorMessage = t('geolocation.permissionDenied');
+            break;
+          case error.POSITION_UNAVAILABLE:
+            // La position n'est pas disponible (GPS désactivé, etc.)
+            errorMessage = t('geolocation.positionUnavailable');
+            break;
+          case error.TIMEOUT:
+            // Le délai d'attente est dépassé
+            errorMessage = t('geolocation.timeout');
+            break;
+          default:
+            // Erreur inconnue
+            errorMessage = t('geolocation.unknownError');
+            break;
+        }
+        
+        toast.error(errorMessage);
+      },
+      
+      // ⚙️ OPTIONS de géolocalisation
+      {
+        enableHighAccuracy: true,  // Utiliser la meilleure précision possible (GPS)
+        timeout: 10000,            // Délai max: 10 secondes
+        maximumAge: 0              // Ne pas utiliser de position en cache (toujours demander une nouvelle)
+      }
+    );
+  };
 
   // Fonction pour annuler la commande
   const handleCancelOrder = async () => {
@@ -559,6 +647,15 @@ export default function OrderSuccess() {
                 <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => window.location.href = `tel:${orderData?.driverPhone || orderData?.phone || ''}`}>
                   <Phone className="h-5 w-5" />
                 </Button>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  className="h-10 w-10 border-green-500 text-green-600 hover:bg-green-50" 
+                  onClick={handleShareLocation}
+                  title={t('order.tracking.shareLocation')}
+                >
+                  <Navigation className="h-5 w-5" />
+                </Button>
                 <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => window.location.href = `sms:${orderData?.driverPhone || orderData?.phone || ''}`}>
                   <MessageCircle className="h-5 w-5" />
                 </Button>
@@ -655,14 +752,26 @@ export default function OrderSuccess() {
         {/* Boutons d'action */}
         <div className="flex gap-3 pt-4">
           {orderData?.driverId && (
-            <Button
-              size="lg"
-              className="flex-1 bg-orange-600 hover:bg-orange-700"
-              onClick={() => window.location.href = `tel:${orderData?.driverPhone || orderData?.phone || ''}`}
-            >
-              <Phone className="h-5 w-5 mr-2" />
-              {t('order.tracking.callDriver')}
-            </Button>
+            <>
+              <Button
+                size="lg"
+                className="flex-1 bg-orange-600 hover:bg-orange-700"
+                onClick={() => window.location.href = `tel:${orderData?.driverPhone || orderData?.phone || ''}`}
+              >
+                <Phone className="h-5 w-5 mr-2" />
+                {t('order.tracking.callDriver')}
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-green-500 text-green-600 hover:bg-green-50"
+                onClick={handleShareLocation}
+                title={t('order.tracking.shareLocation')}
+              >
+                <Navigation className="h-5 w-5 mr-2" />
+                {t('order.tracking.shareLocation')}
+              </Button>
+            </>
           )}
           <Link href="/">
             <Button size="lg" variant="outline" className={orderData?.driverId ? "px-6" : "flex-1"}>

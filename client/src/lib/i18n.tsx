@@ -138,6 +138,11 @@ const translations: Translations = {
   'order.tracking.callDriver': { fr: "Appeler le livreur", en: "Call driver", ar: "اتصل بالسائق" },
   'order.tracking.back': { fr: "Retour", en: "Back", ar: "رجوع" },
   'order.tracking.restaurant.default': { fr: "Restaurant", en: "Restaurant", ar: "مطعم" },
+  'order.tracking.shareLocation': { fr: "Partager ma position exacte via WhatsApp", en: "Share my exact location via WhatsApp", ar: "مشاركة موقعي الدقيق عبر واتساب" },
+  'order.tracking.shareLocation.message': { fr: "📍 *Localisation de livraison pour la commande #{orderId}*\n\nVoici ma position exacte : {mapsLink}\n\nالرجاء التوصيل إلى هذا الموقع", en: "📍 *Delivery location for order #{orderId}*\n\nHere is my exact location: {mapsLink}\n\nالرجاء التوصيل إلى هذا الموقع", ar: "📍 *موقع التوصيل للطلب رقم #{orderId}*\n\nهذا موقعي الدقيق: {mapsLink}\n\nالرجاء التوصيل إلى هذا الموقع" },
+  'order.tracking.shareLocation.error': { fr: "Impossible d'accéder à votre position. Veuillez vérifier les permissions GPS.", en: "Unable to access your location. Please check GPS permissions.", ar: "تعذر الوصول إلى موقعك. يرجى التحقق من أذونات GPS." },
+  'order.tracking.shareLocation.denied': { fr: "Accès à la position refusé. Veuillez autoriser l'accès GPS dans les paramètres.", en: "Location access denied. Please allow GPS access in settings.", ar: "تم رفض الوصول إلى الموقع. يرجى السماح بالوصول إلى GPS في الإعدادات." },
+  'order.tracking.shareLocation.success': { fr: "Position partagée avec succès", en: "Location shared successfully", ar: "تم مشاركة الموقع بنجاح" },
 
   // Tracker
   'tracker.title': { fr: "Suivi de commande", en: "Order Tracking", ar: "تتبع الطلب" },
