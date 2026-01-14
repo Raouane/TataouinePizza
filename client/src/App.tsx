@@ -404,9 +404,6 @@ function Router() {
       
       {/* Route 404 finale pour les routes non trouvées */}
       <Route component={NotFound} />
-          </Switch>
-        </Layout>
-      </Route>
     </Switch>
   );
 }
