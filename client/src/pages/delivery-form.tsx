@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, MapPin, ChevronRight } from "lucide-react";
+import { ArrowLeft, MapPin, ChevronRight, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/lib/i18n";
+import { toast } from "sonner";
 
 // Les titres des modes de livraison sont maintenant dans i18n.tsx
 const deliveryModes: Record<string, { image: string; color: string }> = {
@@ -48,6 +49,7 @@ export default function DeliveryForm() {
 
   const [pickupAddress, setPickupAddress] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
 
   // Charger les données depuis l'onboarding si disponibles
   useEffect(() => {
@@ -64,6 +66,93 @@ export default function DeliveryForm() {
       console.error("Error loading onboarding data:", e);
     }
   }, []);
+
+  // Fonction pour obtenir la position GPS et remplir l'adresse de livraison
+  const handleGetGPSLocation = () => {
+    console.log('[DeliveryForm] 🧭 Clic sur le bouton GPS');
+    
+    // Vérifier si le navigateur supporte la géolocalisation
+    if (!("geolocation" in navigator)) {
+      toast.error(t('geolocation.notSupported'));
+      return;
+    }
+
+    setIsGettingLocation(true);
+
+    // Demander la position GPS actuelle
+    navigator.geolocation.getCurrentPosition(
+      // ✅ SUCCÈS : La position a été récupérée
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        console.log('[DeliveryForm] ✅ Position récupérée:', { latitude, longitude });
+        
+        try {
+          // Utiliser le géocodage inverse pour obtenir l'adresse
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`);
+          const data = await response.json();
+          
+          if (data && data.display_name) {
+            // Remplir l'adresse de livraison avec l'adresse géocodée
+            setDeliveryAddress(data.display_name);
+            
+            // Sauvegarder aussi dans onboarding pour réutilisation
+            const onboarding = localStorage.getItem("tp_onboarding");
+            const onboardingData = onboarding ? JSON.parse(onboarding) : {};
+            onboardingData.address = data.display_name;
+            onboardingData.lat = latitude;
+            onboardingData.lng = longitude;
+            localStorage.setItem("tp_onboarding", JSON.stringify(onboardingData));
+            
+            toast.success(t('delivery.step1.gps.success') || 'Adresse remplie automatiquement depuis votre position GPS');
+          } else {
+            // Si pas d'adresse trouvée, utiliser les coordonnées
+            const coordsAddress = `${latitude}, ${longitude}`;
+            setDeliveryAddress(coordsAddress);
+            toast.success(t('delivery.step1.gps.coords') || 'Coordonnées GPS utilisées');
+          }
+        } catch (error) {
+          console.error('[DeliveryForm] ❌ Erreur géocodage inverse:', error);
+          // En cas d'erreur, utiliser directement les coordonnées
+          const coordsAddress = `${latitude}, ${longitude}`;
+          setDeliveryAddress(coordsAddress);
+          toast.success(t('delivery.step1.gps.coords') || 'Coordonnées GPS utilisées');
+        }
+        
+        setIsGettingLocation(false);
+      },
+      
+      // ❌ ERREUR : La position n'a pas pu être récupérée
+      (error) => {
+        console.error('[DeliveryForm] ❌ Erreur géolocalisation:', error);
+        setIsGettingLocation(false);
+        let errorMessage: string;
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = t('geolocation.permissionDenied');
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = t('geolocation.positionUnavailable');
+            break;
+          case error.TIMEOUT:
+            errorMessage = t('geolocation.timeout');
+            break;
+          default:
+            errorMessage = t('geolocation.unknownError');
+            break;
+        }
+        
+        toast.error(errorMessage);
+      },
+      
+      // ⚙️ OPTIONS de géolocalisation
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  };
 
   const handleContinue = () => {
     // Validation
@@ -172,6 +261,22 @@ export default function DeliveryForm() {
                 onChange={(e) => setDeliveryAddress(e.target.value)}
                 className={`h-12 text-base ${isRtl ? 'pr-11' : 'pl-11'}`}
               />
+              {/* Bouton GPS pour remplir automatiquement l'adresse */}
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={handleGetGPSLocation}
+                disabled={isGettingLocation}
+                className={`absolute top-1/2 -translate-y-1/2 ${isRtl ? 'left-3' : 'right-3'} h-8 w-8 border-green-500 text-green-600 hover:bg-green-50 bg-green-50 disabled:opacity-50`}
+                title={t('order.tracking.shareLocation') || 'Utiliser ma position GPS'}
+              >
+                {isGettingLocation ? (
+                  <div className="h-4 w-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Navigation className="h-4 w-4" />
+                )}
+              </Button>
             </div>
           </div>
         </div>

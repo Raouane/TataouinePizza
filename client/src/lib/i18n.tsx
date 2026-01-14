@@ -320,6 +320,8 @@ const translations: Translations = {
   'delivery.step1.continue': { fr: "Continuer", en: "Continue", ar: "متابعة" },
   'delivery.step1.error.pickup': { fr: "Veuillez entrer une adresse de récupération", en: "Please enter a pickup address", ar: "الرجاء إدخال عنوان الاستلام" },
   'delivery.step1.error.delivery': { fr: "Veuillez entrer une adresse de livraison", en: "Please enter a delivery address", ar: "الرجاء إدخال عنوان التسليم" },
+  'delivery.step1.gps.success': { fr: "Adresse remplie automatiquement depuis votre position GPS", en: "Address automatically filled from your GPS location", ar: "تم ملء العنوان تلقائياً من موقع GPS الخاص بك" },
+  'delivery.step1.gps.coords': { fr: "Coordonnées GPS utilisées", en: "GPS coordinates used", ar: "تم استخدام إحداثيات GPS" },
 
   // Delivery Form - Step 2
   'delivery.step2.info.title': { fr: "Vos informations", en: "Your Information", ar: "معلوماتك الشخصية" },
