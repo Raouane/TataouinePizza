@@ -97,7 +97,7 @@
  * ============================================================================
  */
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -124,13 +124,12 @@ import DriverAutoLogin from "@/pages/driver-auto-login";
 import DriverDashboard from "@/pages/driver-dashboard";
 import RestaurantLogin from "@/pages/restaurant-login";
 import RestaurantDashboard from "@/pages/restaurant-dashboard";
-import OnboardingPage, { getOnboarding } from "@/pages/onboarding";
+import OnboardingPage from "@/pages/onboarding";
 import DeliveryForm from "@/pages/delivery-form";
 import DeliveryFormStep2 from "@/pages/delivery-form-step2";
 import DeliveryFormStep3 from "@/pages/delivery-form-step3";
 import DeliveryProfessional from "@/pages/delivery-professional";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
-import { isOnboardingEnabled, shouldSkipOnboarding } from "@/lib/onboarding-config";
 
 /**
  * Hook personnalisé pour vérifier l'état de l'onboarding avec réactivité
@@ -149,66 +148,9 @@ import { isOnboardingEnabled, shouldSkipOnboarding } from "@/lib/onboarding-conf
 // ONBOARDING DISABLED FOR MVP – ENABLE VIA ENABLE_ONBOARDING ENV FLAG
 // Pour le MVP, retourne toujours true pour permettre l'accès direct à toutes les pages
 function useOnboarding() {
-  const onboardingEnabled = isOnboardingEnabled();
-  
-  // Si l'onboarding est désactivé (MVP), toujours retourner true
+  // Simplification drastique : retourner toujours true pour le MVP
   // Cela permet d'afficher directement la page d'accueil sans redirection
-  if (!onboardingEnabled) {
-    return true; // Onboarding désactivé → accès direct à toutes les pages
-  }
-  
-  // Si l'onboarding est activé (futur), utiliser la logique complète
-  const [location] = useLocation();
-  const [isOnboarded, setIsOnboarded] = useState(() => {
-    // Si on est sur /onboarding, ne pas considérer comme complété pour éviter les redirections
-    if (location === '/onboarding') {
-      return false;
-    }
-    return !!getOnboarding();
-  });
-
-  useEffect(() => {
-    // Si on est sur /onboarding, ne pas considérer comme complété
-    if (location === '/onboarding') {
-      setIsOnboarded(false);
-      return;
-    }
-
-    // Vérifier l'onboarding au montage
-    setIsOnboarded(!!getOnboarding());
-
-    // Écouter les changements du localStorage
-    const handleStorageChange = () => {
-      // Ne pas rediriger si on est sur /onboarding
-      if (location === '/onboarding') {
-        return;
-      }
-      setIsOnboarded(!!getOnboarding());
-    };
-
-    // Écouter les événements de storage (depuis d'autres onglets)
-    window.addEventListener("storage", handleStorageChange);
-
-    // Vérifier périodiquement (pour les changements dans le même onglet)
-    const interval = setInterval(() => {
-      // Ne JAMAIS rediriger si on est sur /onboarding (même après sauvegarde)
-      if (location === '/onboarding') {
-        setIsOnboarded(false); // Forcer à false pour éviter toute redirection
-        return;
-      }
-      const currentState = !!getOnboarding();
-      if (currentState !== isOnboarded) {
-        setIsOnboarded(currentState);
-      }
-    }, 500);
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      clearInterval(interval);
-    };
-  }, [isOnboarded, location]);
-
-  return isOnboarded;
+  return true;
 }
 
 /**
@@ -281,17 +223,7 @@ function AdminRedirect() {
  * - Les query strings (?product=123) sont accessibles via window.location.search
  */
 function Router() {
-  const isOnboarded = useOnboarding(); // Vérifie l'état d'onboarding
-  const [location] = useLocation(); // Pour déboguer la route actuelle
-
-  // Debug: Logger la route actuelle pour identifier les problèmes de routage
-  useEffect(() => {
-    console.log("[ROUTER] Route actuelle:", location);
-    // Si on est sur /admin/login alors qu'on devrait être sur /, c'est un problème
-    if (location === "/admin/login" && window.location.pathname === "/") {
-      console.warn("[ROUTER] ⚠️ Problème détecté: Route Wouter est /admin/login mais URL navigateur est /");
-    }
-  }, [location]);
+  const isOnboarded = useOnboarding(); // Vérifie l'état d'onboarding (toujours true pour MVP)
 
   return (
     <Switch>
