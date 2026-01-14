@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/lib/i18n";
+import { useOrder } from "@/lib/order-context";
+import { toast } from "sonner";
 
 // Les titres des modes de livraison sont maintenant dans i18n.tsx
 const deliveryModes: Record<string, { image: string; color: string }> = {
@@ -39,7 +41,9 @@ const getDeliveryModeTitle = (modeId: string, t: (key: string) => string): strin
 export default function DeliveryFormStep3() {
   const [, setLocation] = useLocation();
   const { t, language, dir } = useLanguage();
+  const { startOrder } = useOrder();
   const isRtl = dir === 'rtl';
+  const [isCreating, setIsCreating] = useState(false);
 
   // Récupérer le mode de livraison depuis l'URL
   const params = new URLSearchParams(window.location.search);
@@ -63,24 +67,73 @@ export default function DeliveryFormStep3() {
     }
   }, []);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!formData) {
-      alert(t('delivery.step3.error.missing'));
+      toast.error(t('delivery.step3.error.missing'));
       setLocation("/");
       return;
     }
 
-    // Ajouter la description du colis
-    const finalData = {
-      ...formData,
-      packageDescription: packageDescription.trim(),
-      deliveryModeTitle: deliveryModeTitle
-    };
+    if (isCreating) return; // Éviter les doubles clics
 
-    localStorage.setItem("delivery_form_data", JSON.stringify(finalData));
+    setIsCreating(true);
 
-    // Rediriger vers la page du professionnel
-    setLocation(`/delivery-professional?mode=${modeId}`);
+    try {
+      // Ajouter la description du colis
+      const finalData = {
+        ...formData,
+        packageDescription: packageDescription.trim(),
+        deliveryModeTitle: deliveryModeTitle
+      };
+
+      localStorage.setItem("delivery_form_data", JSON.stringify(finalData));
+
+      // Créer une commande de livraison
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          restaurantId: "delivery-service", // ID spécial pour les livraisons
+          customerName: formData.name,
+          phone: formData.phone,
+          address: formData.deliveryAddress,
+          addressDetails: `${t('delivery.step3.summary.pickup')}: ${formData.pickupAddress} | ${t('delivery.step3.package.title')}: ${packageDescription.trim() || t('delivery.step3.summary.notSpecified')} | ${t('delivery.mode.title')}: ${deliveryModeTitle}`,
+          items: [
+            {
+              pizzaId: "delivery-item",
+              size: "medium",
+              quantity: 1,
+            }
+          ],
+          notes: `Type: ${deliveryModeTitle} | Pickup: ${formData.pickupAddress} | Package: ${packageDescription.trim() || 'N/A'}`,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la création de la commande");
+      }
+
+      const result = await response.json();
+      const orderId = result.orderId || result.id;
+
+      console.log('[DeliveryFormStep3] ✅ Commande créée:', orderId);
+
+      // Démarrer le suivi de commande
+      if (orderId) {
+        startOrder(orderId);
+      }
+
+      // Rediriger vers la page de succès
+      setLocation(`/success?order=${orderId}`);
+      
+      toast.success(t('delivery.step3.success') || 'Commande créée avec succès');
+    } catch (error) {
+      console.error('[DeliveryFormStep3] ❌ Erreur création commande:', error);
+      toast.error(t('delivery.step3.error.create') || 'Erreur lors de la création de la commande');
+      setIsCreating(false);
+    }
   };
 
   // Calculer le total estimé (exemple)
@@ -209,10 +262,11 @@ export default function DeliveryFormStep3() {
           </Button>
           <Button
             onClick={handleConfirm}
-            className="flex-1 bg-white text-gray-900 hover:bg-gray-50 border border-gray-300 py-6 font-semibold"
+            disabled={isCreating}
+            className="flex-1 bg-white text-gray-900 hover:bg-gray-50 border border-gray-300 py-6 font-semibold disabled:opacity-50"
           >
-            {t('delivery.step3.confirm')}
-            <ChevronRight className={`${isRtl ? 'mr-2 rotate-180' : 'ml-2'} h-5 w-5`} />
+            {isCreating ? (t('delivery.step3.creating') || 'Création...') : t('delivery.step3.confirm')}
+            {!isCreating && <ChevronRight className={`${isRtl ? 'mr-2 rotate-180' : 'ml-2'} h-5 w-5`} />}
           </Button>
         </div>
       </div>

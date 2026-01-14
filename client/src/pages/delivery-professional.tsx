@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Phone, MessageCircle, MapPin, User, Package, Star } from "lucide-react";
+import { ArrowLeft, Phone, MessageCircle, MapPin, User, Package, Star, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/lib/i18n";
+import { toast } from "sonner";
 
 // Les données des professionnels (pourraient être dans une base de données)
 const deliveryModes: Record<string, { 
@@ -120,6 +121,86 @@ export default function DeliveryProfessional() {
     window.open(`https://wa.me/${professional.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
+  // Fonction pour partager la position GPS via WhatsApp
+  const handleShareLocation = () => {
+    console.log('[DeliveryProfessional] 🧭 Clic sur le bouton GPS');
+    
+    // Vérifier si le navigateur supporte la géolocalisation
+    if (!("geolocation" in navigator)) {
+      toast.error(t('geolocation.notSupported'));
+      return;
+    }
+
+    // Demander la position GPS actuelle
+    navigator.geolocation.getCurrentPosition(
+      // ✅ SUCCÈS : La position a été récupérée
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        console.log('[DeliveryProfessional] ✅ Position récupérée:', { latitude, longitude });
+        
+        // Générer le lien Google Maps avec les coordonnées
+        const mapsLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
+        
+        // Préparer le numéro du professionnel (sans le signe +, uniquement les chiffres)
+        const professionalPhone = professional.whatsapp.replace(/[^0-9]/g, '');
+        
+        if (!professionalPhone) {
+          toast.error(t('order.tracking.shareLocation.error'));
+          return;
+        }
+
+        // Créer le message multilingue avec les coordonnées
+        const message = t('order.tracking.shareLocation.message', {
+          orderId: formData?.name || 'Livraison',
+          mapsLink: mapsLink
+        });
+
+        // Encoder le message pour WhatsApp (URL encoding)
+        const encodedMessage = encodeURIComponent(message);
+        
+        // Ouvrir WhatsApp avec le message pré-rempli
+        const whatsappUrl = `https://wa.me/${professionalPhone}?text=${encodedMessage}`;
+        window.open(whatsappUrl, '_blank');
+        
+        toast.success(t('order.tracking.shareLocation.success'));
+      },
+      
+      // ❌ ERREUR : La position n'a pas pu être récupérée
+      (error) => {
+        console.error('[DeliveryProfessional] ❌ Erreur géolocalisation:', error);
+        let errorMessage: string;
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            // L'utilisateur a refusé l'accès GPS
+            errorMessage = t('geolocation.permissionDenied');
+            break;
+          case error.POSITION_UNAVAILABLE:
+            // La position n'est pas disponible (GPS désactivé, etc.)
+            errorMessage = t('geolocation.positionUnavailable');
+            break;
+          case error.TIMEOUT:
+            // Le délai d'attente est dépassé
+            errorMessage = t('geolocation.timeout');
+            break;
+          default:
+            // Erreur inconnue
+            errorMessage = t('geolocation.unknownError');
+            break;
+        }
+        
+        toast.error(errorMessage);
+      },
+      
+      // ⚙️ OPTIONS de géolocalisation
+      {
+        enableHighAccuracy: true,  // Utiliser la meilleure précision possible (GPS)
+        timeout: 10000,            // Délai max: 10 secondes
+        maximumAge: 0              // Ne pas utiliser de position en cache (toujours demander une nouvelle)
+      }
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50" dir={dir}>
       {/* Header */}
@@ -214,21 +295,30 @@ export default function DeliveryProfessional() {
             )}
 
             {/* Contact Buttons */}
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               <Button
                 onClick={handleCall}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white py-6 text-base font-semibold"
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 sm:py-6 text-sm sm:text-base font-semibold"
               >
-                <Phone className={`${isRtl ? 'ml-2' : 'mr-2'} h-5 w-5`} />
-                {t('delivery.professional.call')}
+                <Phone className={`${isRtl ? 'ml-2' : 'mr-2'} h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0`} />
+                <span className="truncate">{t('delivery.professional.call')}</span>
+              </Button>
+              <Button
+                onClick={handleShareLocation}
+                variant="outline"
+                className="w-full border-green-500 text-green-600 hover:bg-green-50 bg-green-50 py-3 sm:py-6 text-xs sm:text-sm md:text-base font-semibold flex items-center justify-center gap-1 sm:gap-2"
+              >
+                <Navigation className={`h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0`} />
+                <span className="hidden sm:inline">🧭 </span>
+                <span className="truncate text-center">{t('order.tracking.shareLocation')}</span>
               </Button>
               <Button
                 onClick={handleWhatsApp}
                 variant="outline"
-                className="w-full border-green-500 text-green-600 hover:bg-green-50 py-6 text-base font-semibold"
+                className="w-full border-green-500 text-green-600 hover:bg-green-50 py-3 sm:py-6 text-sm sm:text-base font-semibold"
               >
-                <MessageCircle className={`${isRtl ? 'ml-2' : 'mr-2'} h-5 w-5`} />
-                {t('delivery.professional.whatsapp')}
+                <MessageCircle className={`${isRtl ? 'ml-2' : 'mr-2'} h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0`} />
+                <span className="truncate">{t('delivery.professional.whatsapp')}</span>
               </Button>
             </div>
           </CardContent>

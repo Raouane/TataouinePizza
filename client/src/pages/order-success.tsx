@@ -37,6 +37,15 @@ export default function OrderSuccess() {
     dismissTimeoutDialog,
   } = useOrderTracking(orderId);
 
+  // 🔍 LOGS DE DEBUG POUR LE BOUTON GPS
+  useEffect(() => {
+    console.log('[OrderSuccess] 🔍 DEBUG GPS Button:');
+    console.log('  - orderData:', orderData);
+    console.log('  - orderData?.driverId:', orderData?.driverId);
+    console.log('  - orderId:', orderId);
+    console.log('  - Bouton GPS devrait être visible:', true); // Toujours visible maintenant
+  }, [orderData, orderId]);
+
   // Vérifier le paiement Flouci si on arrive depuis Flouci
   useEffect(() => {
     if (!isFlouciCallback() || flouciVerified || isVerifyingFlouci) {
@@ -663,6 +672,74 @@ export default function OrderSuccess() {
             </div>
           </Card>
         )}
+        
+        {/* Bouton de test GPS - TOUJOURS VISIBLE pour tester (version desktop) */}
+        {(() => {
+          console.log('[OrderSuccess] 🟢 Rendu du bouton GPS desktop');
+          return (
+            <Card className="p-4 border-green-200 bg-green-50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-sm text-green-700">🧭 {t('order.tracking.shareLocation')} (Test GPS)</p>
+                  <p className="text-xs text-green-600">Testez la géolocalisation - Cliquez pour partager votre position</p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  className="h-10 w-10 border-green-500 text-green-600 hover:bg-green-100" 
+                  onClick={() => {
+                    console.log('[OrderSuccess] 🧭 Clic sur le bouton GPS desktop');
+                  const testPhone = "21612345678";
+                  if (!("geolocation" in navigator)) {
+                    toast.error(t('geolocation.notSupported'));
+                    return;
+                  }
+                  navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                      const { latitude, longitude } = position.coords;
+                      const mapsLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
+                      const message = t('order.tracking.shareLocation.message', {
+                        orderId: orderId || 'TEST',
+                        mapsLink: mapsLink
+                      });
+                      const encodedMessage = encodeURIComponent(message);
+                      const whatsappUrl = `https://wa.me/${testPhone}?text=${encodedMessage}`;
+                      window.open(whatsappUrl, '_blank');
+                      toast.success(t('order.tracking.shareLocation.success'));
+                    },
+                    (error) => {
+                      let errorMessage: string;
+                      switch (error.code) {
+                        case error.PERMISSION_DENIED:
+                          errorMessage = t('geolocation.permissionDenied');
+                          break;
+                        case error.POSITION_UNAVAILABLE:
+                          errorMessage = t('geolocation.positionUnavailable');
+                          break;
+                        case error.TIMEOUT:
+                          errorMessage = t('geolocation.timeout');
+                          break;
+                        default:
+                          errorMessage = t('geolocation.unknownError');
+                          break;
+                      }
+                      toast.error(errorMessage);
+                    },
+                    {
+                      enableHighAccuracy: true,
+                      timeout: 10000,
+                      maximumAge: 0
+                    }
+                  );
+                }}
+                title={t('order.tracking.shareLocation')}
+              >
+                <Navigation className="h-5 w-5" />
+              </Button>
+            </div>
+          </Card>
+          );
+        })()}
 
         {/* Temps estimé */}
         <Card className="p-4">
@@ -764,7 +841,7 @@ export default function OrderSuccess() {
               <Button
                 size="lg"
                 variant="outline"
-                className="border-green-500 text-green-600 hover:bg-green-50"
+                className="flex-1 border-green-500 text-green-600 hover:bg-green-50"
                 onClick={handleShareLocation}
                 title={t('order.tracking.shareLocation')}
               >
@@ -773,6 +850,67 @@ export default function OrderSuccess() {
               </Button>
             </>
           )}
+          {/* Bouton de test GPS - TOUJOURS VISIBLE pour tester (version mobile) */}
+          {(() => {
+            console.log('[OrderSuccess] 🟢 Rendu du bouton GPS mobile');
+            return (
+              <Button
+                size="lg"
+                variant="outline"
+                className="flex-1 border-green-500 text-green-600 hover:bg-green-50 bg-green-50"
+                onClick={() => {
+                  console.log('[OrderSuccess] 🧭 Clic sur le bouton GPS mobile');
+                // Test avec un numéro de téléphone par défaut
+                const testPhone = "21612345678"; // Numéro de test
+                if (!("geolocation" in navigator)) {
+                  toast.error(t('geolocation.notSupported'));
+                  return;
+                }
+                navigator.geolocation.getCurrentPosition(
+                  (position) => {
+                    const { latitude, longitude } = position.coords;
+                    const mapsLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
+                    const message = t('order.tracking.shareLocation.message', {
+                      orderId: orderId || 'TEST',
+                      mapsLink: mapsLink
+                    });
+                    const encodedMessage = encodeURIComponent(message);
+                    const whatsappUrl = `https://wa.me/${testPhone}?text=${encodedMessage}`;
+                    window.open(whatsappUrl, '_blank');
+                    toast.success(t('order.tracking.shareLocation.success'));
+                  },
+                  (error) => {
+                    let errorMessage: string;
+                    switch (error.code) {
+                      case error.PERMISSION_DENIED:
+                        errorMessage = t('geolocation.permissionDenied');
+                        break;
+                      case error.POSITION_UNAVAILABLE:
+                        errorMessage = t('geolocation.positionUnavailable');
+                        break;
+                      case error.TIMEOUT:
+                        errorMessage = t('geolocation.timeout');
+                        break;
+                      default:
+                        errorMessage = t('geolocation.unknownError');
+                        break;
+                    }
+                    toast.error(errorMessage);
+                  },
+                  {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                  }
+                );
+              }}
+              title={t('order.tracking.shareLocation')}
+            >
+              <Navigation className="h-5 w-5 mr-2" />
+              🧭 {t('order.tracking.shareLocation')} (Test)
+            </Button>
+            );
+          })()}
           <Link href="/">
             <Button size="lg" variant="outline" className={orderData?.driverId ? "px-6" : "flex-1"}>
               {t('order.tracking.back')}
